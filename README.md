@@ -52,7 +52,7 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
   - 只送統計摘要與問題清單，不送原始 SPI 資料；可用環境變數 `AI_MODEL` 指定模型。
   - `GET /api/analyze` 可檢查 AI Gateway 是否啟用。
 - 登入保護：`netlify/edge-functions/auth.mjs` 對全站（含 `/api/analyze`）要求帳號＋密碼。
-  - 需在 Netlify 設定環境變數：`AUTH_USER`（帳號）、`AUTH_PASS_SHA256`（密碼的 SHA-256）、`AUTH_SECRET`（≥ 32 字元隨機字串）。缺任何一個時網站回 503。
+  - 需在 Netlify 設定環境變數：`AUTH_USER`（帳號）、`AUTH_PASS_SHA256`（密碼的 SHA-256）、`AUTH_SECRET`（≥ 32 字元隨機字串）。缺任何一個時網站回 503。Free 方案下環境變數不可設為「機密」（設定後函式讀不到），因此以一般變數存放；密碼只存 SHA-256，不存明文。
   - 變更密碼：計算新密碼的 SHA-256（例如 `printf '%s' '新密碼' | sha256sum`）並更新 `AUTH_PASS_SHA256`，重新部署後生效；更換 `AUTH_SECRET` 會讓所有人重新登入。
 
 ## 已知限制
