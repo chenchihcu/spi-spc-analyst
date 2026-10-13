@@ -36,6 +36,27 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 .brand h1{font-family:var(--f-display);font-size:34px;font-weight:600;letter-spacing:.02em;line-height:1}
 .brand .tag{font-size:12px;color:var(--muted);letter-spacing:.08em}
 .chipBtn{border:none;min-height:0;cursor:pointer;font:inherit;font-size:12px;color:var(--ink)}.chipBtn:hover{background:var(--line)}
+/* hidden 屬性一律隱藏：避免 .panel{display:grid} 等規則蓋過瀏覽器預設，導致未選取的頁籤也顯示 */
+[hidden]{display:none!important}
+.printHead,.print3d{display:none}
+@media print{
+  @page{size:A4;margin:12mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{background:#fff!important}
+  .wrap{max-width:none!important;padding:0!important}
+  .printHead{display:block;font-size:12px;border-bottom:1.5px solid #000;padding:0 0 6px;margin:0 0 10px;color:#000}
+  .printHead b{font-size:15px;margin-right:10px}
+  header.top,.rail,.tabs,.ctxbar,#toast,#busy,dialog,#libWarn,.railToggle{display:none!important}
+  .sticky{position:static!important;box-shadow:none!important}
+  .panel button:not([data-ent]),.panel input[type=file],.panel .drop,#hud{display:none!important}
+  .card,.iss-card,.kpi,table,figure{break-inside:avoid}
+  .card{box-shadow:none!important}
+  canvas{max-width:100%!important;height:auto!important}
+  #view3d canvas{display:none!important}
+  .view3d{height:auto!important;min-height:0!important;background:none!important}
+  .print3d{display:block;width:100%;height:auto;border:1px solid #ccc;border-radius:6px}
+  a[href]{text-decoration:none;color:inherit}
+}
 #busy{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:999px;font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.18)}#busy[hidden]{display:none}
 .spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(1turn)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
@@ -172,6 +193,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="row" style="justify-content:flex-end"><button value="close">關閉</button></div>
 </form></dialog>
 <div class="wrap">
+<div class="printHead" id="printHead" aria-hidden="true"></div>
 <header class="top">
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
@@ -180,6 +202,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="row">
     <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.5.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 07:03:54</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
+    <button class="chip chipBtn" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
     <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
     <a class="chip" id="logoutLink" href="/__logout" hidden>登出</a>
     <span class="chip">板數 <b id="srcBoards" class="num">—</b></span>
@@ -1967,6 +1990,17 @@ async function openShareFromUrl(){const id=new URLSearchParams(location.search).
     syncControls();recompute();if(v.tab&&$(`.tab[data-tab="${v.tab}"]`))setTab(v.tab);saveRunsSoon();
     toast(`已開啟分享的 ${ids.length} 個回合`)}
   catch(e){toast("無法開啟分享連結："+e.message)}}
+/* ---------- 列印／存成 PDF：列印目前頁籤，固定用淺色，頁首附回合與設定資訊 ---------- */
+const IN_CLAUDE=!!window.claude||/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
+let prTheme=null;
+function beforePrint(){const ht=document.documentElement;prTheme=ht.getAttribute("data-theme");if(prTheme!=="light")ht.setAttribute("data-theme","light");
+  const tabName=($(`.tab[data-tab="${S.tab}"]`)||{}).textContent||"";
+  $("#printHead").innerHTML=`<b>SPI·SPC 分析台 · ${esc(tabName)}</b>回合：${esc(S.source)}｜量測項目：${esc((METRICS[S.metric]||{}).label||S.metric)}｜元件群組：${esc(S.group==="ALL"?"全部":S.group)}｜鋼板 ${S.stencil} µm${S.step&&S.step.on?"（階梯）":""}｜列印時間 ${new Date().toLocaleString("zh-TW",{hour12:false})}｜系統 ${esc($("#appVer").textContent)} · ${esc($("#appBuilt").textContent)}`;
+  $$(".print3d").forEach(x=>x.remove());
+  if(S.tab==="sim3d"&&T.ok){try{if(prTheme!=="light")build3D();T.renderer.render(T.scene,T.cam);const img=new Image();img.className="print3d";img.alt="3D 錫膏模擬畫面";img.src=T.renderer.domElement.toDataURL("image/png");$("#view3d").appendChild(img)}catch(e){}}}
+function afterPrint(){const ht=document.documentElement;if(prTheme===null)ht.removeAttribute("data-theme");else if(prTheme!=="light")ht.setAttribute("data-theme",prTheme);prTheme=null;$$(".print3d").forEach(x=>x.remove())}
+addEventListener("beforeprint",beforePrint);addEventListener("afterprint",afterPrint);
+if(!IN_CLAUDE){$("#btnPrint").hidden=false;$("#btnPrint").onclick=()=>window.print()}
 if(HAS_API&&window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}
 $("#btnCopyShare").onclick=async()=>{const el=$("#shareUrl");try{await navigator.clipboard.writeText(el.value);$("#btnCopyShare").textContent="已複製"}catch(e){el.select();document.execCommand&&document.execCommand("copy");$("#btnCopyShare").textContent="已複製"}setTimeout(()=>$("#btnCopyShare").textContent="複製",1800)};
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
