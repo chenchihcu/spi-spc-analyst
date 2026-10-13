@@ -125,7 +125,7 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
     <p class="caps" id="caps" hidden>Caps Lock 已開啟</p>
     <input type="hidden" name="next" value="${esc(nextPath)}">
     <button type="submit" class="submit" id="go">登入</button>
-    <p class="foot">只有授權人員可以使用。資料只在您的瀏覽器中分析。</p>
+    <p class="foot">只有授權人員可以使用。資料在您的瀏覽器中分析；只有在您建立分享連結時，該回合資料才會上傳到本網站。</p>
   </form>
 </main>
 <script>

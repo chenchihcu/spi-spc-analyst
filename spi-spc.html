@@ -35,6 +35,12 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .brand h1{font-family:var(--f-display);font-size:34px;font-weight:600;letter-spacing:.02em;line-height:1}
 .brand .tag{font-size:12px;color:var(--muted);letter-spacing:.08em}
+.chipBtn{border:none;min-height:0;cursor:pointer;font:inherit;font-size:12px;color:var(--ink)}.chipBtn:hover{background:var(--line)}
+dialog#shareDlg{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:20px 22px;width:min(560px,calc(100% - 32px))}
+dialog#shareDlg::backdrop{background:rgba(10,13,11,.45)}
+dialog#shareDlg h3{margin:0 0 8px;font-size:17px}
+.shareRow{display:flex;gap:8px;margin:10px 0}.shareRow input{flex:1;min-width:0;font-family:var(--f-mono);font-size:12.5px}
+.shareHint{font-size:12.5px;color:var(--muted);margin:8px 0 14px}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
 .chip b{color:var(--ink);font-weight:500}
 .sticky{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg)}
@@ -154,6 +160,13 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
+<dialog id="shareDlg" aria-labelledby="shareTtl"><form method="dialog">
+  <h3 id="shareTtl">分享連結</h3>
+  <p id="shareMsg" role="status">正在建立連結…</p>
+  <div class="shareRow" id="shareRow" hidden><input type="text" id="shareUrl" readonly aria-label="分享連結網址"><button type="button" class="primary" id="btnCopyShare">複製</button></div>
+  <p class="shareHint">開啟連結的人必須先登入本網站；連結 30 天後失效。分享時，這個回合的量測資料會上傳到本網站的儲存空間（不會分享到其他地方）。</p>
+  <div class="row" style="justify-content:flex-end"><button value="close">關閉</button></div>
+</form></dialog>
 <div class="wrap">
 <header class="top">
   <div class="brand">
@@ -163,6 +176,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="row">
     <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.5.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 07:03:54</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
+    <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
     <a class="chip" id="logoutLink" href="/__logout" hidden>登出</a>
     <span class="chip">板數 <b id="srcBoards" class="num">—</b></span>
     <span class="chip">焊墊數 <b id="srcPads" class="num">—</b></span>
@@ -1841,12 +1855,46 @@ try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>ren
 /* ---------- 啟動 ---------- */
 if(!window.Chart)$("#libWarn").hidden=false;
 /* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
+const HAS_API=/\.netlify\.app$/.test(location.hostname)||/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 if(/\.netlify\.app$/.test(location.hostname))$("#logoutLink").hidden=false;
+/* ---------- 分享連結：壓縮後上傳到本網站（Netlify Blobs），連結需登入才能開啟，30 天失效 ---------- */
+async function gzipJSON(o){return new Uint8Array(await new Response(new Response(JSON.stringify(o)).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
+async function gunzipJSON(buf){return JSON.parse(await new Response(new Response(buf).body.pipeThrough(new DecompressionStream("gzip"))).text())}
+/* 分享內容來自別人：所有字串都過濾，數值必須有限，避免注入 */
+function deepClean(v,d=0){if(d>12||v==null)return null;if(typeof v==="string")return safeId(v);if(typeof v==="number")return isFinite(v)?v:null;if(typeof v==="boolean")return v;
+  if(Array.isArray(v))return v.map(x=>deepClean(x,d+1));if(typeof v==="object"){const o={};for(const k of Object.keys(v)){if(k==="__proto__"||k==="constructor"||k==="prototype")continue;o[safeId(k)]=deepClean(v[k],d+1)}return o}return null}
+function sharePack(){const c=curRun();if(c)c.cfg=snapCfg();const cmp=S.tab==="compare";
+  const pick=cmp?[S.cmpA,S.cmpB].map(id=>S.runs.find(r=>r.id===id)).filter(Boolean):[c];
+  const runs=[...new Set(pick)].map(r=>({name:r.name,rows:r.rows,metrics:r.metrics,cfg:r.cfg,info:r.info,aoi:r.aoi}));
+  return{kind:"spi-share",v:1,created:Date.now(),app:$("#appVer").textContent,runs,view:{tab:S.tab,metric:S.metric,group:S.group,board:S.board,cur:pick.indexOf(c),cmp}}}
+async function createShare(){const dlg=$("#shareDlg");$("#shareRow").hidden=true;$("#shareMsg").textContent="正在壓縮並上傳…";try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
+  try{const body=await gzipJSON(sharePack());if(body.length>5*1048576)throw new Error(`壓縮後仍有 ${(body.length/1048576).toFixed(1)} MB，超過分享上限 5 MB`);
+    const r=await fetch("/api/share",{method:"POST",headers:{"Content-Type":"application/gzip"},body});
+    const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+    const url=`${location.origin}/?share=${j.id}`;$("#shareUrl").value=url;$("#shareRow").hidden=false;
+    $("#shareMsg").textContent=`連結已建立（${(body.length/1024).toFixed(0)} KB），${new Date(j.expires).toLocaleDateString("zh-TW")} 前有效。`;$("#shareUrl").select()}
+  catch(e){$("#shareMsg").textContent="無法建立分享連結："+e.message}}
+async function openShareFromUrl(){const id=new URLSearchParams(location.search).get("share");if(!id)return;
+  const u=new URL(location.href);u.searchParams.delete("share");history.replaceState(null,"",u.pathname+u.search+u.hash);
+  if(!/^[A-Za-z0-9_-]{22}$/.test(id)){toast("分享連結格式不正確");return}
+  try{toast("正在開啟分享的回合…");const r=await fetch("/api/share?id="+id);if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}
+    const d=await gunzipJSON(await r.arrayBuffer());if(!d||d.kind!=="spi-share"||!Array.isArray(d.runs)||!d.runs.length)throw new Error("內容不是分享資料");
+    const ids=d.runs.slice(0,4).map(r0=>{const r1=deepClean(r0);if(!Array.isArray(r1.rows)||!r1.rows.length)throw new Error("分享資料沒有量測值");
+      const mets=(r1.metrics||[]).filter(m=>METRICS[m]&&m!=="hpct");const id=addRun("分享 · "+(r1.name||"回合"),r1.rows,mets.length?mets:["volume"],r1.cfg&&typeof r1.cfg==="object"?{...snapCfg(),...r1.cfg}:snapCfg(),r1.info||null);
+      const run=S.runs.find(x=>x.id===id);run.aoi=r1.aoi||null;return id});
+    const v=deepClean(d.view||{});if(v.cmp&&ids.length>1){S.cmpA=ids[0];S.cmpB=ids[1]}
+    switchRun(ids[Math.max(0,Math.min(ids.length-1,v.cur|0))]);
+    if(v.metric&&S.metrics.includes(v.metric))S.metric=v.metric;if(v.group&&(v.group==="ALL"||S.rows.some(x=>x.group===v.group)))S.group=v.group;
+    syncControls();recompute();if(v.tab&&$(`.tab[data-tab="${v.tab}"]`))setTab(v.tab);saveRunsSoon();
+    toast(`已開啟分享的 ${ids.length} 個回合`)}
+  catch(e){toast("無法開啟分享連結："+e.message)}}
+if(HAS_API&&window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}
+$("#btnCopyShare").onclick=async()=>{const el=$("#shareUrl");try{await navigator.clipboard.writeText(el.value);$("#btnCopyShare").textContent="已複製"}catch(e){el.select();document.execCommand&&document.execCommand("copy");$("#btnCopyShare").textContent="已複製"}setTimeout(()=>$("#btnCopyShare").textContent="複製",1800)};
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
 try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t){S.stencil=sv.t;S.htol={lo:sv.lo||75,hi:sv.hi||125};S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}
 initRuns(false);
-restoreRuns();
+restoreRuns().then(()=>{if(HAS_API&&window.DecompressionStream)return openShareFromUrl()});
 const h=(location.hash||"").slice(1);
 if(["issues","overview","compare","dfm","control","capability","sim3d","cross","adv","lab","ai","data"].includes(h))setTab(h);
 })();

@@ -3,7 +3,7 @@
   publish = "."
   command = ""
 
-# 後端函式：/api/analyze（AI 分析，透過 Netlify AI Gateway 呼叫 Claude，不需自備金鑰）
+# 後端函式：/api/analyze（AI 分析，透過 Netlify AI Gateway 呼叫 Claude）、/api/share（分享連結，存於 Netlify Blobs，30 天失效）
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
