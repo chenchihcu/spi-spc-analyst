@@ -1,7 +1,7 @@
 // 網站登入測試：帳密驗證、cookie 簽章與到期、未設定時拒絕、登入流程與 API 保護
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sha256Hex, checkCredentials, issueToken, verifyToken, readCookie, safeNext, configured, COOKIE } from "../lib/auth-core.mjs";
+import { sha256Hex, checkCredentials, authenticate, issueToken, verifyToken, readCookie, safeNext, configured, users, COOKIE, LOCK } from "../lib/auth-core.mjs";
 import { handle } from "../netlify/edge-functions/auth.mjs";
 
 // 測試用帳密（與正式環境無關）
@@ -26,11 +26,12 @@ test("未設定或設定不完整時一律拒絕（fail closed）", async () => 
 
 test("憑證：可驗證、竄改或過期即失效、換密鑰即失效", async () => {
   const now = 1_800_000_000, t = await issueToken(E, now);
-  assert.equal(await verifyToken(E, t, now + 60), true);
-  assert.equal(await verifyToken(E, t.replace(/.$/, (c) => (c === "0" ? "1" : "0")), now), false);
-  assert.equal(await verifyToken(E, t, now + 13 * 3600), false);
-  assert.equal(await verifyToken({ ...E, AUTH_SECRET: "y".repeat(40) }, t, now), false);
-  assert.equal(await verifyToken(E, "garbage", now), false);
+  assert.equal(await verifyToken(E, t, now + 60), "tester@example.com");
+  assert.equal(await verifyToken(E, t.replace(/.$/, (c) => (c === "0" ? "1" : "0")), now), null);
+  assert.equal(await verifyToken(E, t, now + 13 * 3600), null);
+  assert.equal(await verifyToken({ ...E, AUTH_SECRET: "y".repeat(40) }, t, now), null);
+  assert.equal(await verifyToken(E, "garbage", now), null);
+  assert.equal(await verifyToken({ ...E, AUTH_PASS_SHA256: await sha256Hex("changed!") }, t, now), null, "改密碼後舊登入失效");
 });
 
 test("cookie 讀取與返回路徑安全檢查", () => {
@@ -90,4 +91,71 @@ test("登入頁：品牌區、焊墊識別圖、顯示密碼、版本與主頁�
   assert.match(err, /帳號或密碼不正確/);
   assert.match(err, /value="a@b\.c"/, "錯誤後保留帳號");
   assert.match(err, /id="pass"[^>]*autofocus/, "錯誤後游標移到密碼欄");
+});
+
+// ---------- 多帳號、使用者識別、鎖定、安全標頭 ----------
+function memStore() {
+  const m = new Map();
+  return { m, async get(k) { return m.has(k) ? JSON.parse(m.get(k)) : null; }, async setJSON(k, v) { m.set(k, JSON.stringify(v)); }, async delete(k) { m.delete(k); } };
+}
+const E2 = { AUTH_USERS: JSON.stringify({ "Alice@Example.com": await sha256Hex("alice-pass-1"), "bob@example.com": await sha256Hex("bob-pass-22"), "bad@x": "not-a-hash" }), AUTH_SECRET: "z".repeat(40) };
+
+test("多帳號：AUTH_USERS（物件或陣列）可與舊設定並存；格式錯誤的項目略過", async () => {
+  assert.deepEqual([...users(E2).keys()].sort(), ["alice@example.com", "bob@example.com"]);
+  assert.equal(await authenticate(E2, "alice@example.com", "alice-pass-1"), "alice@example.com");
+  assert.equal(await authenticate(E2, "bob@example.com", "alice-pass-1"), null, "不可用別人的密碼");
+  const arr = { AUTH_USERS: JSON.stringify([{ user: "c@x.com", sha256: await sha256Hex("cpass") }]), ...E, };
+  assert.equal(await authenticate(arr, "c@x.com", "cpass"), "c@x.com");
+  assert.equal(await authenticate(arr, "tester@example.com", "12345678"), "tester@example.com", "舊設定仍可用");
+  assert.equal(configured({ AUTH_USERS: "{broken", AUTH_SECRET: "z".repeat(40) }), false);
+  const t = await issueToken(E2, "bob@example.com", 1_800_000_000);
+  assert.equal(await verifyToken(E2, t, 1_800_000_100), "bob@example.com");
+  const removed = { ...E2, AUTH_USERS: JSON.stringify({ "alice@example.com": await sha256Hex("alice-pass-1") }) };
+  assert.equal(await verifyToken(removed, t, 1_800_000_100), null, "刪除帳號後舊登入失效");
+});
+
+test("登入後：/__me 回傳帳號；API 請求帶 x-spi-user（覆寫用戶端偽造值）；靜態頁不改動", async () => {
+  const st = memStore();
+  let r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "ALICE@example.com", pass: "alice-pass-1" }) }), E2, ok, { store: st });
+  assert.equal(r.status, 303);
+  const sess = r.headers.get("set-cookie").split(";")[0];
+  r = await handle(new Request("https://s.example/__me", { headers: { cookie: sess } }), E2, ok);
+  assert.deepEqual(await r.json(), { user: "alice@example.com" });
+  assert.equal((await handle(new Request("https://s.example/__me"), E2, ok)).status, 401);
+  let seen = null;
+  await handle(new Request("https://s.example/api/analyze", { method: "POST", body: "{}", headers: { cookie: sess, "x-spi-user": "evil@x" } }), E2, (q) => { seen = q.headers.get("x-spi-user"); return ok(); });
+  assert.equal(seen, "alice@example.com");
+  let passed = "unset";
+  await handle(new Request("https://s.example/spi-spc.html", { headers: { cookie: sess } }), E2, (q) => { passed = q; return ok(); });
+  assert.equal(passed, undefined, "靜態頁直接放行");
+});
+
+test("鎖定：同一帳號連續失敗 5 次即鎖定，鎖定中正確密碼也不放行；15 分鐘後恢復；成功登入清除失敗紀錄", async () => {
+  const st = memStore(), t0 = 1_900_000_000_000;
+  const tryLogin = (pass, now, ip = "10.0.0.1") => handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "bob@example.com", pass }) }), E2, ok, { store: st, ip, now, noDelay: true });
+  for (let i = 0; i < LOCK.maxFails - 1; i++) assert.equal((await tryLogin("wrong", t0 + i)).status, 401);
+  assert.equal((await tryLogin("bob-pass-22", t0 + 10)).status, 303, "未達門檻時仍可登入");
+  for (let i = 0; i < LOCK.maxFails; i++) await tryLogin("wrong", t0 + 100 + i, "10.0.0." + (i + 2));
+  const locked = await tryLogin("bob-pass-22", t0 + 200, "10.9.9.9");
+  assert.equal(locked.status, 429);
+  assert.match(await locked.text(), /嘗試次數過多/);
+  assert.equal((await tryLogin("bob-pass-22", t0 + 100 + LOCK.lockMs + 10, "10.9.9.9")).status, 303, "鎖定期滿可登入");
+});
+
+test("鎖定：同一 IP 對多個帳號亂試也會被鎖", async () => {
+  const st = memStore(), t0 = 1_900_000_000_000;
+  for (let i = 0; i < LOCK.maxFails; i++) await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: `u${i}@x.com`, pass: "x" }) }), E2, ok, { store: st, ip: "1.2.3.4", now: t0 + i, noDelay: true });
+  const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "alice@example.com", pass: "alice-pass-1" }) }), E2, ok, { store: st, ip: "1.2.3.4", now: t0 + 50, noDelay: true });
+  assert.equal(r.status, 429);
+});
+
+test("安全標頭：登入頁有 CSP、禁止被嵌入、HSTS；netlify.toml 對全站設定相同標頭", async () => {
+  const r = await handle(new Request("https://s.example/"), E, ok);
+  assert.match(r.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+  assert.equal(r.headers.get("x-frame-options"), "DENY");
+  assert.match(r.headers.get("strict-transport-security"), /max-age=\d+/);
+  const fs = await import("node:fs");
+  const toml = fs.readFileSync(new URL("../netlify.toml", import.meta.url), "utf8");
+  for (const h of ["Content-Security-Policy", "X-Frame-Options", "Strict-Transport-Security", "Permissions-Policy"]) assert.match(toml, new RegExp(h));
+  assert.match(toml, /worker-src[^"\n]*blob:/, "背景計算需要 blob: worker");
 });

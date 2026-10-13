@@ -204,6 +204,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
     <button class="chip chipBtn" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
     <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
+    <span class="chip" id="userChip" hidden title="目前登入的帳號">帳號 <b id="userName"></b></span>
     <a class="chip" id="logoutLink" href="/__logout" hidden>登出</a>
     <span class="chip">板數 <b id="srcBoards" class="num">—</b></span>
     <span class="chip">焊墊數 <b id="srcPads" class="num">—</b></span>
@@ -1958,7 +1959,7 @@ try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>ren
 if(!window.Chart)$("#libWarn").hidden=false;
 /* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
 const HAS_API=/\.netlify\.app$/.test(location.hostname)||/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-if(/\.netlify\.app$/.test(location.hostname))$("#logoutLink").hidden=false;
+if(/\.netlify\.app$/.test(location.hostname)){$("#logoutLink").hidden=false;fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.user){$("#userName").textContent=j.user;$("#userChip").hidden=false}}).catch(()=>{})}
 /* ---------- 分享連結：壓縮後上傳到本網站（Netlify Blobs），連結需登入才能開啟，30 天失效 ---------- */
 async function gzipJSON(o){return new Uint8Array(await new Response(new Response(JSON.stringify(o)).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
 async function gunzipJSON(buf){return JSON.parse(await new Response(new Response(buf).body.pipeThrough(new DecompressionStream("gzip"))).text())}

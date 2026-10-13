@@ -2,22 +2,40 @@
 // 未登入：頁面請求顯示登入頁，API 請求回 401。
 // /__login（GET 顯示表單、POST 驗證）、/__logout 由此處理。
 import { APP_VERSION, APP_BUILT } from "../../lib/version.mjs";
-import { COOKIE, SESSION_SECONDS, configured, checkCredentials, issueToken, verifyToken, readCookie, safeNext } from "../../lib/auth-core.mjs";
+import { getStore } from "@netlify/blobs";
+import { COOKIE, SESSION_SECONDS, LOCK, configured, authenticate, issueToken, verifyToken, readCookie, safeNext, norm, lockedFor, recordFail, clearFails } from "../../lib/auth-core.mjs";
 
 const env = () => ({
+  AUTH_USERS: Netlify.env.get("AUTH_USERS"),
   AUTH_USER: Netlify.env.get("AUTH_USER"),
   AUTH_PASS_SHA256: Netlify.env.get("AUTH_PASS_SHA256"),
   AUTH_SECRET: Netlify.env.get("AUTH_SECRET"),
 });
 
-export default async (req, context) => handle(req, env(), () => context.next());
+let lockStore;
+function store() {
+  if (lockStore === undefined) { try { lockStore = getStore({ name: "spi-auth-lock", consistency: "strong" }); } catch { lockStore = null; } }
+  return lockStore;
+}
 
-/** 與執行環境無關的處理邏輯（測試直接呼叫） */
-export async function handle(req, E, next) {
+export default async (req, context) => handle(req, env(), (r) => context.next(r), { store: store(), ip: context.ip });
+
+// 安全標頭：登入頁與錯誤頁也套用（靜態檔案的標頭在 netlify.toml）
+export const SEC = {
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'",
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "same-origin",
+  "Strict-Transport-Security": "max-age=31536000",
+};
+
+/** 與執行環境無關的處理邏輯（測試直接呼叫）；opts.store＝鎖定紀錄（可注入記憶體版本），opts.ip＝來源 IP */
+export async function handle(req, E, next, opts = {}) {
   const url = new URL(req.url);
-  const noStore = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" };
+  const noStore = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex", ...SEC };
+  const now = opts.now ?? Date.now();
 
-  if (!configured(E)) return new Response("網站登入尚未設定（缺少 AUTH_USER／AUTH_PASS_SHA256／AUTH_SECRET 環境變數），暫停對外服務。", { status: 503, headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8" } });
+  if (!configured(E)) return new Response("網站登入尚未設定（缺少 AUTH_USERS 或 AUTH_USER／AUTH_PASS_SHA256，以及 AUTH_SECRET 環境變數），暫停對外服務。", { status: 503, headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8" } });
 
   if (url.pathname === "/__logout") return new Response(null, { status: 303, headers: { ...noStore, Location: "/__login", "Set-Cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax` } });
 
@@ -25,19 +43,39 @@ export async function handle(req, E, next) {
     if (req.method === "POST") {
       const fd = await req.formData().catch(() => null);
       const user = fd?.get("user"), pass = fd?.get("pass"), nextPath = safeNext(fd?.get("next"));
-      if (fd && (await checkCredentials(E, user, pass))) {
-        const token = await issueToken(E);
+      const keys = ["u:" + norm(user), ...(opts.ip ? ["ip:" + opts.ip] : [])];
+      const left = await lockedFor(opts.store, keys, now);
+      if (left > 0) {
+        console.log(`login locked user=${norm(user) || "-"}`);
+        return loginPage(nextPath, `嘗試次數過多，已暫時鎖定。請 ${Math.ceil(left / 60000)} 分鐘後再試。`, String(user || ""), 429);
+      }
+      const who = fd ? await authenticate(E, user, pass) : null;
+      if (who) {
+        await clearFails(opts.store, ["u:" + who]);
+        const token = await issueToken(E, who, Math.floor(now / 1000));
+        console.log(`login ok user=${who}`);
         return new Response(null, { status: 303, headers: { ...noStore, Location: nextPath, "Set-Cookie": `${COOKIE}=${token}; Path=/; Max-Age=${SESSION_SECONDS}; HttpOnly; Secure; SameSite=Lax` } });
       }
-      await new Promise((r) => setTimeout(r, 900)); // 減緩暴力嘗試
-      return loginPage(nextPath, "帳號或密碼不正確，請再試一次。", String(user || ""), 401);
+      await recordFail(opts.store, keys, now);
+      console.log(`login failed user=${norm(user) || "-"}`);
+      if (!opts.noDelay) await new Promise((r) => setTimeout(r, 900)); // 減緩暴力嘗試
+      return loginPage(nextPath, `帳號或密碼不正確，請再試一次。連續失敗 ${LOCK.maxFails} 次會鎖定 ${LOCK.lockMs / 60000} 分鐘。`, String(user || ""), 401);
     }
     return loginPage(safeNext(url.searchParams.get("next")));
   }
 
-  if (await verifyToken(E, readCookie(req.headers.get("cookie")))) {
+  const who = await verifyToken(E, readCookie(req.headers.get("cookie")), Math.floor(now / 1000));
+  if (who) {
+    if (url.pathname === "/__me") return Response.json({ user: who }, { headers: noStore });
+    // 後端函式可從 x-spi-user 得知是誰呼叫（一律覆寫，用戶端無法偽造）
+    if (url.pathname.startsWith("/api/")) {
+      const h = new Headers(req.headers);
+      h.set("x-spi-user", who);
+      return next(new Request(req, { headers: h }));
+    }
     return next();
   }
+  if (url.pathname === "/__me") return Response.json({ error: "請先登入" }, { status: 401, headers: noStore });
 
   if (url.pathname.startsWith("/api/")) return Response.json({ error: "請先登入" }, { status: 401, headers: noStore });
   return loginPage(url.pathname + url.search, "", "", 401);
@@ -138,7 +176,7 @@ f.addEventListener("submit",function(e){if(!u.value.trim()){e.preventDefault();u
 if(document.getElementById("err"))p.select();})();
 </script>
 </body></html>`;
-  return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "X-Frame-Options": "DENY" } });
+  return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex", ...SEC } });
 }
 
 // 公開的第三方函式庫與字型（vendor/）不含任何資料，不經登入檢查，減少邊緣函式呼叫
