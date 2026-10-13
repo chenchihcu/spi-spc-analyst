@@ -9,15 +9,17 @@
   to = "/spi-spc.html"
   status = 200
 
-# 不對外提供開發用檔案
+# 不對外提供開發用檔案（force：即使檔案存在也回 404）
 [[redirects]]
   from = "/tests/*"
   to = "/404.html"
   status = 404
+  force = true
 [[redirects]]
   from = "/tools/*"
   to = "/404.html"
   status = 404
+  force = true
 
 [[headers]]
   for = "/*"
