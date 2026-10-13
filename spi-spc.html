@@ -156,8 +156,9 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
   </div>
   <div class="row">
-    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.3.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 06:44:40</b></span>
+    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.4.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 06:51:14</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
+    <a class="chip" id="logoutLink" href="/__logout" hidden>登出</a>
     <span class="chip">板數 <b id="srcBoards" class="num">—</b></span>
     <span class="chip">焊墊數 <b id="srcPads" class="num">—</b></span>
   </div>
@@ -1812,6 +1813,8 @@ try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>ren
 
 /* ---------- 啟動 ---------- */
 if(!window.Chart||!window.THREE)$("#libWarn").hidden=false;
+/* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
+if(/\.netlify\.app$/.test(location.hostname))$("#logoutLink").hidden=false;
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
 try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t){S.stencil=sv.t;S.htol={lo:sv.lo||75,hi:sv.hi||125};S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}

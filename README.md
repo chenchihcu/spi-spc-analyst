@@ -51,7 +51,9 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 - AI 分析：在 claude.ai 內使用頁內 Claude；部署在 Netlify 時改由後端函式 `/api/analyze` 透過 Netlify AI Gateway 呼叫 Claude（不需自備金鑰，依用量扣 Netlify 點數）。
   - 只送統計摘要與問題清單，不送原始 SPI 資料；可用環境變數 `AI_MODEL` 指定模型。
   - `GET /api/analyze` 可檢查 AI Gateway 是否啟用。
-  - 網站公開時任何人都能觸發 AI 分析並消耗點數，建議開啟密碼保護。
+- 登入保護：`netlify/edge-functions/auth.mjs` 對全站（含 `/api/analyze`）要求帳號＋密碼。
+  - 需在 Netlify 設定環境變數：`AUTH_USER`（帳號）、`AUTH_PASS_SHA256`（密碼的 SHA-256）、`AUTH_SECRET`（≥ 32 字元隨機字串）。缺任何一個時網站回 503。
+  - 變更密碼：計算新密碼的 SHA-256（例如 `printf '%s' '新密碼' | sha256sum`）並更新 `AUTH_PASS_SHA256`，重新部署後生效；更換 `AUTH_SECRET` 會讓所有人重新登入。
 
 ## 已知限制
 
