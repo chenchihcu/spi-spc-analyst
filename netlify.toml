@@ -3,6 +3,11 @@
   publish = "."
   command = ""
 
+# 後端函式：/api/analyze（AI 分析，透過 Netlify AI Gateway 呼叫 Claude，不需自備金鑰）
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # 首頁直接顯示分析台
 [[redirects]]
   from = "/"
@@ -17,6 +22,21 @@
   force = true
 [[redirects]]
   from = "/tools/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/lib/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/node_modules/*"
+  to = "/404.html"
+  status = 404
+  force = true
+[[redirects]]
+  from = "/netlify/*"
   to = "/404.html"
   status = 404
   force = true

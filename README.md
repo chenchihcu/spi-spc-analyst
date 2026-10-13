@@ -48,7 +48,10 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 ## 部署
 
 - Netlify：根目錄直接發布（見 `netlify.toml`），首頁即分析台，不需建置。
-- 在 claude.ai 以外開啟時，AI 分析無法使用；其他分析與匯出功能正常。
+- AI 分析：在 claude.ai 內使用頁內 Claude；部署在 Netlify 時改由後端函式 `/api/analyze` 透過 Netlify AI Gateway 呼叫 Claude（不需自備金鑰，依用量扣 Netlify 點數）。
+  - 只送統計摘要與問題清單，不送原始 SPI 資料；可用環境變數 `AI_MODEL` 指定模型。
+  - `GET /api/analyze` 可檢查 AI Gateway 是否啟用。
+  - 網站公開時任何人都能觸發 AI 分析並消耗點數，建議開啟密碼保護。
 
 ## 已知限制
 

@@ -156,7 +156,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
   </div>
   <div class="row">
-    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.2.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 00:09:30</b></span>
+    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.3.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 06:44:40</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
     <span class="chip">板數 <b id="srcBoards" class="num">—</b></span>
     <span class="chip">焊墊數 <b id="srcPads" class="num">—</b></span>
@@ -408,7 +408,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="card">
     <h3>Claude 品質工程分析 <small>將目前全部統計結果與交叉驗證送出，回覆分開事實與推論</small></h3>
     <div class="row"><button class="primary" id="btnAI">產生分析報告</button><button id="btnAIStop" hidden>停止</button><span class="note" id="aiState"></span></div>
-    <div class="ai-out" id="aiOut" style="margin-top:12px"><p class="note">按下按鈕後，Claude 會依目前選擇的量測項目、元件群組與規格產生：結論摘要、資料事實、推論與信心、錫膏印刷可能原因、8D／CAPA 方向與追加驗證建議。</p></div>
+    <div class="ai-out" id="aiOut" style="margin-top:12px"><p class="note">按下按鈕後，Claude 會審查系統偵測到的問題清單，並產生：結論摘要、逐項同意或存疑、可能漏抓的問題、原因推論與信心、驗證實驗、試產／DFM 建議。送出的只有統計摘要與問題清單，不含逐焊墊的原始 SPI 資料。</p></div>
   </div>
 </section>
 
@@ -1765,7 +1765,7 @@ function mdLite(t){const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;","
 function aiPayload(){const A=S.A;return{試產回合:curRun()?curRun().name:"",量測項目:METRICS[A.m].label,單位:METRICS[A.m].unit,元件群組:S.group==="ALL"?"全部":S.group,管制圖:chartName(),規格:A.sp,鋼板厚度µm:S.stencil,階梯鋼板:S.step.on?S.step.zones.map(z=>({區域:z.name,厚度µm:z.t,範圍:z.mode==="group"?"元件群組 "+z.group:`X ${z.x0}~${z.x1} mm, Y ${z.y0}~${z.y1} mm`})):"未啟用",高度規格佔厚度:`${S.htol.lo}%–${S.htol.hi}%`,樣本數:A.N,板數:A.boards.length,
   平均:+f(A.gMean,3),σ組內:+f(A.sigmaW,3),σ整體:+f(A.overallSd,3),能力:A.cap&&{Cp:+f(A.cap.cp),Cpk:+f(A.cap.cpk),Pp:+f(A.cap.pp),Ppk:+f(A.cap.ppk),預估PPM:+fmtPpm(A.cap.ppmExp).replace(/,/g,""),實測PPM:+fmtPpm(A.cap.ppmObs).replace(/,/g,"")},
   常態性:{AD:+f(A.ad.A,3),p:+f(A.ad.p,4),偏態:+f(A.sk.skew,2),峰度:+f(A.sk.kurt,2)},Nelson:A.nel.rules.filter(r=>r.idx.length).map(r=>({規則:r.name,點:r.idx.map(i=>A.series[i].lab)})),
-  各板:A.byBoard.map(b=>({板:b.board,平均:+f(b.mean,2),σ:+f(b.sd,2),不良:b.defects})),元件群組:A.groups.map(g=>({群組:g.g,平均:+f(g.mean,2),σ:+f(g.sd,2)})),
+  各板:A.byBoard.map(b=>({板:b.board,平均:+f(b.mean,2),σ:+f(b.sd,2),不良:b.defects})),元件群組統計:A.groups.map(g=>({群組:g.g,平均:+f(g.mean,2),σ:+f(g.sd,2)})),
   不良柏拉圖:Object.fromEntries(Object.entries(A.pareto).map(([k,v])=>[DEFECTS[k],v])),交叉驗證:A.xv.rows.map(x=>({面向:x.k,判定:x.st,依據:x.ev})),
   系統偵測問題清單:S.F.map(x=>({編號:x.id,嚴重度:LVL[x.lv],面向:x.cat,問題:x.title,事實:x.facts,系統推論:x.cause,信心:x.conf,佐證:x.corrob})),
   前15不良焊墊:A.defRows.slice(0,15).map(r=>({板:r.board,焊墊:r.pad,體積:r.volume,高度:r.height,面積:r.area,偏移X:r.offx,偏移Y:r.offy,判定:r.codes.map(c=>DEFECTS[c])})),
@@ -1776,7 +1776,7 @@ function advSummary(A){const W=advAnalyze(S,A);return{EWMA越界:A.ewma.filter(p
   刮刀前後:W.stroke&&{差值:+f(W.stroke.ma-W.stroke.mb,2),p:+f(W.stroke.p,4)},擦拭週期:{每幾片:W.wipe.N,每片斜率:+f(W.wipe.slope,3),r:+f(W.wipe.r,2),p:+f(W.wipe.p,4)}}}
 $("#btnAI").onclick=async()=>{const out=$("#aiOut"),st=$("#aiState");
   let sample=null;try{sample=window.claude&&await window.claude.use("sample")}catch(e){}
-  if(!sample){st.textContent="AI 分析需在 claude.ai 內開啟此頁面才能使用；其他分析功能不受影響。";return}
+  if(!sample)return analyzeViaApi(out,st);
   aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;st.textContent="分析中…";out.innerHTML="";
   const prompt=`你是資深 SQE／SMT 製程工程師，熟悉錫膏印刷（SPI）、SPC 與 8D。以下是 SPI 統計分析結果（JSON，全部為計算出的事實）。請用繁體中文、條列式回覆，總長約 600–900 字，並嚴格區分「事實」（直接來自數據）與「推論」（需驗證，標註信心 高/中/低）。
 
@@ -1794,6 +1794,18 @@ ${JSON.stringify(aiPayload())}`;
   catch(e){st.textContent=e&&e.name==="AbortError"?"已停止":e&&e.code==="rate_limited"?"請求過於頻繁，請稍後再試":e&&e.code==="not_granted"?"未授權呼叫 Claude":"分析失敗："+(e&&e.message||e);if(e&&e.text){S.ai=e.text;out.innerHTML=mdLite(e.text)}}
   finally{$("#btnAI").disabled=false;$("#btnAIStop").hidden=true;aiAbort=null}};
 $("#btnAIStop").onclick=()=>aiAbort&&aiAbort.abort();
+/* 網站版（例如 Netlify）：呼叫後端 /api/analyze。只送統計摘要與問題清單，不送逐焊墊的原始 SPI 資料 */
+function apiPayload(){const p=aiPayload();delete p["前15不良焊墊"];return p}
+async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPayload()});
+  aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;out.innerHTML="";
+  st.textContent=`分析中…（送出統計摘要 ${f(new Blob([body]).size/1024,1)} KB，不含原始 SPI 資料）`;let text="";
+  try{const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body,signal:aiAbort.signal});
+    if(!res.ok){let msg=res.status===404?"此網站沒有 AI 分析服務（需部署在 Netlify，或在 claude.ai 內開啟）":`伺服器回應 ${res.status}`;try{const j=await res.json();if(j.error)msg=j.error}catch(e){}st.textContent="AI 分析無法使用："+msg;return}
+    const rd=res.body.getReader(),dec=new TextDecoder();
+    for(;;){const{done,value}=await rd.read();if(done)break;text+=dec.decode(value,{stream:true});out.innerHTML=mdLite(text)}
+    S.ai=text;st.textContent=`完成 · 模型 ${res.headers.get("X-AI-Model")||""} · 可至「資料與規格」匯出含 AI 段落的報告`}
+  catch(e){st.textContent=e&&e.name==="AbortError"?"已停止":"AI 分析失敗："+(e&&e.message||e);if(text){S.ai=text;out.innerHTML=mdLite(text)}}
+  finally{$("#btnAI").disabled=false;$("#btnAIStop").hidden=true;aiAbort=null}}
 
 /* ---------- 主題變更重繪 ---------- */
 try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>renderTab());new MutationObserver(()=>renderTab()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}

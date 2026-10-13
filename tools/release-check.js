@@ -62,11 +62,11 @@ const put = (k, status, messages) => (out[k] = { status, messages });
 }
 // 6. 測試
 {
-  const files = fs.existsSync(path.join(ROOT, "tests")) ? fs.readdirSync(path.join(ROOT, "tests")).filter((f) => f.endsWith(".test.js")) : [];
+  const files = fs.existsSync(path.join(ROOT, "tests")) ? fs.readdirSync(path.join(ROOT, "tests")).filter((f) => /\.test\.m?js$/.test(f)) : [];
   if (!files.length) put("tests", "fail", ["FACT: 沒有 tests/*.test.js"]);
   else {
     try {
-      const r = execSync("node --test tests/*.test.js", { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      const r = execSync("node --test tests/*.test.js tests/*.test.mjs", { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
       const pass = (r.match(/^# pass (\d+)/m) || [])[1], skip = (r.match(/^# skipped (\d+)/m) || [])[1];
       put("tests", +skip ? "warn" : "pass", [`FACT: ${files.length} 個測試檔，通過 ${pass} 項${+skip ? `，略過 ${skip} 項` : ""}`]);
     } catch (e) { const s = String(e.stdout || ""); put("tests", "fail", [`FACT: 測試失敗 ${(s.match(/^# fail (\d+)/m) || [])[1] || "?"} 項`, ...s.split("\n").filter((l) => /^not ok/.test(l)).slice(0, 5).map((l) => "FACT: " + l)]); }
