@@ -1,0 +1,26 @@
+# 靜態單頁工具：不需建置，根目錄直接發布
+[build]
+  publish = "."
+  command = ""
+
+# 首頁直接顯示分析台
+[[redirects]]
+  from = "/"
+  to = "/spi-spc.html"
+  status = 200
+
+# 不對外提供開發用檔案
+[[redirects]]
+  from = "/tests/*"
+  to = "/404.html"
+  status = 404
+[[redirects]]
+  from = "/tools/*"
+  to = "/404.html"
+  status = 404
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
