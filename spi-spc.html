@@ -128,6 +128,22 @@ button:disabled{opacity:.5;cursor:default}
 .tabs{display:flex;gap:2px;overflow-x:auto;margin-top:4px;border-bottom:1px solid var(--line);scrollbar-width:none}
 .tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;color:var(--muted);white-space:nowrap;min-height:40px}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
+/* 頁籤列可左右滑動時，在有更多頁籤的一側淡出提示 */
+.tabs.fr{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.tabs.fl{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
+.tabs.fl.fr{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent)}
+/* 平板（觸控）：放大可點範圍到約 44px，畫布拖曳不觸發頁面捲動 */
+@media (pointer:coarse){
+  button,select,input[type=number],input[type=text],textarea{min-height:44px}
+  .tab{min-height:46px;padding:10px 16px}
+  .chip.chipBtn,a.chip{min-height:36px;padding:6px 14px}
+  .pmap-cells button{min-height:40px}
+  .seg button{min-height:40px}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px}
+  input[type=range]{min-height:36px}
+  #zoneMap{touch-action:none}
+  .linkbtn{min-height:40px}
+}
 .panel{padding-top:18px;display:grid;gap:16px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
@@ -1344,7 +1360,11 @@ $$(".tab").forEach(t=>{const p=$("#p-"+t.dataset.tab);t.id="tab-"+t.dataset.tab;
 $(".tabs").addEventListener("keydown",e=>{const T=$$(".tab"),i=T.findIndex(t=>t.dataset.tab===S.tab);let j=null;if(e.key==="ArrowRight")j=(i+1)%T.length;else if(e.key==="ArrowLeft")j=(i-1+T.length)%T.length;else if(e.key==="Home")j=0;else if(e.key==="End")j=T.length-1;if(j==null)return;e.preventDefault();setTab(T[j].dataset.tab);T[j].focus()});
 const AN_TABS=new Set(["overview","control","capability","sim3d","cross","adv","ai"]),RAIL_NOTE={issues:"問題偵測自動掃描全部量測項目與元件群組，不需要選擇。",compare:"此頁使用頁內的 A／B 回合選項。",dfm:"DFM 建議涵蓋全部元件群組。",lab:"此頁使用各區塊內的選項。"};
 function applyScope(){const on=AN_TABS.has(S.tab);$$("[data-scope=a]").forEach(el=>{el.hidden=!on||(el.id==="padField"&&S.chart!=="imr")});const n=RAIL_NOTE[S.tab];$("#railNote").hidden=!n;$("#railNote").textContent=n||""}
-function setTab(t){S.tab=t;$$(".tab").forEach(x=>{x.setAttribute("aria-selected",x.dataset.tab===t);x.tabIndex=x.dataset.tab===t?0:-1});$$(".panel").forEach(p=>p.hidden=p.id!=="p-"+t);if(t!=="sim3d")stopPlay();applyScope();showCtx();renderTab();try{history.replaceState(null,"","#"+t)}catch(e){}}
+/* 選取的頁籤捲到可見範圍（平板直式時頁籤列放不下）；並依可捲動方向顯示淡出提示 */
+function tabIntoView(t){const bar=$(".tabs"),el=$(`.tab[data-tab="${t}"]`);if(!bar||!el)return;const l=el.offsetLeft-bar.offsetLeft,r=l+el.offsetWidth;
+  if(l<bar.scrollLeft+24)bar.scrollLeft=Math.max(0,l-24);else if(r>bar.scrollLeft+bar.clientWidth-24)bar.scrollLeft=r-bar.clientWidth+24;tabFade()}
+function tabFade(){const bar=$(".tabs");if(!bar)return;bar.classList.toggle("fl",bar.scrollLeft>2);bar.classList.toggle("fr",bar.scrollLeft+bar.clientWidth<bar.scrollWidth-2)}
+function setTab(t){S.tab=t;$$(".tab").forEach(x=>{x.setAttribute("aria-selected",x.dataset.tab===t);x.tabIndex=x.dataset.tab===t?0:-1});tabIntoView(t);$$(".panel").forEach(p=>p.hidden=p.id!=="p-"+t);if(t!=="sim3d")stopPlay();applyScope();showCtx();renderTab();try{history.replaceState(null,"","#"+t)}catch(e){}}
 
 /* ---------- 總覽 ---------- */
 function kpi(k,v,s,cls=""){return`<div class="kpi ${cls}"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`}
@@ -1956,6 +1976,7 @@ async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPaylo
 try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>renderTab());new MutationObserver(()=>renderTab()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}
 
 /* ---------- 啟動 ---------- */
+$(".tabs").addEventListener("scroll",tabFade,{passive:true});addEventListener("resize",tabFade);setTimeout(tabFade,0);
 if(!window.Chart)$("#libWarn").hidden=false;
 /* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
 const HAS_API=/\.netlify\.app$/.test(location.hostname)||/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
