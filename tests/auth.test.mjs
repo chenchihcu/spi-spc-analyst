@@ -73,3 +73,21 @@ test("登入頁會跳脫輸入的帳號，避免注入", async () => {
   const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: '"><script>alert(1)</script>', pass: "x" }) }), E, ok);
   assert.ok(!(await r.text()).includes("<script>alert(1)"));
 });
+
+test("登入頁：品牌區、焊墊識別圖、顯示密碼、版本與主頁一致", async () => {
+  const fs = await import("node:fs");
+  const { APP_VERSION, APP_BUILT } = await import("../lib/version.mjs");
+  const html = fs.readFileSync(new URL("../spi-spc.html", import.meta.url), "utf8");
+  assert.equal(html.match(/id="appVer">([^<]+)</)[1], APP_VERSION, "登入頁版本需與主頁一致");
+  assert.equal(html.match(/id="appBuilt">([^<]+)</)[1], APP_BUILT, "登入頁更新時間需與主頁一致");
+  const page = await (await handle(new Request("https://s.example/__login"), E, ok)).text();
+  assert.match(page, /class="brand"/);
+  assert.equal((page.match(/class="pad/g) || []).length, 48, "6 × 8 焊墊陣列");
+  assert.equal((page.match(/ bad"/g) || []).length, 1, "恰好一顆異常焊墊");
+  assert.match(page, /id="tg"[^>]*aria-pressed="false"/);
+  assert.match(page, new RegExp(APP_VERSION.replace(".", "\\.")));
+  const err = await (await handle(new Request("https://s.example/__login", { method: "POST", body: new URLSearchParams({ user: "a@b.c", pass: "x" }) }), E, ok)).text();
+  assert.match(err, /帳號或密碼不正確/);
+  assert.match(err, /value="a@b\.c"/, "錯誤後保留帳號");
+  assert.match(err, /id="pass"[^>]*autofocus/, "錯誤後游標移到密碼欄");
+});
