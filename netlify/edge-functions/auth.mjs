@@ -63,12 +63,13 @@ function padArt() {
 function loginPage(nextPath, error = "", user = "", status = 200) {
   const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SPI·SPC 分析台 · 登入</title><meta name="robots" content="noindex">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
+@font-face{font-family:"Barlow Condensed";font-weight:600;font-display:swap;src:url(/vendor/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(/vendor/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
 /* 與分析台同一套色票：防焊漆中性色＋銅色強調；左側品牌區固定深色 */
 :root{--bg:#F2F4F0;--surface:#FFFFFF;--ink:#18201B;--muted:#58625B;--line:#D2D8D1;--accent:#A3521D;--on-accent:#FFFFFF;--ng:#B83A2C;--ng-soft:#F7DDD9;--warn:#A86E12;
   --brand-bg:#18201B;--brand-ink:#E4E9E4;--brand-muted:#98A39B;--brand-accent:#F2C6A5;--paste:#DB8A50;--paste-dim:#3A2516;--paste-bad:#EC6F60;
-  --f-display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;--f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:light}
+  --f-display:"Barlow Condensed","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;--f-body:"Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#0F1311;--surface:#171C19;--ink:#E4E9E4;--muted:#98A39B;--line:#2D3731;--accent:#DB8A50;--on-accent:#14100C;--ng:#EC6F60;--ng-soft:#41201B;--warn:#E3AE50;--brand-bg:#0A0D0B;color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -140,4 +141,5 @@ if(document.getElementById("err"))p.select();})();
   return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "X-Frame-Options": "DENY" } });
 }
 
-export const config = { path: "/*" };
+// 公開的第三方函式庫與字型（vendor/）不含任何資料，不經登入檢查，減少邊緣函式呼叫
+export const config = { path: "/*", excludedPath: ["/vendor/*"] };

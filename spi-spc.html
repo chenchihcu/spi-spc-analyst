@@ -1,15 +1,18 @@
 <title>SPI·SPC 分析台</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
+/* 字型自帶（網站內 vendor/fonts）：英文標題與數字用 Barlow Condensed／IBM Plex Mono；中文使用系統字（微軟正黑體／蘋方），不需下載 */
+@font-face{font-family:"Barlow Condensed";font-weight:500;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-weight:600;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(vendor/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 /* Layout: instrument console — sticky control rail, tab strip, panels of charts; copper accent on solder-mask neutrals */
 :root{
   --bg:#F2F4F0;--surface:#FFFFFF;--surface2:#E8ECE6;--ink:#18201B;--muted:#58625B;--line:#D2D8D1;
   --accent:#A3521D;--accent-soft:#F4E4D6;--accent-ink:#6E3410;
   --ok:#2C7A4C;--ok-soft:#DDEFE3;--warn:#A86E12;--warn-soft:#F6E9CF;--ng:#B83A2C;--ng-soft:#F7DDD9;
   --series2:#3D6E8F;--grid:rgba(24,32,27,.08);--on-strong:#FFFFFF;
-  --f-display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
-  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-display:"Barlow Condensed","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;
+  --f-body:"Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:10px;
 }
@@ -164,7 +167,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   </div>
 </header>
 
-<p class="err" id="libWarn" hidden role="alert" style="margin:0 0 8px">圖表或 3D 函式庫未能載入（可能是網路阻擋 CDN），數據分析與問題偵測仍可使用，圖表會空白。請重新整理頁面或檢查網路。</p>
+<p class="err" id="libWarn" hidden role="alert" style="margin:0 0 8px">圖表函式庫未能載入，數據分析與問題偵測仍可使用，圖表會空白。請重新整理頁面或檢查網路。</p>
 <div class="sticky">
 <div class="rail" role="region" aria-label="分析設定">
   <div class="field"><label for="selRun">試產回合</label><select id="selRun"></select></div>
@@ -472,9 +475,9 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
+<script src="vendor/chart-4.4.1.umd.min.js"></script>
+<script>/* 網站版用自帶的 Chart.js；在 claude.ai 等沒有 vendor 檔的地方才改用 CDN */window.Chart||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>')</script>
+<script id="core">
 "use strict";
 /* ============ 統計核心 ============ */
 function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -1660,7 +1663,11 @@ function build3D(){const A=S.A;while(T.root.children.length){const o=T.root.chil
 }
 function pick(e){const el=$("#view3d"),rc=el.getBoundingClientRect(),v=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(v,T.cam);const hit=ray.intersectObjects(T.meshes||[])[0];if(!hit)return;const r=hit.object.userData,d=classify(r,S.specs,S);
   $("#hud").innerHTML=`<b>${r.board} · ${r.pad}</b>（${r.group}）<br>體積 <b>${f(r.volume,1)}%</b> · 高度 <b>${f(r.height,1)}µm</b> · 面積 <b>${f(r.area,1)}%</b><br>偏移 X <b>${f(r.offx,0)}</b> / Y <b>${f(r.offy,0)}</b> µm<br>鋼板 <b>${padThk(r,S)} µm</b>${zoneOf(r,S)?"（"+zoneOf(r,S).name+"）":""} · 高度 <b>${f(r.height/padThk(r,S)*100,0)}%</b> 厚度<br>${d.length?d.map(c=>DEFECTS[c]).join("、"):"規格內"}`}
-function render3D(){if(!init3D())return;size3();build3D()}
+/* three.js 只在第一次開啟 3D 頁籤時載入（約 600 KB），先用網站自帶檔，沒有才用 CDN */
+let threeP=null;
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>{s.remove();no(new Error(src))};document.head.appendChild(s)})}
+function ensureThree(){if(window.THREE)return Promise.resolve();return threeP||(threeP=loadScript("vendor/three-r128.min.js").catch(()=>loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")).catch(e=>{threeP=null;throw e}))}
+async function render3D(){if(!window.THREE){$("#hud").textContent="載入 3D 元件中…";try{await ensureThree()}catch(e){}if(S.tab!=="sim3d")return}if(!init3D())return;size3();build3D()}
 $("#selBoard").onchange=e=>{S.board=e.target.value;build3D()};
 $("#btnWorst").onclick=()=>{if(S.A.worst){S.board=S.A.worst.board;$("#selBoard").value=S.board;build3D()}};
 let playT=0;function stopPlay(){clearInterval(playT);playT=0;$("#btnPlay").setAttribute("aria-pressed","false");$("#btnPlay").textContent="逐板播放"}
@@ -1812,7 +1819,7 @@ async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPaylo
 try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>renderTab());new MutationObserver(()=>renderTab()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}
 
 /* ---------- 啟動 ---------- */
-if(!window.Chart||!window.THREE)$("#libWarn").hidden=false;
+if(!window.Chart)$("#libWarn").hidden=false;
 /* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
 if(/\.netlify\.app$/.test(location.hostname))$("#logoutLink").hidden=false;
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
