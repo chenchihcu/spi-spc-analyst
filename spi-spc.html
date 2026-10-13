@@ -36,6 +36,9 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 .brand h1{font-family:var(--f-display);font-size:34px;font-weight:600;letter-spacing:.02em;line-height:1}
 .brand .tag{font-size:12px;color:var(--muted);letter-spacing:.08em}
 .chipBtn{border:none;min-height:0;cursor:pointer;font:inherit;font-size:12px;color:var(--ink)}.chipBtn:hover{background:var(--line)}
+#busy{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:999px;font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.18)}#busy[hidden]{display:none}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 dialog#shareDlg{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:20px 22px;width:min(560px,calc(100% - 32px))}
 dialog#shareDlg::backdrop{background:rgba(10,13,11,.45)}
 dialog#shareDlg h3{margin:0 0 8px;font-size:17px}
@@ -160,6 +163,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
+<div id="busy" role="status" aria-live="polite" hidden><span class="spin" aria-hidden="true"></span><span id="busyMsg">計算中…</span></div>
 <dialog id="shareDlg" aria-labelledby="shareTtl"><form method="dialog">
   <h3 id="shareTtl">分享連結</h3>
   <p id="shareMsg" role="status">正在建立連結…</p>
@@ -806,7 +810,8 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
   const arGroups=[...new Set(arPads.map(p=>p.group))].map(g=>{const ps=arPads.filter(p=>p.group===g);return{g,n:ps.length,ar:mean(ps.map(p=>p.ar)),arMin:Math.min(...ps.map(p=>p.ar)),asp:mean(ps.map(p=>p.asp)),tmax:Math.min(...ps.map(p=>p.tmax)),vol:mean(ps.map(p=>p.vol)),
     te:mean(ps.map(p=>p.te)),cv:mean(ps.map(p=>p.cv)),thk:[...new Set(ps.map(p=>p.thk))].join("/"),src:[...new Set(ps.map(p=>p.ap.src))].join("、"),apL:mean(ps.map(p=>p.ap.L)),apW:mean(ps.map(p=>p.ap.W)),shape:ps[0].ap.shape}});
   // 對位
-  const align=A.boards.map(b=>({board:b,...(alignFit(G.filter(r=>r.board===b))||{})})).filter(a=>a.tx!=null);
+  const GB=new Map();for(const r of G){let l=GB.get(r.board);if(!l)GB.set(r.board,l=[]);l.push(r)}
+  const align=A.boards.map(b=>({board:b,...(alignFit(GB.get(b)||[])||{})})).filter(a=>a.tx!=null);
   // 刮刀前 / 後（依板序奇偶）
   const bm=A.byBoard.map(b=>b.mean),odd=bm.filter((_,i)=>i%2===0),even=bm.filter((_,i)=>i%2===1),stroke=welch(odd,even);
   // 擦拭週期
@@ -821,7 +826,7 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
 }
 /* ============ 問題偵測引擎 ============
    逐面向掃描全部量測項目，輸出「事實 / 推論 / 佐證」結構化的問題清單 */
-function med(a){const s=a.filter(v=>isFinite(v)).sort((x,y)=>x-y);return s.length?quant(s,.5):NaN}
+function med(a){const s=Float64Array.from(a.filter(v=>isFinite(v)));s.sort();return s.length?quant(s,.5):NaN} /* 型別陣列排序：大量資料時比比較函式排序快數倍，結果相同 */
 function robust(v){const m=med(v);let s=med(v.map(x=>Math.abs(x-m)))*1.4826;if(!(s>1e-9))s=sd(v)||1e-9;return{m,s}}
 /* 扣除長期趨勢：以長度為週期整數倍的移動平均估計趨勢（各類別權重相同），回傳殘差 */
 function detrend(v,P){const n=v.length;if(n<P+2)return v.slice();const tr=v.map((_,i)=>{const lo=Math.max(0,Math.min(i-Math.floor(P/2),n-P));let s=0;for(let j=lo;j<lo+P;j++)s+=v[j];return s/P});return v.map((x,i)=>x-tr[i])}
@@ -990,7 +995,8 @@ function runGroupStats(st,m){const R=st.rows;for(const r of R)if(r.height!=null)
   const boards=[...new Set(R.map(r=>r.board))],groups=[...new Set(R.map(r=>r.group))],out={};
   for(const g of ["整體",...groups]){const rs=g==="整體"?R:R.filter(r=>r.group===g);if(!rs.length)continue;
     const v=rs.map(r=>r[m]).filter(v=>v!=null),te=rs.map(r=>r.volume).filter(v=>v!=null),sp=st.specs[m];
-    const bm=boards.map(b=>{const x=rs.filter(r=>r.board===b).map(r=>r.volume).filter(v=>v!=null);return x.length?mean(x):NaN}).filter(isFinite);
+    const bv=new Map();for(const r of rs)if(r.volume!=null){let l=bv.get(r.board);if(!l)bv.set(r.board,l=[]);l.push(r.volume)}
+    const bm=boards.map(b=>{const x=bv.get(b);return x&&x.length?mean(x):NaN}).filter(isFinite);
     const mu=v.length?mean(v):NaN,s=v.length>1?sd(v):NaN,ppk=sp&&sp.usl>sp.lsl&&s>0?Math.min(sp.usl-mu,mu-sp.lsl)/(3*s):NaN;
     const one=rs.filter(r=>r.board===boards[0]);
     out[g]={g,n:rs.length,nb:new Set(rs.map(r=>r.board)).size,mu,ppk,te:te.length?mean(te):NaN,cv:te.length>1?sd(te)/mean(te)*100:NaN,bm,d:rs.filter(r=>classify(r,st.specs,st).length).length,
@@ -1059,7 +1065,8 @@ const RESP={vol:{label:"板平均體積 %",goal:"接近目標"},cv:{label:"板�
 function doeAnalyze(st,resp){const R=st.rows,facs=Object.keys(FACT).filter(k=>R.some(r=>r[k]!=null));if(!facs.length)return null;
   for(const r of R)if(r.height!=null)r.hpct=+(r.height/padThk(r,st)*100).toFixed(1);
   const boards=[...new Set(R.map(r=>r.board))],tv=st.specs.volume.tgt;
-  const B=boards.map(b=>{const rs=R.filter(r=>r.board===b),fv={};facs.forEach(k=>{const x=rs.find(r=>r[k]!=null);fv[k]=x?x[k]:null});
+  const RB=new Map();for(const r of R){let l=RB.get(r.board);if(!l)RB.set(r.board,l=[]);l.push(r)}
+  const B=boards.map(b=>{const rs=RB.get(b)||[],fv={};facs.forEach(k=>{const x=rs.find(r=>r[k]!=null);fv[k]=x?x[k]:null});
     const v=rs.map(r=>r.volume).filter(v=>v!=null),hp=rs.map(r=>r.hpct).filter(v=>v!=null);
     const y={vol:v.length?mean(v):NaN,cv:v.length>1?sd(v)/mean(v)*100:NaN,def:rs.filter(r=>classify(r,st.specs,st).length).length/rs.length*100,hp:hp.length?mean(hp):NaN};return{b,fv,y}})
     .filter(x=>facs.every(k=>x.fv[k]!=null));
@@ -1212,7 +1219,26 @@ $("#inHhi").onchange=e=>applyStencil(NaN,NaN,parseFloat(e.target.value));
 /* 問題偵測只受資料與鋼板／規格設定影響；切換量測項目、群組、管制圖時沿用上次結果，避免大量資料時每次操作都重算 */
 let F_SIG=null;
 function detectSig(){return JSON.stringify([S.runId,S.rows.length,S.specs,S.stencil,S.htol,S.step,S.aperture,S.wipe])}
-function recompute(){S.A=analyze(S);const sig=detectSig();if(sig!==F_SIG||S.F.rowsRef!==S.rows){S.F=detectIssues(S);S.F.rowsRef=S.rows;F_SIG=sig}
+/* 大量資料（超過 2 萬筆）時，問題偵測改在背景執行緒（Web Worker）執行，畫面不會卡住；不支援時改回直接計算 */
+const WORKER_MIN=20000;let detW=null,detSeq=0;
+function detWorker(){if(detW!==null)return detW;try{const core=document.getElementById("core").textContent;
+    const src=core+"\nonmessage=function(e){var d=e.data;try{postMessage({seq:d.seq,F:detectIssues(d.st)})}catch(er){postMessage({seq:d.seq,err:String(er&&er.message||er)})}};";
+    detW=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})))}catch(e){detW=false}return detW}
+function detState(){const st={};for(const k in S){if(["A","F","runs","ctx","issEnt"].includes(k))continue;const v=S[k];if(typeof v!=="function")st[k]=v}return st}
+function detectSync(sig){S.F=detectIssues(S);S.F.rowsRef=S.rows;F_SIG=sig}
+function busy(on,msg){const b=$("#busy");if(!b)return;if(on){$("#busyMsg").textContent=msg||"計算中…";b.hidden=false}else b.hidden=true}
+/* 先顯示「處理中」再做耗時的同步工作，讓提示有機會畫出來 */
+function runBusy(msg,fn){busy(true,msg);return new Promise(ok=>setTimeout(()=>{try{fn()}finally{if(!S.F||!S.F.pending)busy(false);ok()}},30))}
+function recompute(){S.A=analyze(S);const sig=detectSig();
+  if(sig!==F_SIG||S.F.rowsRef!==S.rows){const w=S.rows.length>WORKER_MIN&&detWorker();
+    if(!w)detectSync(sig);
+    else{const seq=++detSeq,rowsRef=S.rows;F_SIG=sig;
+      for(const r of S.rows)if(r.height!=null)r.hpct=+(r.height/padThk(r,S)*100).toFixed(1);
+      S.F=[];S.F.rowsRef=rowsRef;S.F.pending=true;busy(true,`正在偵測問題（${S.rows.length.toLocaleString()} 筆，背景計算）…`);
+      w.onmessage=e=>{if(e.data.seq!==detSeq)return;busy(false);if(S.rows!==rowsRef)return;
+        if(e.data.err){detectSync(sig);toast("背景計算失敗，已改為直接計算")}else{S.F=e.data.F;S.F.rowsRef=rowsRef}renderTab()};
+      w.onerror=e=>{e.preventDefault&&e.preventDefault();detW=false;busy(false);if(S.rows===rowsRef){detectSync(sig);renderTab()}};
+      try{w.postMessage({seq,st:detState()})}catch(e){w.onerror(e)}}}
   fillSelect($("#selPad"),S.A.pads.map(p=>[p,p]),S.A.imr.pad);S.pad=S.A.imr.pad;applyScope();
   fillSelect($("#selBoard"),S.A.boards.map(b=>[b,b+(S.A.byBoard.find(x=>x.board===b).defects?"  ·  不良 "+S.A.byBoard.find(x=>x.board===b).defects:"")]),S.board);
   if(!S.board||!S.A.boards.includes(S.board))S.board=S.A.worst?S.A.worst.board:S.A.boards[0];$("#selBoard").value=S.board;
@@ -1228,7 +1254,10 @@ $("#ctxBack").onclick=()=>{const id=S.ctx&&S.ctx.id;setTab("issues");if(id)setTi
 $("#ctxClose").onclick=()=>{S.ctx=null;showCtx()};
 function flashIssue(id){if(!issueList().some(x=>x.id===id)){S.issLv="all";S.issCat="all";S.issEnt=null;renderIssues()}const el=$("#iss-"+id);if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),1600)}}
 /* 問題涵蓋的板：直接指向的板，加上漂移起點之後的所有板 */
-function issueBoards(x){const B=[...new Set(S.rows.map(r=>r.board))],out=new Set();x.ents.forEach(e=>{if(e.startsWith("b:"))out.add(e.slice(2));if(e.startsWith("drift:")){const i=B.indexOf(e.slice(6));if(i>=0)B.slice(i).forEach(b=>out.add(b))}});return out}
+/* 結果依問題物件快取：板數多（數千片）時，問題地圖每格都會查詢，不可每次重掃全部資料 */
+let IB_ROWS=null,IB_B=[],IB_C=new WeakMap();
+function issueBoards(x){if(IB_ROWS!==S.rows){IB_ROWS=S.rows;IB_B=[...new Set(S.rows.map(r=>r.board))];IB_C=new WeakMap()}
+  let out=IB_C.get(x);if(out)return out;const B=IB_B;out=new Set();x.ents.forEach(e=>{if(e.startsWith("b:"))out.add(e.slice(2));if(e.startsWith("drift:")){const i=B.indexOf(e.slice(6));if(i>=0)B.slice(i).forEach(b=>out.add(b))}});IB_C.set(x,out);return out}
 function issueList(){return S.F.filter(x=>(S.issLv==="all"||x.lv===S.issLv)&&(S.issCat==="all"||x.cat===S.issCat)&&(!S.issEnt||(S.issEnt.startsWith("b:")?issueBoards(x).has(S.issEnt.slice(2)):x.ents.includes(S.issEnt))))}
 /* 證據迷你圖（SVG）：序列＝每板一點，長條＝群組／焊墊／分箱；異常處以嚴重度顏色標示 */
 function evSvg(ev,lv){if(!ev||!ev.values||!ev.values.some(isFinite))return"";const W=320,H=76,pl=34,pr=6,pt=6,pb=16,iw=W-pl-pr,ih=H-pt-pb,V=ev.values,n=V.length;
@@ -1254,6 +1283,7 @@ function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set
     ${S.issEnt?`<p style="margin:0"><span class="pill warn">只顯示 ${esc(S.issEnt.slice(S.issEnt.indexOf(":")+1))} 相關的問題</span> <button class="linkbtn" id="pmapClear">顯示全部</button></p>`:""}`;
   $$("#pmap [data-ent]").forEach(b=>b.onclick=()=>{S.issEnt=S.issEnt===b.dataset.ent?null:b.dataset.ent;renderIssues()});if($("#pmapClear"))$("#pmapClear").onclick=()=>{S.issEnt=null;renderIssues()}}
 function renderIssues(){const F=S.F,c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]++);
+  if(F.pending){$("#issHead").textContent=`正在偵測問題（${S.rows.length.toLocaleString()} 筆）…`;$("#issSub").textContent="資料量大，於背景計算中，完成後會自動顯示結果。";$("#pmap").innerHTML="";$("#issList").innerHTML='<p class="note">計算中…</p>';return}
   $("#issHead").textContent=F.length?`偵測到 ${F.length} 項問題：嚴重 ${c.ng}、警示 ${c.warn}、資訊 ${c.info}`:"未偵測到統計上顯著的問題";
   const multi=F.filter(x=>x.corrob.length>=2).length;
   $("#issSub").textContent=F.length?`排序：嚴重度 → 佐證數 → 異常強度。${multi} 項有兩個以上其他發現互相佐證，建議優先處理。`:"十個面向皆在正常範圍；仍可至各頁籤檢視細節。";
@@ -1502,13 +1532,17 @@ $("#inWipe").onchange=e=>{const v=Math.round(+e.target.value);if(v>=2){S.wipe=v;
 
 /* ---------- 試產比較 ---------- */
 let CMP=null;
+/* 比較頁的問題清單依回合與設定快取：大量資料時切換比較項目不必重算 */
+function runIssues(run,st){if(run.id===S.runId&&S.F&&!S.F.pending&&S.F.rowsRef===run.rows)return S.F;
+  const k=JSON.stringify([run.rows.length,st.specs,st.stencil,st.htol,st.step,st.aperture,st.wipe]);
+  if(run._F&&run._Fk===k&&run._Fr===run.rows)return run._F;run._F=detectIssues(st);run._Fk=k;run._Fr=run.rows;return run._F}
 function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTitle").textContent="需要至少兩個試產回合";$("#cmpText").textContent="到「資料與規格」匯入第二份 SPI 資料（選「新增為新回合」），或新增範例 B 回合。";$("#cmpVerdict").className="verdict warn";return}
   const ids=S.runs.map(r=>[String(r.id),r.name]);if(!S.runs.some(r=>r.id===S.cmpA))S.cmpA=S.runs[0].id;if(!S.runs.some(r=>r.id===S.cmpB)||S.cmpB===S.cmpA)S.cmpB=(S.runs.find(r=>r.id!==S.cmpA)).id;
   fillSelect($("#cmpA"),ids,String(S.cmpA));fillSelect($("#cmpB"),ids,String(S.cmpB));
   const ra=S.runs.find(r=>r.id===S.cmpA),rb=S.runs.find(r=>r.id===S.cmpB),ms=ra.metrics.filter(k=>rb.metrics.includes(k));if(!ms.includes(S.cmpM))S.cmpM=ms.includes("volume")?"volume":ms[0];
   fillSelect($("#cmpM"),ms.map(k=>[k,METRICS[k].label]),S.cmpM);
   const sa=runState(ra),sb=runState(rb),R=compareRuns(sa,sb,S.cmpM),all=R.find(x=>x.g==="整體"),gs=R.filter(x=>x.g!=="整體");
-  const FA=detectIssues(sa),FB=detectIssues(sb);
+  const FA=runIssues(ra,sa),FB=runIssues(rb,sb);
   CMP={ra,rb,R,FA,FB};
   const lv={改善:"ok",惡化:"ng",有好有壞:"warn",無顯著差異:"warn"}[all.verdict];
   $("#cmpVerdict").className="verdict "+lv;
@@ -1781,13 +1815,15 @@ $("#selProfile").onchange=e=>{if(!IMP)return;applyProfile(e.target.value);render
 $("#btnSaveProfile").onclick=()=>{if(!IMP)return;const name=safeId($("#inProfileName").value)||"自訂設定檔",cols={};Object.entries(IMP.map).forEach(([k,i])=>cols[k]=IMP.tab.head[i]);
   const ps=profiles().filter(p=>p.name!==name);ps.push({name,cols,opts:impOpts()});saveProfiles(ps);profileOpts("u"+(ps.length-1));$("#parseErr").textContent="";$("#mapPrev").insertAdjacentHTML("afterbegin",`<span class="pill ok">已儲存設定檔「${esc(name)}」</span> `)};
 $("#btnApply").onclick=()=>{if(!IMP||!IMP.res)return;const{rows,metrics,info}=IMP.res,mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
+  runBusy(`正在分析 ${rows.length.toLocaleString()} 筆資料…`,()=>{
   if(mode==="replace"){const c=curRun();c.rows=rows;c.metrics=withHpct(metrics);c.name=name;c.info=info;c.aoi=null;c.sample=false;c.cfg=snapCfg();S.runId=null;switchRun(c.id)}else switchRun(addRun(name,rows,metrics,snapCfg(),info));
-  $("#mapBox").hidden=true;IMP=null;setTab("issues")};
+  $("#mapBox").hidden=true;IMP=null;setTab("issues")})};
 $("#btnRead").onclick=()=>startImport($("#pasteIn").value,"貼上資料");
 $("#btnPhme").onclick=()=>{$("#pasteIn").value=samplePhmeCSV();startImport($("#pasteIn").value,"PHME 格式範例")};
-$("#fileIn").onchange=e=>{const fl=e.target.files[0];if(fl)fl.text().then(t=>startImport(t,fl.name))};
+$("#fileIn").onchange=e=>{const fl=e.target.files[0];if(fl)readImportFile(fl);e.target.value=""};
+function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);fl.text().then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(er=>{busy(false);$("#parseErr").textContent="無法讀取檔案："+er.message})}
 const drop=$("#drop");["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over")}));["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over")}));
-drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)fl.text().then(t=>startImport(t,fl.name))});
+drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)readImportFile(fl)});
 
 /* ---------- 報告 / 匯出 ---------- */
 function reportMd(){const A=S.A,u=METRICS[A.m].unit,lab={ok:"一致/正常",warn:"警示",ng:"異常",na:"—"};
