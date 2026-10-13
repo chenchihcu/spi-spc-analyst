@@ -440,7 +440,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="grid2">
     <div class="card">
       <h3>匯入 SPI 資料 <small>先讀取欄位、確認對應與單位，再套用</small></h3>
-      <div class="drop" id="drop">拖放 CSV 檔到這裡，或 <label style="color:var(--accent);cursor:pointer;text-decoration:underline"><input type="file" id="fileIn" accept=".csv,.txt,.tsv" class="sr">選擇檔案</label></div>
+      <div class="drop" id="drop">拖放 CSV 或 Excel（.xlsx）檔到這裡，或 <label style="color:var(--accent);cursor:pointer;text-decoration:underline"><input type="file" id="fileIn" accept=".csv,.txt,.tsv,.xlsx" class="sr">選擇檔案</label></div>
       <textarea id="pasteIn" aria-label="貼上 CSV 文字" placeholder="或直接貼上 CSV 文字…" style="margin-top:8px"></textarea>
       <div class="row" style="margin-top:8px"><button class="primary" id="btnRead">讀取欄位</button><button id="btnPhme">載入 PHME 格式範例</button><span class="err" id="parseErr"></span></div>
       <div id="mapBox" hidden style="margin-top:12px;display:grid;gap:10px">
@@ -754,7 +754,7 @@ function buildRows(tab,map,opts={},sub=5){
     if(r.height!=null&&o.heightUnit==="mm")r.height=+(r.height*1000).toFixed(2);
     const res=g("result");if(res!=null){r.result=String(res);r.mNG=!OKCODES.includes(String(res).trim().toLowerCase())}
     const sk=g("stroke");if(sk!=null&&sk!=="")r.stroke=String(sk);
-    const d=g("date"),t=g("time");if(d||t){const ts=Date.parse(`${(d||"1970-01-01").replace(/\//g,"-")}T${t||"00:00:00"}`);if(isFinite(ts))r.ts=ts}
+    const d=g("date"),t=g("time");if(d||t){const dd=String(d||"1970-01-01").replace(/\//g,"-").trim(),both=!t&&/\d[ T]\d{1,2}:\d{2}/.test(dd);const ts=Date.parse(both?dd.replace(" ","T"):`${dd}T${t||"00:00:00"}`);if(isFinite(ts))r.ts=ts}
     if(mets.every(k=>r[k]==null))return;rows.push(r)});
   if(!rows.length)throw new Error("沒有可用的數值列");
   // 依時間排序（有日期時間欄時），板的先後才正確
@@ -1790,9 +1790,9 @@ function saveProfiles(p){try{localStorage.setItem("spi-profiles",JSON.stringify(
 function profileOpts(sel){fillSelect($("#selProfile"),[["auto","自動辨識"],["phme","PHME／Bitron 型（拼板 × 子板、偏移 %）"],...profiles().map((p,i)=>["u"+i,p.name])],sel)}
 function setOpts(o){$("#optOff").value=o.offUnit;$("#optH").value=o.heightUnit;$("#optVol").value=o.volBasis}
 function impOpts(){return{offUnit:$("#optOff").value,heightUnit:$("#optH").value,volBasis:$("#optVol").value}}
-function startImport(text,name){try{const tab=csvTable(text),map=autoMap(tab.head);IMP={tab,map,name};setOpts(guessOpts(tab.head,map));profileOpts("auto");
+function startImport(text,name,tab0){try{const tab=tab0||csvTable(text),map=autoMap(tab.head);IMP={tab,map,name};setOpts(guessOpts(tab.head,map));profileOpts("auto");
     const ps=profiles(),hit=ps.findIndex(p=>Object.values(p.cols).every(c=>tab.head.includes(c)));if(hit>=0){$("#selProfile").value="u"+hit;applyProfile("u"+hit)}
-    $("#inRunName").value=name.replace(/\.(csv|txt|tsv)$/i,"");$("#mapBox").hidden=false;$("#parseErr").textContent="";renderMap()}
+    $("#inRunName").value=name.replace(/\.(csv|txt|tsv|xlsx)$/i,"");$("#mapBox").hidden=false;$("#parseErr").textContent="";renderMap()}
   catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true}}
 function applyProfile(v){const head=IMP.tab.head;
   if(v==="auto"){IMP.map=autoMap(head);setOpts(guessOpts(head,IMP.map))}
@@ -1821,7 +1821,50 @@ $("#btnApply").onclick=()=>{if(!IMP||!IMP.res)return;const{rows,metrics,info}=IM
 $("#btnRead").onclick=()=>startImport($("#pasteIn").value,"貼上資料");
 $("#btnPhme").onclick=()=>{$("#pasteIn").value=samplePhmeCSV();startImport($("#pasteIn").value,"PHME 格式範例")};
 $("#fileIn").onchange=e=>{const fl=e.target.files[0];if(fl)readImportFile(fl);e.target.value=""};
-function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);fl.text().then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(er=>{busy(false);$("#parseErr").textContent="無法讀取檔案："+er.message})}
+function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);const fail=er=>{busy(false);$("#parseErr").textContent="無法讀取檔案："+er.message;$("#mapBox").hidden=true};
+  if(/\.xls$/i.test(fl.name))return fail(new Error("舊版 Excel（.xls）不支援，請在 Excel 另存為 .xlsx 或 CSV"));
+  if(/\.xlsx$/i.test(fl.name))return readBuf(fl).then(xlsxTable).then(x=>runBusy(`正在解析 ${fl.name}…`,()=>{startImport("",fl.name,x.tab);if(x.note)toast(x.note)})).catch(fail);
+  fl.text().then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(fail)}
+function readBuf(fl){if(fl.arrayBuffer)return fl.arrayBuffer();return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsArrayBuffer(fl)})}
+/* ---------- Excel（.xlsx）讀取：不需外部函式庫；解 zip（瀏覽器內建解壓）＋讀取工作表 XML ---------- */
+async function unzipEntries(buf){const u=new Uint8Array(buf),dv=new DataView(buf);let e=-1;
+  for(let i=u.length-22;i>=Math.max(0,u.length-65558);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)throw new Error("不是有效的 .xlsx 檔（找不到壓縮目錄）");
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={},td=new TextDecoder();
+  for(let k=0;k<n;k++){if(dv.getUint32(p,true)!==0x02014b50)throw new Error(".xlsx 壓縮目錄損毀");
+    const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+    const name=td.decode(u.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
+    out[name]=async()=>{const ds=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),raw=u.subarray(ds,ds+csize);
+      if(method===0)return td.decode(raw);if(method!==8)throw new Error("不支援的 .xlsx 壓縮方式");
+      return new Response(new Response(raw).body.pipeThrough(new DecompressionStream("deflate-raw"))).text()}}
+  return out}
+const X=(doc,tag)=>[...doc.getElementsByTagNameNS("*",tag)];
+const xmlDoc=t=>{const d=new DOMParser().parseFromString(t,"application/xml");if(d.getElementsByTagName("parsererror").length)throw new Error(".xlsx 內容格式錯誤");return d};
+function colIdx(ref){let n=0;for(const ch of ref){const c=ch.charCodeAt(0);if(c<65||c>90)break;n=n*26+c-64}return n-1}
+function xlDate(v){const ms=Math.round((v-25569)*86400000),d=new Date(ms),p=x=>String(x).padStart(2,"0");
+  const day=`${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;return v%1?`${day} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`:day}
+async function xlsxTable(buf){if(!window.DecompressionStream)throw new Error("此瀏覽器不支援讀取 .xlsx，請另存為 CSV");
+  const z=await unzipEntries(buf),get=async n=>z[n]?z[n]():null;
+  const wb=await get("xl/workbook.xml");if(!wb)throw new Error("不是有效的 Excel 檔（缺少活頁簿）");
+  const wd=xmlDoc(wb),sheets=X(wd,"sheet"),rels=xmlDoc(await get("xl/_rels/workbook.xml.rels")||"<r/>");
+  const tgt=id=>{const r=X(rels,"Relationship").find(x=>x.getAttribute("Id")===id);if(!r)return null;const t=r.getAttribute("Target");return t.startsWith("/")?t.slice(1):"xl/"+t.replace(/^\.\//,"")};
+  const sst=await get("xl/sharedStrings.xml"),strs=sst?X(xmlDoc(sst),"si").map(si=>X(si,"t").map(t=>t.textContent).join("")):[];
+  // 日期格式：內建 14–22、45–47，或自訂格式含年月日時分秒
+  const sty=await get("xl/styles.xml"),dateXf=[];
+  if(sty){const sd=xmlDoc(sty),custom={};X(sd,"numFmt").forEach(f=>custom[f.getAttribute("numFmtId")]=f.getAttribute("formatCode")||"");
+    const xfs=X(sd,"cellXfs")[0];if(xfs)X(xfs,"xf").forEach((xf,i)=>{const id=+xf.getAttribute("numFmtId")||0,code=(custom[id]||"").replace(/"[^"]*"|\[[^\]]*\]|\\./g,"");dateXf[i]=(id>=14&&id<=22)||(id>=45&&id<=47)||/[ymdhs]/i.test(code)})}
+  let pick=null,name="";
+  for(const sh of sheets){const path=tgt(sh.getAttribute("r:id")||sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id"));const t=path&&await get(path);if(!t)continue;
+    const rows=X(xmlDoc(t),"row");if(rows.length>=2){pick=rows;name=sh.getAttribute("name")||"";break}}
+  if(!pick)throw new Error("Excel 檔中找不到有資料的工作表（至少需要標題列與 1 列資料）");
+  const grid=[];for(const row of pick){const line=[];for(const c of X(row,"c")){const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t"),v=X(c,"v")[0];let val="";
+      if(t==="s")val=v?strs[+v.textContent]??"":"";else if(t==="inlineStr")val=X(c,"t").map(x=>x.textContent).join("");else if(t==="b")val=v&&v.textContent==="1"?"TRUE":"FALSE";
+      else if(v){val=v.textContent;if(t!=="str"&&t!=="e"&&dateXf[+c.getAttribute("s")||0]&&isFinite(+val))val=xlDate(+val)}
+      line[i]=safeId(String(val).replace(/[\r\n\t]+/g," "))}
+    if(line.some(x=>x!=null&&x!==""))grid.push(Array.from(line,x=>x??""))}
+  if(grid.length<2)throw new Error("至少需要標題列與 1 列資料");
+  const w=grid[0].length,head=grid[0].map(h=>h.trim()),data=grid.slice(1).map(r=>{const o=r.slice(0,w);while(o.length<w)o.push("");return o.map(x=>x.trim())});
+  return{tab:{head,data},note:sheets.length>1?`已讀取第一個有資料的工作表「${safeId(name)}」（共 ${sheets.length} 個工作表）`:""}}
 const drop=$("#drop");["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over")}));["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over")}));
 drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)readImportFile(fl)});
 
