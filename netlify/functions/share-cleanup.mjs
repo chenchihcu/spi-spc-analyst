@@ -21,6 +21,7 @@ export async function purgeExpired(store, now = Date.now(), budgetMs = 20_000, c
   for (let bi = startIdx; bi < ID_CHARS.length; bi++) {
     const c = ID_CHARS[bi], after = bi === startIdx ? state?.after || "" : "";
     for await (const page of store.list({ prefix: c, paginate: true })) {
+      if (clock() - t0 > budgetMs) return { removed, state: { bucket: c, after } }; // 每頁都檢查時間（含全部跳過的頁），不會超過排程上限
       const keys = (page.blobs || []).map((b) => b.key).filter((k) => k > after).sort();
       for (let i = 0; i < keys.length; i += 20) {
         const batch = keys.slice(i, i + 20);
