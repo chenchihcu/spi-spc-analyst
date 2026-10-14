@@ -199,6 +199,8 @@ test("鎖定：同時送出大量嘗試時，最多只有 5 次會進到密碼�
 test("密碼紀錄格式不合理（次數為 0、鹽無法解碼）視為未設定，不會讓登入出錯", async () => {
   const bad = { AUTH_USERS: JSON.stringify({ "a@x.com": "pbkdf2-sha256$0000$AAAAAAAAAAAAAAAAAAAA$" + "0".repeat(64), "b@x.com": "pbkdf2-sha256$100000$================$" + "0".repeat(64) }), AUTH_SECRET: "z".repeat(40) };
   assert.equal(configured(bad), false);
+  const heavy = { AUTH_USERS: JSON.stringify({ "h@x.com": "pbkdf2-sha256$1000000$AAAAAAAAAAAAAAAAAAAAAA==$" + "0".repeat(64) }), AUTH_SECRET: "z".repeat(40) };
+  assert.equal(configured(heavy), false, "次數超過邊緣函式可承受的上限也視為無效");
   assert.equal(await authenticate(bad, "a@x.com", "x"), null);
   const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "a@x.com", pass: "x" }) }), bad, ok, { noDelay: true });
   assert.equal(r.status, 503, "設定無效時整站暫停服務，而不是 500");
