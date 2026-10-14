@@ -283,7 +283,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 18:22:50</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 18:34:58</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -775,7 +775,8 @@ function machineSpecs(rows,st,base){base=base||DEF_SPECS;const ok=rows.filter(r=
 /* 規格：機台模式下各元件群組用自己的推估規格窗，其餘用共用規格 */
 function specOfGroup(st,g,m){const G=st.specSrc==="machine"&&st.specsG&&st.specsG[g];return G&&G[m]?G[m]:st.specs[m]}
 /* 判定：規格來源為「機台判定」且該焊墊有機台判定碼時，好壞完全依機台；不良類別再依推估規格歸類（都在推估範圍內時記為「機台判 NG」） */
-function classify(r,sp,st){if(st&&st.specSrc==="machine"&&r.result!=null){if(!r.mNG)return[];const d=specClassify(r,sp,st);return d.length?d:["MNG"]}return specClassify(r,sp,st)}
+function classify(r,sp,st){if(st&&st.specSrc==="machine"&&st.specsG&&st.specsG[r.group])sp=st.specsG[r.group]; /* 機台模式：無判定碼的焊墊與不良歸類都用該群組的推估規格 */
+  if(st&&st.specSrc==="machine"&&r.result!=null){if(!r.mNG)return[];const d=specClassify(r,sp,st);return d.length?d:["MNG"]}return specClassify(r,sp,st)}
 function specClassify(r,sp,st){const d=[];let hl=sp.height.lsl,hu=sp.height.usl;
   if(st&&st.step&&st.step.on&&r.height!=null){const t=padThk(r,st);hl=t*st.htol.lo/100;hu=t*st.htol.hi/100}
   if(r.volume!=null){if(r.volume<sp.volume.lsl)d.push("INS");else if(r.volume>sp.volume.usl)d.push("EXC")}
@@ -1032,7 +1033,7 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
   // 刮刀前 / 後（依板序奇偶）
   // 與問題偵測一致：資料有刮刀方向欄位時依欄位分組，沒有才依板序奇偶推定
   const SK=strokeOf(st),skIdx=new Map(),skB=[...new Set(st.rows.map(r=>r.board))];skB.forEach((b,i)=>skIdx.set(b,SK.cls[i]));
-  const bm=A.byBoard.map(b=>b.mean),odd=A.byBoard.filter(b=>skIdx.get(b.board)===0).map(b=>b.mean),even=A.byBoard.filter(b=>skIdx.get(b.board)===1).map(b=>b.mean),stroke=welch(odd,even);
+  const bm=A.byBoard.map(b=>b.mean),odd=A.byBoard.filter(b=>skIdx.get(b.board)===0).map(b=>b.mean),even=A.byBoard.filter(b=>skIdx.get(b.board)===1).map(b=>b.mean),stroke=SK.insufficient?null:welch(odd,even);
   // 擦拭週期
   const N=Math.max(2,Math.round(st.wipe||5)),WS=wipeScan(bm,N),ph=WS?WS.ph:0,pos=A.byBoard.map((b,i)=>((i-ph)%N+N)%N);
   const wipe=Array.from({length:N},(_,k)=>{const bs=A.byBoard.filter((_,i)=>pos[i]===k);return{k:k+1,n:bs.length,mean:bs.length?mean(bs.map(b=>b.mean)):NaN,sd:bs.length>1?sd(bs.map(b=>b.mean)):0,p:bs.length?mean(bs.map(b=>b.p)):NaN}});
@@ -1040,7 +1041,7 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
   // 相關矩陣
   const ms=st.metrics.filter(k=>G.some(r=>r[k]!=null)),cr=G.filter(r=>ms.every(k=>r[k]!=null));
   const corr=ms.map(a=>ms.map(b=>a===b?1:pearson(cr.map(r=>r[a]),cr.map(r=>r[b]))));
-  return{padCpk,arPads,arGroups,align,stroke,odd,even,strokeLabel:SK.label,strokeFromField:SK.fromField,wipe:{N,rows:wipe,r:wr,p:wp,slope:ws,ph,first},corr:{ms,m:corr,n:cr.length}};
+  return{padCpk,arPads,arGroups,align,stroke,odd,even,strokeLabel:SK.label,strokeFromField:SK.fromField,strokeWhy:SK.insufficient?SK.why:null,wipe:{N,rows:wipe,r:wr,p:wp,slope:ws,ph,first},corr:{ms,m:corr,n:cr.length}};
 }
 /* ============ 問題偵測引擎 ============
    逐面向掃描全部量測項目，輸出「事實 / 推論 / 佐證」結構化的問題清單 */
@@ -1159,7 +1160,7 @@ function detectIssues(st){
   const N=Math.max(2,Math.round(st.wipe||5)),SK=strokeOf(st);
   for(const k of MS.filter(k=>!isOff(k))){const raw=boardMeans(k);if(nb<8||raw.some(v=>!isFinite(v)))continue;const bm=winsor(raw);
     // 先以「週期整數倍」的移動平均扣除長期趨勢（漂移），再比較刮刀方向；趨勢不會被誤認為方向差，也不會稀釋方向差
-    const rs2=detrend(bm,4),t=!SK.fromField&&figs.length>=2?null:welch(rs2.filter((_,i)=>SK.cls[i]===0),rs2.filter((_,i)=>SK.cls[i]===1));
+    const rs2=detrend(bm,4),t=SK.insufficient||(!SK.fromField&&figs.length>=2)?null:welch(rs2.filter((_,i)=>SK.cls[i]===0),rs2.filter((_,i)=>SK.cls[i]===1));
     // 多個量測項目同時檢定：Bonferroni 校正；扣除趨勢後殘差彼此相關，再收緊 4 倍（以 100 組無異常模擬資料校正）
     const aB=.05/MS.filter(k=>!isOff(k)).length/4;
     if(t&&t.p<aB)add({lv:t.p<aB/5?"warn":"info",cat:"刮刀方向",sig:{t:"stroke",k,d:t.ma-t.mb},title:`${lab(k)}在${SK.label[0]}／${SK.label[1]}行程有差異`,ents:["s:stroke"],score:1.5+(t.p<.01?1:0),
@@ -1312,6 +1313,8 @@ function wilson(k,n,z=1.96){if(!n)return[NaN,NaN];const p=k/n,d=1+z*z/n,c=(p+z*z
 function strokeOf(st){const first=new Map();for(const r of st.rows){if(!first.has(r.board))first.set(r.board,null);if(r.stroke!=null&&first.get(r.board)==null)first.set(r.board,r.stroke)}const boards=[...first.keys()],dir=boards.map(b=>first.get(b));
   const vals=[...new Set(dir.filter(x=>x!=null))];
   if(vals.length===2&&dir.every(x=>x!=null))return{fromField:true,label:vals.map(v=>"方向 "+v),cls:dir.map(x=>vals.indexOf(x))};
+  // 有方向欄位但不完整（只有一種方向、超過兩種或部分板缺值）：不可再用奇偶推定，否則與實際資料矛盾
+  if(vals.length)return{fromField:true,insufficient:true,label:vals.map(v=>"方向 "+v),cls:dir.map(()=>-1),why:vals.length===1?`所有板都是同一方向（${vals[0]}）`:vals.length>2?`方向超過兩種（${vals.join("、")}）`:"部分板缺少方向"};
   return{fromField:false,label:["奇數板（推定前刮）","偶數板（推定後刮）"],cls:boards.map((_,i)=>i%2)}}
 
 /* ============ 試產回合比較 ============ */
@@ -1884,6 +1887,8 @@ function renderAdv(){const A=S.A;V=advAnalyze(S,A);const ink=css("--muted"),grid
       {type:"line",data:[sk.ma,sk.mb],showLine:false,pointStyle:"line",pointRadius:22,pointBorderWidth:2.5,pointBorderColor:css("--ink")}]},
       options:baseOpts({indexAxis:"y",scales:{x:{...ax(METRICS[A.m].short+"（"+METRICS[A.m].unit+"）· 平均與 95% 信賴區間"),...(()=>{const e=[sk.ma,sk.mb].map((m,i)=>1.96*sd(i?V.even:V.odd)/Math.sqrt((i?V.even:V.odd).length)),lo=Math.min(sk.ma-e[0],sk.mb-e[1]),hi=Math.max(sk.ma+e[0],sk.mb+e[1]),pd=Math.max((hi-lo)*.6,.5);return{min:+(lo-pd).toFixed(1),max:+(hi+pd).toFixed(1)}})()},y:{ticks:{color:ink,font:{size:11}},grid:{display:false}}},plugins:{legend:{display:false},vlines:{},tooltip:{enabled:false}}})});
     $("#strokeTxt").innerHTML=`<span class="pill ${sk.p<.05?"warn":"ok"}">${sk.p<.05?"有顯著差異":"無顯著差異"}</span> 差值 <b class="mono">${f(sk.ma-sk.mb,2)}</b> ${METRICS[A.m].unit}，t = ${f(sk.t,2)}，df = ${f(sk.df,1)}，p = <b class="mono">${sk.p<.001?"< 0.001":f(sk.p,3)}</b>`}
+  else{$("#strokeSub").textContent=V.strokeWhy?"刮刀方向欄位不完整":"資料不足";mk("cStroke",{type:"bar",data:{labels:[],datasets:[]},options:baseOpts()});
+    $("#strokeTxt").innerHTML=`<span class="pill na">無法比較</span> ${V.strokeWhy?esc(V.strokeWhy)+"；資料有方向欄位時不以板序奇偶推定，請補齊每片板的刮刀方向":"兩個方向各需至少 2 片板"}`}
   // 擦拭
   const W=V.wipe;$("#inWipe").value=W.N;$("#wipeSub").textContent=`每 ${W.N} 片擦拭 · `+(W.p<.05?`推定擦拭後第 1 片為 ${W.first}（已掃描 ${W.N} 種起點，p 值已校正）`:`未找到明顯週期（已掃描 ${W.N} 種起點）；下圖以最接近的起點 ${W.first||"—"} 分組`);
   mk("cWipe",{type:"bar",data:{labels:W.rows.map(w=>"第 "+w.k+" 片"),datasets:[{data:W.rows.map(w=>w.mean),backgroundColor:css("--series2")+"AA",yAxisID:"y",order:2},{type:"line",data:W.rows.map(w=>w.p*100),borderColor:css("--accent"),pointRadius:3,borderWidth:1.6,yAxisID:"y2",order:1}]},
@@ -2125,6 +2130,8 @@ function runState(run){return run.id===S.runId?{...S}:{...S,rows:run.rows,metric
 function addRun(name,rows,metrics,cfg,info){name=safeId(name)||"未命名回合";const id=Math.max(0,...S.runs.map(r=>r.id))+1;S.runs.push({id,name,rows,metrics:withHpct(metrics),cfg:cfg||snapCfg(),info:info||null,aoi:null});return id}
 function switchRun(id){const c=curRun();if(c)c.cfg=snapCfg();const n=S.runs.find(r=>r.id===id);if(!n)return;
   S.runId=id;S.rows=n.rows;S.metrics=n.metrics;S.source=n.name;S.issEnt=null;S.ctx=null;S.specSrc="custom";S.specsCustom=null;S.specsG=null;S.sqDir="Y";Object.assign(S,clone(n.cfg));S.group="ALL";S.board=null;S.pad=null;
+  /* v9.10.0 存下的機台模式回合沒有群組規格、規格窗也向外取整過：依原始資料重新推估 */
+  if(S.specSrc==="machine"&&!S.specsG&&S.rows.some(r=>r.result!=null)){const ms=machineSpecs(S.rows,S,S.specsCustom||S.specs);S.specs=ms.specs;S.specsG=ms.groups;n.cfg=snapCfg()}
   if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon()}
 /* ---------- 回合保存（IndexedDB）：資料留在這台電腦的瀏覽器，不上傳 ---------- */
 const RunDB={
@@ -2406,6 +2413,8 @@ function ctrlInfo(A){const N=A.nelX||A.nel;return{依據:"X̄ 圖（每板平均
 function fmInfo(){const Me=S.F&&S.F.meta;if(!Me||!Me.modes)return[];return Me.modes.map(m=>({模式:m.name,判讀:m.verdict,支持面向:m.dims.join("、"),必要面向:m.key||"",支持證據:m.sup.map(e=>e.d+"："+e.txt),矛盾證據:m.con.map(e=>e.d+"："+e.txt),資料不足:m.need||""}))}
 function mcInfo(){const Me=S.F&&S.F.meta;return Me&&Me.tests?{單板異常檢定次數:Me.tests,每次誤報率:+Me.alpha.toExponential(2),預期誤報數:+f(Me.expFA,2)}:null}
 function specSrcText(){return S.specSrc==="machine"?"與機台判定一致（好壞採用機台判定碼；規格窗由 PASS 範圍推估，"+(S.specsG?"各元件群組分別推估":"全板共用")+"）":"自訂規格"}
+/* 與伺服器端 lib/analyze-core.mjs 的 SYSTEM_PROMPT 相同的證據規則（測試會核對兩邊一致） */
+const AI_EVIDENCE_RULE="錫膏印刷的失效通常是多因素的：「失效模式交叉比對」是系統依形狀、時間、空間、設計、對位、量測六個獨立面向整理的支持與矛盾證據。判斷根因時，至少兩個獨立面向一致且沒有矛盾證據才可列為「可能原因」；只有單一現象者只能列為「待確認」並說明還缺哪個面向的證據。「管制狀態」顯示製程未穩定時，能力指標只能作參考。「多重比較」為大量檢定下的預期誤報數，單一發現請據此評估是否為假訊號。";
 function aiPayload(){const A=S.A;return{試產回合:curRun()?curRun().name:"",量測項目:METRICS[A.m].label,單位:METRICS[A.m].unit,元件群組:S.group==="ALL"?"全部":S.group,管制圖:chartName(),規格:A.sp,鋼板厚度µm:S.stencil,階梯鋼板:S.step.on?S.step.zones.map(z=>({區域:z.name,厚度µm:z.t,範圍:z.mode==="group"?"元件群組 "+z.group:`X ${z.x0}~${z.x1} mm, Y ${z.y0}~${z.y1} mm`})):"未啟用",高度規格佔厚度:`${S.htol.lo}%–${S.htol.hi}%`,樣本數:A.N,板數:A.boards.length,
   平均:+f(A.gMean,3),σ組內:+f(A.sigmaW,3),σ整體:+f(A.overallSd,3),能力:capInfo(A),規格來源:specSrcText(),管制狀態:ctrlInfo(A),失效模式交叉比對:fmInfo(),多重比較:mcInfo(),
   常態性:{AD:+f(A.ad.A,3),p:+f(A.ad.p,4),偏態:+f(A.sk.skew,2),峰度:+f(A.sk.kurt,2)},Nelson:A.nel.rules.filter(r=>r.idx.length&&!r.na).map(r=>({管制圖:chartName(),規則:r.name,點:r.idx.map(i=>A.series[i].lab)})),
@@ -2423,6 +2432,7 @@ $("#btnAI").onclick=async()=>{const out=$("#aiOut"),st=$("#aiState");
   if(!sample)return analyzeViaApi(out,st);
   aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;st.textContent="分析中…";out.innerHTML="";
   const prompt=`你是資深 SQE／SMT 製程工程師，熟悉錫膏印刷（SPI）、SPC 與 8D。以下是 SPI 統計分析結果（JSON，全部為計算出的事實）。請用繁體中文、條列式回覆，總長約 600–900 字，並嚴格區分「事實」（直接來自數據）與「推論」（需驗證，標註信心 高/中/低）。
+${AI_EVIDENCE_RULE}
 
 輸出段落（使用 ### 標題）：
 ### 結論摘要（最該先處理的 3 個問題）
@@ -2692,7 +2702,7 @@ try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t
 initRuns(false);
 restoreRuns().then(()=>meP).then(j=>{if((j||HAS_API)&&window.DecompressionStream)return openShareFromUrl()});
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,importCfg,setSpecSrc,recompute});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,importCfg,setSpecSrc,recompute,switchRun});
 const h=(location.hash||"").slice(1);
 if(["issues","overview","compare","dfm","control","capability","sim3d","cross","adv","lab","ai","data"].includes(h))setTab(h);
 })();
