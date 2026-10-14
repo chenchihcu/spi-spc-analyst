@@ -139,8 +139,8 @@ test("鎖定：同一帳號連續失敗 5 次即鎖定，鎖定中正確密碼�
   const locked = await tryLogin("bob-pass-22", t0 + 200, "10.9.9.9");
   assert.equal(locked.status, 429);
   assert.match(await locked.text(), /嘗試次數過多/);
-  assert.equal((await tryLogin("bob-pass-22", t0 + 200 + LOCK.lockMs - 10, "10.9.9.9")).status, 429, "鎖定中再嘗試會延長鎖定");
-  assert.equal((await tryLogin("bob-pass-22", t0 + 200 + 2 * LOCK.lockMs, "10.9.9.9")).status, 303, "最後一次嘗試後滿 15 分鐘可登入");
+  assert.equal((await tryLogin("bob-pass-22", t0 + 104 + LOCK.lockMs - 10, "10.9.9.9")).status, 429, "鎖定期間內仍拒絕");
+  assert.equal((await tryLogin("bob-pass-22", t0 + 104 + LOCK.lockMs + 10, "10.9.9.9")).status, 303, "第 5 次失敗後滿 15 分鐘可登入（鎖定中的嘗試不延長）");
 });
 
 test("鎖定：同一 IP 對多個帳號亂試也會被鎖", async () => {
@@ -194,4 +194,23 @@ test("鎖定：同時送出大量嘗試時，最多只有 5 次會進到密碼�
   const rs = await Promise.all(Array.from({ length: 20 }, (_, i) => handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "bob@example.com", pass: "guess" + i }) }), E2, ok, { store: st, ip: "7.7.7." + i, now: t0, noDelay: true })));
   const evaluated = rs.filter((r) => r.status !== 429).length;
   assert.ok(evaluated <= LOCK.maxFails, `進到驗證的次數 ${evaluated}`);
+});
+
+test("密碼紀錄格式不合理（次數為 0、鹽無法解碼）視為未設定，不會讓登入出錯", async () => {
+  const bad = { AUTH_USERS: JSON.stringify({ "a@x.com": "pbkdf2-sha256$0000$AAAAAAAAAAAAAAAAAAAA$" + "0".repeat(64), "b@x.com": "pbkdf2-sha256$100000$================$" + "0".repeat(64) }), AUTH_SECRET: "z".repeat(40) };
+  assert.equal(configured(bad), false);
+  assert.equal(await authenticate(bad, "a@x.com", "x"), null);
+  const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "a@x.com", pass: "x" }) }), bad, ok, { noDelay: true });
+  assert.equal(r.status, 503, "設定無效時整站暫停服務，而不是 500");
+});
+
+test("鎖定中再嘗試（換不同帳號名稱）不會留下新紀錄，鎖定紀錄不會無限累積", async () => {
+  const st = memStore(), t0 = 1_900_000_000_000;
+  for (let i = 0; i < LOCK.maxFails; i++) await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: `x${i}@x.com`, pass: "x" }) }), E2, ok, { store: st, ip: "8.8.8.8", now: t0 + i, noDelay: true });
+  const before = st.m.size;
+  for (let i = 0; i < 30; i++) {
+    const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: `spray${i}@x.com`, pass: "x" }) }), E2, ok, { store: st, ip: "8.8.8.8", now: t0 + 100 + i, noDelay: true });
+    assert.equal(r.status, 429);
+  }
+  assert.equal(st.m.size, before, "鎖定後的嘗試不增加紀錄");
 });
