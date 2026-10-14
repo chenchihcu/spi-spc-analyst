@@ -61,4 +61,12 @@ test("匯出 CSV：以 = + - @ 開頭的文字前加 '，避免被試算表當�
   const text = await new Promise((ok) => { const r = new w.FileReader(); r.onload = () => ok(r.result); r.readAsText(saved); });
   assert.match(text, /,'=1\+2 惡意,/, "公式開頭應加上 '");
   assert.ok(!/,=1\+2/.test(text));
+  // 純數值（含負數）不加 '，維持數值
+  saved = null;
+  w.eval(`S.F[0].title='-12.5'`);
+  w.document.querySelector("#btnIssCsv").click();
+  for (let i = 0; i < 20 && !saved; i++) await tick(20);
+  const t2 = await new Promise((ok) => { const r = new w.FileReader(); r.onload = () => ok(r.result); r.readAsText(saved); });
+  assert.match(t2, /,-12\.5,/);
+  assert.ok(!/'-12\.5/.test(t2));
 });
