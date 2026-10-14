@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML } = require("./_load.js");
+const { HTML, withIdb } = require("./_load.js");
 const FIX = new URL("./fixtures/spi-sample.xlsx", import.meta.url);
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -22,6 +22,7 @@ function page(limits) {
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
     if (limits) w.SPI_TEST_LIMITS = limits;
     w.addEventListener("error", (e) => errs.push(e.message));
+    withIdb(w);
   } });
   return { dom, errs };
 }
@@ -43,6 +44,7 @@ test("xlsx：略過空白說明頁、讀到資料頁、欄位自動對應、日�
   assert.match(d.querySelector("#mapPrev").textContent, /已依日期時間排序/, "Excel 日期時間欄應被辨識");
   assert.match(d.querySelector("#toast")?.textContent || "", /SPI資料.*共 2 個工作表/);
   assert.equal(d.querySelector("#inRunName").value, "spi-sample");
+  d.querySelector("#inLot").value = "X1"; d.querySelector("#inPart").value = "P1";
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 50 && w.eval("S.rows.length") !== 240; i++) await tick(20);
   assert.equal(w.eval("S.rows.length"), 240);

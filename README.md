@@ -39,6 +39,11 @@
 
 `Board`、`Panel`、`Figure`、`Component`、`Package`（封裝，作為元件群組）、`Pin`／`Pad`、`PosX`、`PosY`、`Volume(%)`、`Height(um)`、`Area(%)`、`OffsetX`、`OffsetY`、`Pad L/W`、`Aperture L/W`、`Result`、`Stroke`、`Date`、`Time`、`Pressure`、`Speed`、`Separation speed`
 
+### 資料回溯（資料庫）
+
+- 匯入量測紀錄前填寫**批號**與**產品料號**（必填）；上傳座標檔前填寫**產品料號**與**版本**（必填）。原始檔自動存入資料庫，之後在「資料與規格 → 資料庫」可搜尋、開啟分析、下載原始檔、驗證指紋與刪除（限上傳者）。
+- 回合、列印與分析報告都會帶批號、料號與原始檔指紋，可回溯到當初上傳的檔案。
+
 ### 加工廠 SPI 格式
 
 每家委外加工廠的 SPI 匯出格式不同，匯入前先在「① 加工廠 SPI 格式」選擇：
@@ -67,6 +72,10 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
   - 新增／變更帳號：執行 `node tools/hash-password.mjs '<現有 AUTH_USERS>'`，輸入帳號與兩次密碼，把輸出貼到 `AUTH_USERS`，重新部署後生效。改密碼或刪帳號後，該帳號的舊登入立即失效；更換 `AUTH_SECRET` 會讓所有人重新登入。
   - 同一帳號或同一來源 IP 在 15 分鐘內登入失敗 5 次，鎖定 15 分鐘（紀錄存在 Netlify Blobs `spi-auth-lock`，每次嘗試先登記再驗證，同時大量嘗試也無法繞過）。
   - `/__me` 回傳目前登入帳號；AI 分析與分享會記錄使用者（函式記錄檔）。
+- 量測紀錄與座標檔資料庫：`/api/records` 把原始檔（gzip，上限 4 MB）存在 Netlify Blobs `spi-records`，永久保存（不會自動刪除）。
+  - 只有新增、查詢／下載、刪除，沒有修改；只有上傳者可刪除；`index.json` 以條件寫入更新，多人同時上傳不會互相覆蓋；`log/` 為稽核紀錄（新增與刪除）。
+  - 量測紀錄必填批號、產品料號；座標檔必填產品料號、版本；每筆記錄 SHA-256 指紋、上傳者、時間。
+  - claude.ai 成品與本機檔案沒有後端，改存在瀏覽器 IndexedDB（只有那台電腦看得到）。
 - 分享連結：`/api/share` 把瀏覽器壓縮後的回合資料（上限 4 MB）存在 Netlify Blobs `spi-share`，30 天後失效；排程函式 `share-cleanup` 每日刪除過期資料。
 - 安全標頭（CSP、X-Frame-Options、HSTS、Permissions-Policy）設定在 `netlify.toml` 與登入頁。
 
