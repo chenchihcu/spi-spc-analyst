@@ -60,3 +60,13 @@ test("xlsx：舊版 .xls 與損毀檔給出清楚訊息", { skip: !JSDOM && "未
   await pick(dom, "broken.xlsx", Buffer.from("this is not a zip file at all, just text"));
   assert.match(d.querySelector("#parseErr").textContent, /不是有效的 \.xlsx/);
 });
+
+test("xlsx：第一個工作表用廠商自訂欄名時，不會被只有一個通用欄名的摘要頁取代", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom } = page();
+  await tick(60);
+  const d = dom.window.document;
+  await pick(dom, "vendor.xlsx", fs.readFileSync(new URL("./fixtures/vendor-first-sheet.xlsx", import.meta.url)));
+  assert.equal(d.querySelector("#mapBox").hidden, false, d.querySelector("#parseErr").textContent);
+  const head = [...d.querySelectorAll("#map-board option")].map((o) => o.textContent);
+  assert.ok(head.includes("VolPct_Vendor"), "應讀到第一個工作表（Raw）：" + head.join(","));
+});

@@ -216,7 +216,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
   </div>
   <div class="row">
-    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 08:35:31</b></span>
+    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 08:46:21</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
     <button class="chip chipBtn" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
     <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
@@ -1270,7 +1270,7 @@ function busy(on,msg){const b=$("#busy");if(!b)return;if(on){$("#busyMsg").textC
 /* 先顯示「處理中」再做耗時的同步工作，讓提示有機會畫出來 */
 function runBusy(msg,fn){busy(true,msg);return new Promise(ok=>setTimeout(()=>{try{fn()}finally{if(!S.F||!S.F.pending)busy(false);ok()}},30))}
 function recompute(){S.A=analyze(S);const sig=detectSig();
-  if(sig!==F_SIG||S.F.rowsRef!==S.rows){const w=S.rows.length>WORKER_MIN&&detWorker();
+  if(sig!==F_SIG||S.F.rowsRef!==S.rows){if(F_SIG!==null&&S.F.rowsRef===S.rows)saveRunsSoon(); /* 規格、鋼板等設定改變時保存回合設定 */const w=S.rows.length>WORKER_MIN&&detWorker();
     if(!w)detectSync(sig);
     else{const seq=++detSeq,rowsRef=S.rows;F_SIG=sig;
       for(const r of S.rows)if(r.height!=null)r.hpct=+(r.height/padThk(r,S)*100).toFixed(1);
@@ -1572,7 +1572,7 @@ function drawVec(){const cv=$("#vecCv");if(!cv.offsetParent)return;const ctx=cv.
   ctx.fillStyle=css("--muted");ctx.font="15px IBM Plex Mono";ctx.fillText(`箭頭 = 偏移 × ${$("#inVec").value}　粗箭頭 = 整板平移　紅色 = 超出偏移規格`,X.pad,cv.height-6)}
 $("#selAlignBoard").onchange=e=>{S.board=e.target.value;renderAdv()};
 $("#inVec").oninput=e=>{$("#vecOut").textContent=e.target.value+"×";drawVec()};
-$("#inWipe").onchange=e=>{const v=Math.round(+e.target.value);if(v>=2){S.wipe=v;renderAdv()}};
+$("#inWipe").onchange=e=>{const v=Math.round(+e.target.value);if(v>=2){S.wipe=v;saveRunsSoon();renderAdv()}};
 
 /* ---------- 試產比較 ---------- */
 let CMP=null;
@@ -1772,7 +1772,7 @@ $("#chkGhost").onchange=e=>{S.ghost=e.target.checked;build3D()};
 
 /* ---------- 資料與規格 ---------- */
 function renderSpecTbl(){$("#specTbl").innerHTML=`<thead><tr><th>項目</th><th>LSL</th><th>目標</th><th>USL</th></tr></thead><tbody>`+Object.keys(METRICS).map(k=>`<tr><td>${METRICS[k].label} <span class="note">${METRICS[k].unit}</span></td>${["lsl","tgt","usl"].map(q=>`<td><input type="number" step="any" id="sp-${k}-${q}" value="${S.specs[k][q]}" data-k="${k}" data-q="${q}"></td>`).join("")}</tr>`).join("")+"</tbody>";
-  $$("#specTbl input").forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);if(!isFinite(v))return;if(i.dataset.k==="hpct"&&i.dataset.q!=="tgt"){applyStencil(NaN,i.dataset.q==="lsl"?v:NaN,i.dataset.q==="usl"?v:NaN);return}S.specs[i.dataset.k][i.dataset.q]=v;if(i.dataset.k===S.metric){$("#in"+{lsl:"Lsl",usl:"Usl",tgt:"Tgt"}[i.dataset.q]).value=v}S.A=analyze(S)})}
+  $$("#specTbl input").forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);if(!isFinite(v))return;if(i.dataset.k==="hpct"&&i.dataset.q!=="tgt"){applyStencil(NaN,i.dataset.q==="lsl"?v:NaN,i.dataset.q==="usl"?v:NaN);return}S.specs[i.dataset.k][i.dataset.q]=v;if(i.dataset.k===S.metric){$("#in"+{lsl:"Lsl",usl:"Usl",tgt:"Tgt"}[i.dataset.q]).value=v}S.A=analyze(S);saveRunsSoon()})}
 /* ---------- 試產回合 ---------- */
 const esc=x=>String(x??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 const clone=o=>JSON.parse(JSON.stringify(o));
@@ -1900,13 +1900,14 @@ async function xlsxTable(buf){if(!window.DecompressionStream)throw new Error("�
   const sty=await get("xl/styles.xml"),dateXf=[];
   if(sty){const sd=xmlDoc(sty),custom={};X(sd,"numFmt").forEach(f=>custom[f.getAttribute("numFmtId")]=f.getAttribute("formatCode")||"");
     const xfs=X(sd,"cellXfs")[0];if(xfs)X(xfs,"xf").forEach((xf,i)=>{const id=+xf.getAttribute("numFmtId")||0,code=(custom[id]||"").replace(/"[^"]*"|\[[^\]]*\]|\\./g,"");dateXf[i]=(id>=14&&id<=22)||(id>=45&&id<=47)||/[ymdhs]/i.test(code)})}
-  /* 依序讀工作表：第一個「標題列能對應到量測欄位」的工作表優先；都沒有時才用第一個有 2 列以上的工作表 */
+  /* 依標題列能自動對應的欄位數（板號、焊墊、元件、量測項目）選工作表：分數最高者優先，同分取較前面的；
+     因此第一個工作表只會被「辨識欄位更多」的工作表取代，說明頁或只有一個通用欄名的摘要頁不會勝出 */
   let pick=null,name="",fallback=null;
   for(const sh of sheets){const path=tgt(sh.getAttribute("r:id")||sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id"));const t=path&&await get(path);if(!t)continue;
     const rows=X(xmlDoc(t),"row");if(rows.length<2)continue;const g=sheetGrid(rows);if(g.length<2)continue;
-    const m=autoMap(g[0].map(h=>h.trim()));if(["volume","height","area","offx","offy"].some(k=>m[k]!=null)){pick=g;name=sh.getAttribute("name")||"";break}
-    if(!fallback)fallback=[g,sh.getAttribute("name")||""]}
-  if(!pick&&fallback)[pick,name]=fallback;
+    const m=autoMap(g[0].map(h=>h.trim())),sc=["board","pad","comp","volume","height","area","offx","offy"].filter(k=>m[k]!=null).length;
+    if(!fallback||sc>fallback[2])fallback=[g,sh.getAttribute("name")||"",sc]}
+  if(fallback)[pick,name]=fallback;
   if(!pick)throw new Error("Excel 檔中找不到有資料的工作表（至少需要標題列與 1 列資料）");
   const grid=pick;
   function sheetGrid(rowsEl){const grid=[];for(const row of rowsEl){const line=[];for(const c of X(row,"c")){const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t"),v=X(c,"v")[0];let val="";
@@ -2024,8 +2025,8 @@ async function openShareFromUrl(){const id=new URLSearchParams(location.search).
     const v=deepClean(d.view||{});if(v.cmp&&ids.length>1){S.cmpA=ids[0];S.cmpB=ids[1]}
     switchRun(ids[Math.max(0,Math.min(ids.length-1,v.cur|0))]);
     if(v.metric&&S.metrics.includes(v.metric))S.metric=v.metric;if(v.group&&(v.group==="ALL"||S.rows.some(x=>x.group===v.group)))S.group=v.group;
-    syncControls();recompute();if(v.board&&S.A.boards.includes(v.board)){S.board=v.board;$("#selBoard").value=v.board}
-    syncControls();recompute();if(v.tab&&$(`.tab[data-tab="${v.tab}"]`))setTab(v.tab);saveRunsSoon();
+    syncControls();recompute();const bOk=v.board&&S.A.boards.includes(v.board);if(bOk){S.board=v.board;$("#selBoard").value=v.board}
+    if(v.tab&&$(`.tab[data-tab="${v.tab}"]`))setTab(v.tab);else if(bOk)renderTab();saveRunsSoon();
     toast(`已開啟分享的 ${ids.length} 個回合`)}
   catch(e){toast("無法開啟分享連結："+e.message)}}
 /* ---------- 列印／存成 PDF：列印目前頁籤，固定用淺色，頁首附回合與設定資訊 ---------- */
