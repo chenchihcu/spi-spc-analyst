@@ -12,8 +12,8 @@ import { spawnSync } from 'node:child_process';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WRANGLER = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
 const STORES = ['spi-records', 'spi-share', 'spi-maint', 'spi-auth-lock'];
-const BUCKET = 'spi-spc-analyst-blobs';
-const DB = 'spi-spc-analyst';
+const BUCKET = 'spi-spc-record';
+const DB = 'spi-spc';
 const sha = (data) => createHash('sha256').update(data).digest('hex');
 const sql = (value) => `CAST(X'${Buffer.from(String(value)).toString('hex')}' AS TEXT)`;
 const kindFor = (store, key) => {
