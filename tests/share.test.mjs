@@ -150,7 +150,7 @@ test("分享資料每日清除：過期或缺少到期資訊者刪除，未過�
     async getMetadata(k) { const v = m.get(k); if (v === "THROW") throw new Error("storage timeout"); return v || null; },
     async delete(k) { m.delete(k); },
   };
-  assert.equal(await purgeExpired(st, 1000), 3);
+  assert.equal((await purgeExpired(st, 1000)).removed, 3);
   assert.deepEqual([...m.keys()].sort(), ["b", "err"], "讀取失敗的項目不可刪除");
   assert.equal(config.schedule, "@daily");
 });
@@ -164,13 +164,17 @@ test("鎖定紀錄每日清除：只刪過期的", async () => {
   assert.deepEqual([...m], [`l-a/${now - 1000}-y`]);
 });
 
-test("每日清除：超過時間預算即停止，且每天從不同分段開始（輪流處理，不會永遠卡在前面）", async () => {
-  const { purgeExpired, rotation, ID_CHARS } = await import("../netlify/functions/share-cleanup.mjs");
-  assert.notEqual(rotation(ID_CHARS, 0)[0], rotation(ID_CHARS, 86400_000)[0], "隔天起點不同");
-  const firsts = new Set(Array.from({ length: 64 }, (_, d) => rotation(ID_CHARS, d * 86400_000)[0]));
-  assert.equal(firsts.size, 64, "64 天內每個分段都會當過起點");
-  let t = 0, calls = 0;
-  const st = { async *list({ prefix }) { calls++; yield { blobs: [{ key: prefix + "x" }] }; }, async getMetadata() { t += 10; return { metadata: { exp: 9e15 } }; }, async delete() {} };
-  await purgeExpired(st, 0, 25, () => t);
-  assert.ok(calls < 10, `應在預算內停止（掃描 ${calls} 段）`);
+test("每日清除：超過時間預算即停止並記下進度，下次從中斷處接著做，最終每一筆都會處理到", async () => {
+  const { purgeExpired } = await import("../netlify/functions/share-cleanup.mjs");
+  const keys = Array.from({ length: 300 }, (_, i) => "A" + String(i).padStart(4, "0")).concat(["Bzz1", "_end"]);
+  const m = new Map(keys.map((k) => [k, { metadata: { exp: k === "_end" || k === "A0299" ? 1 : 9e15 } }]));
+  let t = 0;
+  const st = { async *list({ prefix }) { const k = [...m.keys()].filter((x) => x.startsWith(prefix)); for (let i = 0; i < k.length; i += 50) yield { blobs: k.slice(i, i + 50).map((key) => ({ key })) }; },
+    async getMetadata(k) { t += 1; return m.get(k) || null; }, async delete(k) { m.delete(k); } };
+  let state = null, runs = 0, total = 0;
+  do { const r = await purgeExpired(st, 1000, 100, () => t, state); total += r.removed; state = r.state; runs++; } while (state && runs < 20);
+  assert.ok(runs > 1, "單次跑不完，需要多次接續");
+  assert.equal(state, null, "最後會跑完一輪");
+  assert.equal(total, 2, "第 300 筆與最後一段的過期分享都被清除");
+  assert.ok(!m.has("A0299") && !m.has("_end"));
 });
