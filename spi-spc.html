@@ -283,7 +283,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 18:12:15</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 18:22:50</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -760,15 +760,17 @@ function zoneOf(r,st){if(!st.step||!st.step.on)return null;for(const z of st.ste
 function padThk(r,st){const z=zoneOf(r,st);return z?z.t:st.stencil||120}
 /* 由機台判 PASS 的焊墊推估機台程式的規格窗（各量測項目 PASS 範圍向外取整到 5 的倍數；偏移取整到 5 µm）。
    機台實際規格可能依封裝不同，此推估只用於製程能力計算；好壞判定直接採用機台結果 */
-function envelope(ok,base){const sp=JSON.parse(JSON.stringify(base));
-  for(const k of ["volume","area","hpct","height","offx","offy"]){let lo=Infinity,hi=-Infinity;for(const r of ok){const v=r[k];if(v!=null&&isFinite(v)){if(v<lo)lo=v;if(v>hi)hi=v}}
-    if(isFinite(lo)&&isFinite(hi)){const st5=5;sp[k]={lsl:Math.floor(lo/st5)*st5,usl:Math.ceil(hi/st5)*st5,tgt:sp[k].tgt};if(!(sp[k].tgt>sp[k].lsl&&sp[k].tgt<sp[k].usl))sp[k].tgt=+((sp[k].lsl+sp[k].usl)/2).toFixed(1)}}
+/* PASS 焊墊實際出現過的最小～最大值（不向外取整）：機台真正的規格窗一定包含這個範圍，所以據此算出的能力是下限。
+   minN：該量測項目至少要有這麼多筆有效值才推估，否則沿用 base 的規格 */
+function envelope(ok,base,minN=1){const sp=JSON.parse(JSON.stringify(base));
+  for(const k of ["volume","area","hpct","height","offx","offy"]){let lo=Infinity,hi=-Infinity,n=0;for(const r of ok){const v=r[k];if(v!=null&&isFinite(v)){n++;if(v<lo)lo=v;if(v>hi)hi=v}}
+    if(n>=minN&&isFinite(lo)&&isFinite(hi)&&hi>lo){sp[k]={lsl:lo,usl:hi,tgt:sp[k].tgt};if(!(sp[k].tgt>sp[k].lsl&&sp[k].tgt<sp[k].usl))sp[k].tgt=+((lo+hi)/2).toFixed(1)}}
   return sp}
-/* 機台程式通常依封裝分別設定規格：每個元件群組另以自己的 PASS 範圍推估（PASS 焊墊少於 20 筆的群組沿用全板推估） */
+/* 機台程式通常依封裝分別設定規格：每個元件群組另以自己的 PASS 範圍推估（該群組某量測項目有效值少於 20 筆時，該項目沿用全板推估） */
 function machineSpecs(rows,st,base){base=base||DEF_SPECS;const ok=rows.filter(r=>r.result!=null&&!r.mNG);if(!ok.length)return{specs:JSON.parse(JSON.stringify(base)),n:0,groups:null};
   for(const r of ok)if(r.height!=null)r.hpct=+(r.height/padThk(r,st)*100).toFixed(1);
   const specs=envelope(ok,base),byG=new Map();for(const r of ok){let a=byG.get(r.group);if(!a)byG.set(r.group,a=[]);a.push(r)}
-  const groups={};for(const[g,a]of byG)if(a.length>=20)groups[g]=envelope(a,specs);
+  const groups={};for(const[g,a]of byG)if(a.length>=20)groups[g]=envelope(a,specs,20);
   return{specs,n:ok.length,groups}}
 /* 規格：機台模式下各元件群組用自己的推估規格窗，其餘用共用規格 */
 function specOfGroup(st,g,m){const G=st.specSrc==="machine"&&st.specsG&&st.specsG[g];return G&&G[m]?G[m]:st.specs[m]}
@@ -1324,6 +1326,8 @@ function runGroupStats(st,m){const R=st.rows;for(const r of R)if(r.height!=null)
     const br=[...bd.values()].map(x=>x.d/x.n);
     out[g]={br,g,n:rs.length,nb:new Set(rs.map(r=>r.board)).size,mu,ppk,te:te.length?mean(te):NaN,cv:te.length>1?sd(te)/mean(te)*100:NaN,bm,d:rs.filter(r=>classify(r,st.specs,st).length).length,
       ar:g==="整體"||!one.length?NaN:Math.min(...one.map(r=>areaRatio(r,st))),thk:g==="整體"||!one.length?NaN:Math.max(...one.map(r=>padThk(r,st)))};out[g].rate=out[g].d/out[g].n}
+  // 機台模式各群組規格不同：整體 Ppk 不能用共用規格把不同群組混算，改取最差群組（與製程能力頁一致）
+  if(st.specSrc==="machine"&&st.specsG&&out["整體"]){const gs=groups.map(g=>out[g]).filter(x=>x&&isFinite(x.ppk));if(gs.length){const w=gs.reduce((a,b)=>b.ppk<a.ppk?b:a);Object.assign(out["整體"],{ppk:w.ppk,nb:w.nb,ppkGroup:w.g})}}
   return out}
 function compareRuns(sa,sb,m){const A=runGroupStats(sa,m),B=runGroupStats(sb,m),tgt=sa.specs.volume.tgt;
   return Object.keys(A).filter(k=>B[k]).map(k=>{const a=A[k],b=B[k],t=welch(b.bm,a.bm);
