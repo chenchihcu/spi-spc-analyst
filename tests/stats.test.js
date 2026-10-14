@@ -44,7 +44,8 @@ test("能力：混合群組時以組內 σ 計算，整體取最差群組；Cpk 
   const w = A.cap.groups[0];
   assert.equal(A.cap.worst, w.g);
   near(A.cap.cpk, Math.min(...A.cap.groups.map((g) => g.cpk)), 1e-12, "整體 Cpk 取最差群組");
-  const se = Math.sqrt(1 / (9 * w.n) + (w.cpk * w.cpk) / (2 * (w.n - 1)));
+  assert.equal(w.nb, 20, "有效樣本數取板數");
+  const se = Math.sqrt(1 / (9 * w.nb) + (w.cpk * w.cpk) / (2 * (w.nb - 1)));
   near(w.ci[0], w.cpk - 1.96 * se, 1e-9, "CI 下限");
   near(w.ci[1], w.cpk + 1.96 * se, 1e-9, "CI 上限");
   // 單一群組：Cp 用組內 σ、Pp 用整體 σ
@@ -100,8 +101,9 @@ test("擦拭週期：未知第一次擦拭位置時，相位掃描找回擦拭�
   assert.ok(w.p >= w.p0 * N - 1e-12 || w.p === 1, "p 值乘以相位數");
 });
 
-test("量測一致性：機台由面積×高度算出體積時判為不適用；獨立量測時以組內殘差判斷", () => {
+test("量測一致性：機台由面積×高度算出體積時判為不適用（鋼板厚度輸入不同也一樣）；獨立量測時以組內殘差判斷", () => {
   const rows = synth({ nb: 6 }), der = rows.map((r) => ({ ...r, volume: +(r.area * r.height / 120).toFixed(3) }));
+  assert.equal(c.msaCheck(der, st(der, { stencil: 100 })).derived, true, "厚度輸入 100 µm 時比值為 1.2 但仍為衍生值");
   const d = c.msaCheck(der, st(der)), ind = c.msaCheck(rows, st(rows));
   assert.equal(d.derived, true);
   assert.equal(ind.derived, false);

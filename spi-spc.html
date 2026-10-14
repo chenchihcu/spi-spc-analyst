@@ -283,7 +283,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 17:18:22</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 17:27:37</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -800,7 +800,7 @@ function analyze(st){
   const bmr0=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB0=(bmr0.length?mean(bmr0):0)/1.128||sigmaW/Math.sqrt(nbar);
   // S 圖：每板的組內合併標準差；中心線 c4(n)·σ̂、界限 ±3σ̂√(1−c4²)，依每板自由度調整
   const xs={cl:gMean,sB:sB0,pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:gMean+3*sB0,lcl:gMean-3*sB0,z:(b.mean-gMean)/sB0})),
-    s:byBoard.map(b=>{const bp=bPool.get(b.board)||{s:b.sd,df:b.n-1},c=c4(bp.df+1),cl=c*sigmaW,h=3*sigmaW*Math.sqrt(Math.max(1-c*c,0));return{lab:b.board,v:bp.s,cl,ucl:cl+h,lcl:Math.max(0,cl-h)}})};
+    s:byBoard.map(b=>{const bp=bPool.get(b.board)||{s:b.sd,df:b.n-1};if(!(bp.df>=1))return{lab:b.board,v:NaN,cl:NaN,ucl:NaN,lcl:NaN};const c=c4(bp.df+1),cl=c*sigmaW,h=3*sigmaW*Math.sqrt(Math.max(1-c*c,0));return{lab:b.board,v:bp.s,cl,ucl:cl+h,lcl:Math.max(0,cl-h)}})};
   // I-MR（單一焊墊）
   const pads=[...new Set(rows.map(r=>r.pad))];
   const pad=pads.includes(st.pad)?st.pad:pads[0];
@@ -827,15 +827,16 @@ function analyze(st){
   const stable=!nelX.rules.some(r=>r.idx.length&&r.id!==7);
   // 能力：Cp/Cpk 用組內 σ，Pp/Ppk 用長期 σ；混合多個元件群組時逐群組計算，整體取最差群組，預估 PPM 為各群組加權
   const hasSpec=isFinite(sp.lsl)&&isFinite(sp.usl)&&sp.usl>sp.lsl;
-  const capOf=(mu,sw,sl,n)=>{const cpk=Math.min(sp.usl-mu,mu-sp.lsl)/(3*sw),se=n>1?Math.sqrt(1/(9*n)+cpk*cpk/(2*(n-1))):NaN;
-    return{n,mu,cp:(sp.usl-sp.lsl)/(6*sw),cpk,pp:(sp.usl-sp.lsl)/(6*sl),ppk:Math.min(sp.usl-mu,mu-sp.lsl)/(3*sl),ci:[cpk-1.96*se,cpk+1.96*se],ppmExp:(Phi((sp.lsl-mu)/sl)+1-Phi((sp.usl-mu)/sl))*1e6}};
+  // Cpk 信賴區間（NIST）：同一片板的焊墊彼此不獨立，有效樣本數取板數（保守），不用焊墊數
+  const capOf=(mu,sw,sl,n,nb)=>{const cpk=Math.min(sp.usl-mu,mu-sp.lsl)/(3*sw),ne=Math.min(n,nb||n),se=ne>1?Math.sqrt(1/(9*ne)+cpk*cpk/(2*(ne-1))):NaN;
+    return{n,nb:ne,mu,cp:(sp.usl-sp.lsl)/(6*sw),cpk,pp:(sp.usl-sp.lsl)/(6*sl),ppk:Math.min(sp.usl-mu,mu-sp.lsl)/(3*sl),ci:[cpk-1.96*se,cpk+1.96*se],ppmExp:(Phi((sp.lsl-mu)/sl)+1-Phi((sp.usl-mu)/sl))*1e6}};
   let cap=null;
   if(hasSpec){const ppmObs=all.filter(v=>v<sp.lsl||v>sp.usl).length/N*1e6;
-    if(!mixed)cap={...capOf(gMean,sigmaW,overallSd,N),ppmObs,mixed:false,stable};
+    if(!mixed)cap={...capOf(gMean,sigmaW,overallSd,N,boards.length),ppmObs,mixed:false,stable};
     else{const G=gStat.map(x=>{let ss=0,df=0;for(const bm of cellsB.values()){const v=bm.get(x.g);if(v&&v.length>1){const mu=mean(v);ss+=v.reduce((s,y)=>s+(y-mu)**2,0);df+=v.length-1}}
-        const sw=df>0?Math.sqrt(ss/df):sd(x.v)||1e-9,sl=sd(x.v)||1e-9;return{g:x.g,...capOf(x.mu,sw,sl,x.v.length),ppmObs:x.v.filter(v=>v<sp.lsl||v>sp.usl).length/x.v.length*1e6}}).filter(x=>isFinite(x.cpk));
+        const sw=df>0?Math.sqrt(ss/df):sd(x.v)||1e-9,sl=sd(x.v)||1e-9;return{g:x.g,...capOf(x.mu,sw,sl,x.v.length,new Set(rows.filter(r=>r.group===x.g).map(r=>r.board)).size),ppmObs:x.v.filter(v=>v<sp.lsl||v>sp.usl).length/x.v.length*1e6}}).filter(x=>isFinite(x.cpk));
       const worst=G.reduce((w,x)=>!w||x.cpk<w.cpk?x:w,null),wp=G.reduce((w,x)=>!w||x.ppk<w.ppk?x:w,null);
-      if(worst)cap={cp:worst.cp,cpk:worst.cpk,pp:worst.pp,ppk:worst.ppk,ci:worst.ci,n:worst.n,mu:worst.mu,worst:worst.g,worstP:wp.g,
+      if(worst)cap={cp:worst.cp,cpk:worst.cpk,pp:worst.pp,ppk:worst.ppk,ci:worst.ci,n:worst.n,nb:worst.nb,mu:worst.mu,worst:worst.g,worstP:wp.g,
         ppmExp:G.reduce((s,x)=>s+x.ppmExp*x.n,0)/G.reduce((s,x)=>s+x.n,0),ppmObs,mixed:true,groups:G.sort((a,b)=>a.cpk-b.cpk),stable,ratio:sigmaW/sigmaLT}}
     if(cap&&!cap.mixed)cap.ratio=sigmaW/overallSd}
   const ad=andersonDarling(all.length>4000?all.filter((_,i)=>i%Math.ceil(all.length/4000)===0):all),sk=skewKurt(all);
@@ -852,7 +853,7 @@ function analyze(st){
   const xOut=new Set(xs.pts.filter(p=>Math.abs(p.z)>3).map(p=>p.lab));
   const pOut=new Set(pc.pts.filter(p=>p.v>p.ucl||p.v<p.lcl).map(p=>p.lab));
   const worst=byBoard.reduce((w,b)=>!w||b.p>w.p||(b.p===w.p&&Math.abs(b.mean-gMean)>Math.abs(w.mean-gMean))?b:w,null);
-  const A={m,sp,rows,boards,byBoard,N,gMean,overallSd,sigmaW,sigmaLT,mixed,nbar,xs,imr,pc,ewma,cusum,series,nel,nelX,stable,cap,hasSpec,ad,sk,groups,eta2,pareto,defRows,rHA,msa,rX,rY,xOut,pOut,worst,pads};
+  const A={m,sp,rows,boards,byBoard,N,gMean,overallSd,sigmaW,sigmaLT,mixed,nbar,xs,imr,pc,ewma,cusum,series,nel,nelX,stable,cap,hasSpec,ad,sk,groups,eta2,pareto,defRows,rHA,msa,rX,rY,xOut,pOut,worst,pads,sqDir:st.sqDir==="X"?"X":"Y"};
   A.xv=crossValidate(A);return A;
 }
 function crossValidate(A){
@@ -861,7 +862,7 @@ function crossValidate(A){
   X.push({k:"管制狀態",src:"管制圖 + Nelson 規則",st:unstable?(ruleHits.some(r=>r.id===1)?"ng":"warn"):"ok",
     ev:(unstable?`X̄ 圖觸發 ${ruleHits.map(r=>"規則"+r.id).join("、")}，共 ${NX.flag.size} 點`:"X̄ 圖 8 條規則皆未觸發")+(A.pc&&A.pc.sigZ>1.5?`；P' 圖 σz = ${A.pc.sigZ.toFixed(1)}（板間不良率變異為二項式預期的 ${A.pc.sigZ.toFixed(1)} 倍，已放寬界限）`:"")});
   if(A.cap){const ratio=A.cap.ratio!=null?A.cap.ratio:A.cap.ppk/A.cap.cpk,c=A.cap.ppk;
-    X.push({k:"製程能力",src:A.cap.mixed?"Cpk / Ppk（逐元件群組，取最差）":"Cpk / Ppk",st:c>=1.33?"ok":c>=1?"warn":"ng",ev:`Cpk ${A.cap.cpk.toFixed(2)}（95% 信賴區間 ${A.cap.ci[0].toFixed(2)} – ${A.cap.ci[1].toFixed(2)}）、Ppk ${A.cap.ppk.toFixed(2)}${A.cap.mixed?`；最差群組 ${A.cap.worst}`:""}；預估 ${fmtPpm(A.cap.ppmExp)} PPM`});
+    X.push({k:"製程能力",src:A.cap.mixed?"Cpk / Ppk（逐元件群組，取最差）":"Cpk / Ppk",st:c>=1.33?"ok":c>=1?"warn":"ng",ev:`Cpk ${A.cap.cpk.toFixed(2)}（95% 信賴區間 ${A.cap.ci[0].toFixed(2)} – ${A.cap.ci[1].toFixed(2)}，以板數計）、Ppk ${A.cap.ppk.toFixed(2)}${A.cap.mixed?`；最差群組 ${A.cap.worst}`:""}；預估 ${fmtPpm(A.cap.ppmExp)} PPM`});
     X.push({k:"短期 vs 長期變異",src:"Ppk ÷ Cpk",st:ratio>=.9?"ok":ratio>=.75?"warn":"ng",ev:`比值 ${ratio.toFixed(2)}，${ratio<.9?"板與板之間存在額外變異，與管制圖"+(unstable?"判異結果一致":"未判異結果不一致，建議檢查子群組定義"):"板間變異不顯著"+(unstable?"，但管制圖判異：可能為少數板的局部異常":"")}`});
     X.push({k:"能力指標可信度",src:"管制狀態 × 能力",st:unstable?"warn":"ok",ev:unstable?"製程未在統計管制下，Cpk 僅代表當期資料，不宜作為長期能力承諾":"製程穩定，能力指標可用於預測"});
   }
@@ -873,7 +874,7 @@ function crossValidate(A){
   else if(!isNaN(A.rHA))X.push({k:"量測一致性",src:"體積 vs 高度×面積（扣除群組平均）",st:A.rHA>=.9?"ok":A.rHA>=.75?"warn":"ng",
     ev:`組內殘差 r = ${A.rHA.toFixed(3)}（未扣除群組 r = ${A.msa.r.toFixed(3)}）${A.rHA<.9?"；三項量測相互不吻合，先確認 SPI 程式內的鋼板厚度（含階梯區）設定是否與此處一致，再確認基準面校正與 GR&R":"，三項量測互相佐證"}`});
   if(!isNaN(A.rX))X.push({k:"空間分布",src:"熱圖 + 位置相關",st:Math.max(Math.abs(A.rX),Math.abs(A.rY||0))<.15?"ok":"warn",
-    ev:`與 X 座標 r = ${A.rX.toFixed(2)}、Y 座標 r = ${(A.rY||0).toFixed(2)}${Math.abs(A.rX)>=.15?"；沿刮刀行程方向有梯度":""}`});
+    ev:`與 X 座標 r = ${A.rX.toFixed(2)}、Y 座標 r = ${(A.rY||0).toFixed(2)}${[["X",A.rX],["Y",A.rY||0]].filter(([,r])=>Math.abs(r)>=.15).map(([ax])=>`；${ax} 方向有梯度（${ax===A.sqDir?"沿刮刀行程":"垂直刮刀行程"}）`).join("")}；未扣除元件群組差異，以問題偵測的空間分析為準`});
   const inter=[...A.xOut].filter(b=>A.pOut.has(b)),uni=new Set([...A.xOut,...A.pOut]);
   X.push({k:"板別交叉",src:"X̄ 圖 vs P 圖",st:uni.size===0?"ok":inter.length===uni.size?"ok":inter.length?"warn":"warn",
     ev:uni.size===0?"兩圖皆無越界板":`X̄ 異常：${[...A.xOut].join("、")||"無"}；P 圖越界：${[...A.pOut].join("、")||"無"}；重疊 ${inter.length} 片`});
@@ -999,7 +1000,7 @@ function wipeScan(v,N){let best=null;const n=v.length;if(n<4)return null;
    避免不同元件尺寸差異把相關係數撐高 */
 function msaCheck(rows,st){const hv=rows.filter(r=>r.height!=null&&r.area!=null&&r.volume!=null&&r.area>0&&r.height>0);if(hv.length<30)return null;
   const pred=hv.map(r=>r.area*r.height/padThk(r,st)),ratio=hv.map((r,i)=>r.volume/pred[i]).sort((a,b)=>a-b),med=quant(ratio,.5),spread=(quant(ratio,.95)-quant(ratio,.05))/med;
-  const derived=Math.abs(med-1)<.02&&spread<.02;
+  const derived=spread<.02; /* 比值幾乎固定（不論是否為 1：鋼板厚度輸入不同時比值會偏離 1）＝體積由面積×高度算出 */
   const gm=new Map();hv.forEach((r,i)=>{let g=gm.get(r.group);if(!g)gm.set(r.group,g={p:0,v:0,n:0});g.p+=pred[i];g.v+=r.volume;g.n++});
   const rp=hv.map((r,i)=>{const g=gm.get(r.group);return pred[i]-g.p/g.n}),rv=hv.map(r=>{const g=gm.get(r.group);return r.volume-g.v/g.n});
   return{n:hv.length,derived,med,spread,r:pearson(pred,hv.map(r=>r.volume)),rW:pearson(rp,rv)}}
@@ -1754,8 +1755,8 @@ function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
 function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
   const pre=cap?(A.stable?"":"製程未穩定，僅供參考 · ")+(cap.mixed?`最差群組 ${cap.worst} · `:""):"";
   $("#capGrp").hidden=!(cap&&cap.mixed);
-  if(cap&&cap.mixed)$("#capGrpTbl").innerHTML=`<thead><tr><th>元件群組</th><th>n</th><th>平均</th><th>Cp</th><th>Cpk</th><th>Cpk 95% 信賴區間</th><th>Ppk</th><th>預估 PPM</th><th>實測 PPM</th></tr></thead><tbody>`+cap.groups.map(g=>`<tr><td>${esc(g.g)}</td><td class="mono">${g.n}</td><td class="mono">${f(g.mu,1)}</td><td class="mono">${f(g.cp)}</td><td class="mono"><span class="pill ${capCls(g.cpk)}">${f(g.cpk)}</span></td><td class="mono">${f(g.ci[0])} – ${f(g.ci[1])}</td><td class="mono">${f(g.ppk)}</td><td class="mono">${fmtPpm(g.ppmExp)}</td><td class="mono">${fmtPpm(g.ppmObs)}</td></tr>`).join("")+"</tbody>";
-  $("#capKpis").innerHTML=cap?kpi("CP",f(cap.cp),pre+"短期潛在能力",capCls(cap.cp))+kpi("CPK",f(cap.cpk),pre+`短期實際能力 · 95% 信賴區間 ${f(cap.ci[0])} – ${f(cap.ci[1])}`,capCls(cap.cpk))+kpi("PP",f(cap.pp),"長期潛在能力",capCls(cap.pp))+kpi("PPK",f(cap.ppk),"長期實際能力",capCls(cap.ppk))+kpi("預估 PPM",fmtPpm(cap.ppmExp),cap.mixed?"各群組常態預估加權":"常態假設下超規",cap.ppmExp>2700?"ng":cap.ppmExp>63?"warn":"ok")+kpi("實測 PPM",fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok")
+  if(cap&&cap.mixed)$("#capGrpTbl").innerHTML=`<thead><tr><th>元件群組</th><th>n</th><th>平均</th><th>Cp</th><th>Cpk</th><th>Cpk 95% 信賴區間（以板數計）</th><th>Ppk</th><th>預估 PPM</th><th>實測 PPM</th></tr></thead><tbody>`+cap.groups.map(g=>`<tr><td>${esc(g.g)}</td><td class="mono">${g.n}</td><td class="mono">${f(g.mu,1)}</td><td class="mono">${f(g.cp)}</td><td class="mono"><span class="pill ${capCls(g.cpk)}">${f(g.cpk)}</span></td><td class="mono">${f(g.ci[0])} – ${f(g.ci[1])}</td><td class="mono">${f(g.ppk)}</td><td class="mono">${fmtPpm(g.ppmExp)}</td><td class="mono">${fmtPpm(g.ppmObs)}</td></tr>`).join("")+"</tbody>";
+  $("#capKpis").innerHTML=cap?kpi("CP",f(cap.cp),pre+"短期潛在能力",capCls(cap.cp))+kpi("CPK",f(cap.cpk),pre+`短期實際能力 · 95% 信賴區間 ${f(cap.ci[0])} – ${f(cap.ci[1])}（以 ${cap.nb} 片板計）`,capCls(cap.cpk))+kpi("PP",f(cap.pp),"長期潛在能力",capCls(cap.pp))+kpi("PPK",f(cap.ppk),"長期實際能力",capCls(cap.ppk))+kpi("預估 PPM",fmtPpm(cap.ppmExp),cap.mixed?"各群組常態預估加權":"常態假設下超規",cap.ppmExp>2700?"ng":cap.ppmExp>63?"warn":"ok")+kpi("實測 PPM",fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok")
     :kpi("規格","未設定","請於上方輸入 LSL / USL");
   const all=A.rows.map(r=>r[A.m]).sort((a,b)=>a-b),n=all.length,iqr=quant(all,.75)-quant(all,.25);
   let bw=2*iqr/Math.cbrt(n)||1;const lo=Math.min(all[0],A.hasSpec?A.sp.lsl:all[0]),hi=Math.max(all[n-1],A.hasSpec?A.sp.usl:all[n-1]);let nb=Math.ceil((all[n-1]-all[0])/bw);if(nb>45){bw=(all[n-1]-all[0])/45;nb=45}if(nb<8){bw=(all[n-1]-all[0])/8||1;nb=8}
@@ -2094,7 +2095,8 @@ const withHpct=m=>m.includes("height")&&!m.includes("hpct")?[...m.slice(0,m.inde
 const DEF_ZONES=()=>({on:false,zones:[{id:1,name:"BGA 減薄區",mode:"group",group:"U2 BGA",x0:36,y0:8,x1:48,y1:20,t:100}]});
 function snapCfg(){return clone({specs:S.specs,specSrc:S.specSrc,specsCustom:S.specsCustom,sqDir:S.sqDir,stencil:S.stencil,htol:S.htol,step:S.step,aperture:S.aperture,wipe:S.wipe})}
 /* 新匯入的資料若有機台判定碼：規格來源預設為「與機台判定一致」，規格窗由機台 PASS 範圍推估；原本的自訂規格另存，可隨時切回 */
-function importCfg(rows){const cfg=snapCfg();if(!rows.some(r=>r.result!=null))return cfg;
+function importCfg(rows){const cfg=snapCfg();
+  if(!rows.some(r=>r.result!=null)){if(cfg.specSrc==="machine"){cfg.specs=cfg.specsCustom?clone(cfg.specsCustom):clone(DEF_SPECS);cfg.specSrc="custom";cfg.specsCustom=null}return cfg}
   if(cfg.specSrc!=="machine")cfg.specsCustom=clone(cfg.specs);cfg.specSrc="machine";cfg.specs=machineSpecs(rows,{...S,...cfg},cfg.specsCustom).specs;return cfg}
 function setSpecSrc(v){if(v===S.specSrc)return;
   if(v==="machine"){if(!S.rows.some(r=>r.result!=null)){toast("目前回合沒有機台判定碼欄位，無法使用機台判定");syncControls();return}S.specsCustom=clone(S.specs);S.specs=machineSpecs(S.rows,S,S.specsCustom).specs;S.specSrc="machine"}
