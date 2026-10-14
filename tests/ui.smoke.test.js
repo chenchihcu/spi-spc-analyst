@@ -48,6 +48,17 @@ test("所有頁籤與主要流程無執行錯誤", { skip: !JSDOM && "未安裝 
   // 頂端不再重複規格輸入；資料與規格頁分為子分頁
   assert.equal(d.querySelector("#inLsl"), null, "規格輸入只保留在資料與規格頁");
   assert.equal(d.querySelectorAll("#p-data .subtab").length, 3);
+  // 子分頁鍵盤：只有選取中的在 Tab 順序，左右鍵切換
+  assert.deepEqual([...d.querySelectorAll("#p-data .subtab")].map((b) => b.tabIndex), [0, -1, -1]);
+  d.querySelector("#p-data .subtabs").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  assert.equal(d.querySelector('#p-data .subtab[data-sub="runs"]').getAttribute("aria-selected"), "true", "右鍵切到回合管理");
+  d.querySelector("#p-data .subtabs").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+  // 換回合後，先前展開的問題不會自動展開
+  d.querySelector("#iss-1 > summary").click();
+  assert.equal(d.querySelector("#iss-1").open, true);
+  change($("#selRun"), "2"); tab("issues");
+  assert.equal(d.querySelectorAll("#issList details.iss-card[open]").length, 0, "換回合後全部收合");
+  change($("#selRun"), "1"); tab("issues");
   d.querySelector('#pmap [data-ent="b:B13"]').click();
   assert.ok(d.querySelectorAll(".iss-card").length >= 1 && d.querySelectorAll(".iss-card").length < 12, "點選板格應只顯示該板相關問題");
   d.querySelector("#pmapClear").click();
