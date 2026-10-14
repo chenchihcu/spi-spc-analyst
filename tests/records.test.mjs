@@ -199,3 +199,20 @@ test("舊瀏覽器取回未壓縮原始檔：超過 5 MB 時清楚說明（避�
   assert.match((await r.json()).error, /請改用新版/);
   assert.equal((await req(st, `?id=${record.id}`)).status, 200, "壓縮版仍可取回");
 });
+
+test("兩個刪除同時進行且撤回失敗：以各筆實際結果標示，不會把失敗的那筆誤標為完成", async () => {
+  const st = memStore();
+  const { record } = await (await post(st, spi())).json();
+  // 兩個刪除請求都先寫入稽核紀錄；只有先寫索引的那個成功。失敗那筆的撤回刪除也失敗（殘留）
+  const del = st.delete.bind(st);
+  st.delete = async (k) => { if (k.startsWith("log/")) throw new Error("撤回失敗"); return del(k); };
+  const [a, b] = await Promise.all([req(st, `?id=${record.id}`, "DELETE", "a@x.tw", 5000), req(st, `?id=${record.id}`, "DELETE", "a@x.tw", 6000)]);
+  st.delete = del;
+  const ok = [a.status, b.status].sort();
+  assert.deepEqual(ok, [200, 404]);
+  const winAt = a.status === 200 ? 5000 : 6000;
+  const { entries } = await (await req(st, "?audit=1")).json();
+  const dels = entries.filter((e) => e.action === "delete");
+  assert.equal(dels.length, 2);
+  assert.deepEqual(dels.map((e) => [e.at, e.ok]).sort(), [[5000, winAt === 5000], [6000, winAt === 6000]], "成功的那筆才是完成");
+});
