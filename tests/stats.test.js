@@ -168,3 +168,11 @@ test("失效模式：對位平移、旋轉、伸縮分別被辨識", () => {
   assert.notEqual(M["對位平移"].verdict, "未見跡象");
   assert.notEqual(M["旋轉／伸縮"].verdict, "未見跡象");
 });
+
+test("進階分析刮刀比較：資料有方向欄位時依欄位分組（與問題偵測一致）", () => {
+  const rows = c.sampleData(), S = st(rows), A = c.analyze(S), V = c.advAnalyze(S, A);
+  assert.equal(V.strokeFromField, true);
+  assert.deepEqual([...V.strokeLabel], ["方向 前", "方向 後"]);
+  const noField = rows.map(({ stroke, ...r }) => r), S2 = st(noField), V2 = c.advAnalyze(S2, c.analyze(S2));
+  assert.equal(V2.strokeFromField, false);
+});
