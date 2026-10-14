@@ -193,3 +193,42 @@ test("從資料庫開啟當時沒用座標檔的立榮紀錄：不套用目前�
   assert.ok(await until(() => !$("#mapBox").hidden && /座標檔對應 1\/1/.test($("#mapPrev").textContent)), "帶回當時的座標檔");
   assert.deepEqual(errs, []);
 });
+
+test("開啟紀錄失敗後，下一次手動匯入不會沿用該紀錄；連結的座標檔已刪除時仍可開啟（不套用座標檔）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page([]);
+  await tick(50);
+  const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
+  const H = "SPI_TEST_HOOK";
+  // 一筆內容損壞的 .xlsx 紀錄：開啟時讀檔失敗
+  await w.eval(`${H}.RecDB.create({kind:"spi",lot:"BAD",part:"P",name:"bad.xlsx"},new TextEncoder().encode("not a zip at all, broken"))`);
+  $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click();
+  assert.ok(await until(() => d.querySelector('#recSpi [data-ract="open"]')));
+  $('#recSpi [data-ract="open"]').click();
+  assert.ok(await until(() => /無法開啟/.test(($("#toast") || {}).textContent || "")));
+  // 接著手動匯入：批號可填、會另存新紀錄
+  await pickFile(dom, "ok.csv", CSV);
+  assert.equal($("#inLot").readOnly, false, "沒有沿用失敗的紀錄");
+  assert.equal($("#inLot").value, "");
+  $("#inLot").value = "GOOD"; $("#inPart").value = "P"; $("#btnApply").click();
+  assert.ok(await until(() => w.eval("S.runs.length") === 3));
+  assert.equal(w.eval(`${H}.curRun().info.src.lot`), "GOOD");
+  // 連結的座標檔被刪除後開啟立榮紀錄
+  const sv = $("#selVendor"); sv.value = "lirong"; sv.dispatchEvent(new w.Event("change"));
+  $("#placePart").value = "P"; $("#placeRev").value = "R1";
+  const inp = $("#placeIn"); Object.defineProperty(inp, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nC1,10,20,C0402,TOP\n")], "pl.csv")] }); inp.dispatchEvent(new w.Event("change"));
+  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+  const WIDE = "Component ID,Height(%)1,Volume(%)1,Area(%)1,PAD ID,Result1,Height(%)2,Volume(%)2,Area(%)2,Result2\nC1_1,100,101,99,1,PASS,102,103,98,PASS\n";
+  $("[data-tab=data]").click(); await pickFile(dom, "L_TOP.csv", WIDE);
+  $("#inLot").value = "LP"; $("#btnApply").click();
+  assert.ok(await until(() => w.eval("S.runs.length") === 4));
+  const pid = w.eval(`${H}.curRun().info.src.placeId`);
+  assert.ok(pid, "記錄了座標檔");
+  await w.eval(`${H}.RecDB.del(${JSON.stringify(pid)})`);
+  $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click();
+  assert.ok(await until(() => [...d.querySelectorAll("#recSpi tbody tr")].some((tr) => tr.textContent.includes("LP"))));
+  [...d.querySelectorAll("#recSpi tbody tr")].find((tr) => tr.textContent.includes("LP")).querySelector('[data-ract="open"]').click();
+  assert.ok(await until(() => !$("#mapBox").hidden && $("#inLot").value === "LP"));
+  assert.match($("#toast").textContent, /座標檔已從資料庫刪除或無法取回/);
+  assert.match($("#mapPrev").textContent, /未載入座標檔/);
+  assert.deepEqual(errs, []);
+});
