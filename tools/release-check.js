@@ -86,8 +86,8 @@ const put = (k, status, messages) => (out[k] = { status, messages });
   // 密碼雜湊也不應寫進儲存庫
   for (const f of files) { let t = ""; try { t = fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { continue; } if (/^tests\//.test(f)) continue;
     if (/pbkdf2-sha256\$\d+\$[A-Za-z0-9+/=]{16,}\$[0-9a-f]{64}/i.test(t)) hits.push(`${f}：密碼雜湊（PBKDF2）`);
-    // 舊式 SHA-256 紀錄：依上下文判斷（環境變數名稱或「帳號: 64 位十六進位」）
-    if (/["']?(AUTH_PASS_SHA256|AUTH_USERS)["']?\s*[=:]\s*["'`{\[]?[^\n]{0,160}\b[0-9a-f]{64}\b/i.test(t) || /"[^"\s]+@[^"\s]+"\s*:\s*"[0-9a-f]{64}"/i.test(t) || /["']sha256["']\s*:\s*["'][0-9a-f]{64}["']/i.test(t)) hits.push(`${f}：密碼雜湊（SHA-256）`); }
+    // 舊式 SHA-256 紀錄：設定名稱之後（可跨行）出現 64 位十六進位，或任何「"名稱": "64 位十六進位"」的對應（帳號不限 email、含陣列格式的 sha256 欄位）
+    if (/["']?(AUTH_PASS_SHA256|AUTH_USERS)["']?\s*[=:][\s\S]{0,400}?\b[0-9a-f]{64}\b/i.test(t) || /["'][^"'\n]{1,120}["']\s*:\s*["'][0-9a-f]{64}["']/i.test(t)) hits.push(`${f}：密碼雜湊（SHA-256）`); }
   put("secrets", hits.length ? "fail" : "pass", hits.length ? hits.map((h) => `INFERENCE: 疑似機密 ${h}`) : [`FACT: 已掃描 ${files.length} 個會部署的檔案，未發現 API 金鑰、密碼雜湊或直接呼叫外部 API；AI 分析透過 Netlify AI Gateway，程式內沒有金鑰`]);
 }
 // 附加：表單控制項無障礙名稱
