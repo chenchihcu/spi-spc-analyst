@@ -146,11 +146,11 @@ test("分享資料每日清除：過期或缺少到期資訊者刪除，未過�
   const { purgeExpired, config } = await import("../netlify/functions/share-cleanup.mjs");
   const m = new Map([["a", { metadata: { exp: 100 } }], ["b", { metadata: { exp: 5000 } }], ["c", { metadata: {} }], ["err", "THROW"], ["d", { metadata: { exp: 1 } }]]);
   const st = {
-    async *list({ paginate } = {}) { assert.equal(paginate, true, "需逐頁處理"); const k = [...m.keys()]; yield { blobs: k.slice(0, 3).map((key) => ({ key })) }; yield { blobs: k.slice(3).map((key) => ({ key })) }; },
+    async *list({ paginate, prefix = "" } = {}) { assert.equal(paginate, true, "需逐頁處理"); const k = [...m.keys()].filter((x) => x.startsWith(prefix)); yield { blobs: k.slice(0, 1).map((key) => ({ key })) }; yield { blobs: k.slice(1).map((key) => ({ key })) }; },
     async getMetadata(k) { const v = m.get(k); if (v === "THROW") throw new Error("storage timeout"); return v || null; },
     async delete(k) { m.delete(k); },
   };
-  assert.equal(await purgeExpired(st, 1000), 3);
+  assert.equal((await purgeExpired(st, 1000)).removed, 3);
   assert.deepEqual([...m.keys()].sort(), ["b", "err"], "讀取失敗的項目不可刪除");
   assert.equal(config.schedule, "@daily");
 });
@@ -159,7 +159,22 @@ test("鎖定紀錄每日清除：只刪過期的", async () => {
   const { purgeLockRecords, LOCK } = await import("../lib/auth-core.mjs");
   const now = 1_900_000_000_000, keep = LOCK.windowMs + LOCK.lockMs;
   const m = new Set([`l-a/${now - keep - 1}-x`, `l-a/${now - 1000}-y`, `l-b/${now - keep - 50}-z`]);
-  const st = { async *list() { yield { blobs: [...m].map((key) => ({ key })) }; }, async delete(k) { m.delete(k); } };
+  const st = { async *list({ prefix = "" } = {}) { yield { blobs: [...m].filter((k) => k.startsWith(prefix)).map((key) => ({ key })) }; }, async delete(k) { m.delete(k); } };
   assert.equal(await purgeLockRecords(st, now), 2);
   assert.deepEqual([...m], [`l-a/${now - 1000}-y`]);
+});
+
+test("每日清除：超過時間預算即停止並記下進度，下次從中斷處接著做，最終每一筆都會處理到", async () => {
+  const { purgeExpired } = await import("../netlify/functions/share-cleanup.mjs");
+  const keys = Array.from({ length: 300 }, (_, i) => "A" + String(i).padStart(4, "0")).concat(["Bzz1", "_end"]);
+  const m = new Map(keys.map((k) => [k, { metadata: { exp: k === "_end" || k === "A0299" ? 1 : 9e15 } }]));
+  let t = 0;
+  const st = { async *list({ prefix }) { const k = [...m.keys()].filter((x) => x.startsWith(prefix)); for (let i = 0; i < k.length; i += 50) yield { blobs: k.slice(i, i + 50).map((key) => ({ key })) }; },
+    async getMetadata(k) { t += 1; return m.get(k) || null; }, async delete(k) { m.delete(k); } };
+  let state = null, runs = 0, total = 0;
+  do { const r = await purgeExpired(st, 1000, 100, () => t, state); total += r.removed; state = r.state; runs++; } while (state && runs < 20);
+  assert.ok(runs > 1, "單次跑不完，需要多次接續");
+  assert.equal(state, null, "最後會跑完一輪");
+  assert.equal(total, 2, "第 300 筆與最後一段的過期分享都被清除");
+  assert.ok(!m.has("A0299") && !m.has("_end"));
 });

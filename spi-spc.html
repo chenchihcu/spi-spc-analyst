@@ -275,7 +275,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.3</b> · 更新 <b class="num" id="appBuilt">2026-10-14 10:28:12</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.3</b> · 更新 <b class="num" id="appBuilt">2026-10-14 10:50:44</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -1952,7 +1952,8 @@ function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);const fail=e
 function readBuf(fl){if(fl.arrayBuffer)return fl.arrayBuffer();return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsArrayBuffer(fl)})}
 /* ---------- Excel（.xlsx）讀取：不需外部函式庫；解 zip（瀏覽器內建解壓）＋讀取工作表 XML ---------- */
 /* 解壓 .xlsx 內的單一檔案，累計大小超過上限即中止（防止惡意壓縮檔讓分頁記憶體爆掉） */
-const XLSX_ENTRY_MAX=150*1048576;let xlsxTotal=0;const XLSX_TOTAL_MAX=300*1048576;
+/* 上限可由測試注入較小的值（window.SPI_TEST_LIMITS），正式環境為 150／300 MB */
+const XLSX_LIM=window.SPI_TEST_LIMITS||{},XLSX_ENTRY_MAX=XLSX_LIM.xlsxEntry||150*1048576,XLSX_TOTAL_MAX=XLSX_LIM.xlsxTotal||300*1048576;let xlsxTotal=0;
 async function inflateCapped(raw){const rd=new Response(raw).body.pipeThrough(new DecompressionStream("deflate-raw")).getReader(),parts=[];let n=0;
   for(;;){const{done,value}=await rd.read();if(done)break;n+=value.length;xlsxTotal+=value.length;
     if(n>XLSX_ENTRY_MAX||xlsxTotal>XLSX_TOTAL_MAX){rd.cancel();throw new Error("Excel 檔解壓後過大（超過 150 MB），請改用 CSV 或分割檔案")}parts.push(value)}

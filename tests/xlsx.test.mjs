@@ -11,7 +11,7 @@ const { HTML } = require("./_load.js");
 const FIX = new URL("./fixtures/spi-sample.xlsx", import.meta.url);
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page() {
+function page(limits) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
@@ -20,6 +20,7 @@ function page() {
     w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
     w.Chart = class { constructor() {} destroy() {} static register() {} };
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
+    if (limits) w.SPI_TEST_LIMITS = limits;
     w.addEventListener("error", (e) => errs.push(e.message));
   } });
   return { dom, errs };
@@ -86,24 +87,26 @@ function zip(entries, stored = false) {
   return Buffer.concat([...loc, cd, e]);
 }
 
+// 測試用較小的上限（1 MB），避免測試本身占用大量記憶體；正式環境為 150 MB
+const SMALL = { xlsxEntry: 1048576, xlsxTotal: 2 * 1048576 };
 test("xlsx：解壓後過大的惡意檔案會被拒絕，不會讓分頁當掉", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom } = page();
+  const { dom } = page(SMALL);
   await tick(60);
   const wb = '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>';
   const rels = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>';
-  const bomb = zip([["xl/workbook.xml", Buffer.from(wb)], ["xl/_rels/workbook.xml.rels", Buffer.from(rels)], ["xl/worksheets/sheet1.xml", Buffer.alloc(160 * 1048576, 32)]]);
-  assert.ok(bomb.length < 1_000_000, `惡意檔大小 ${bomb.length}`);
+  const bomb = zip([["xl/workbook.xml", Buffer.from(wb)], ["xl/_rels/workbook.xml.rels", Buffer.from(rels)], ["xl/worksheets/sheet1.xml", Buffer.alloc(3 * 1048576, 32)]]);
+  assert.ok(bomb.length < 100_000, `惡意檔大小 ${bomb.length}`);
   await pick(dom, "bomb.xlsx", bomb);
   for (let i = 0; i < 200 && !dom.window.document.querySelector("#parseErr").textContent; i++) await tick(25);
   assert.match(dom.window.document.querySelector("#parseErr").textContent, /解壓後過大/);
 });
 
 test("xlsx：未壓縮（stored）但過大的工作表同樣會被拒絕", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom } = page();
+  const { dom } = page(SMALL);
   await tick(60);
   const wb = '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>';
   const rels = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>';
-  const big = zip([["xl/workbook.xml", Buffer.from(wb)], ["xl/_rels/workbook.xml.rels", Buffer.from(rels)], ["xl/worksheets/sheet1.xml", Buffer.alloc(151 * 1048576, 32)]], true);
+  const big = zip([["xl/workbook.xml", Buffer.from(wb)], ["xl/_rels/workbook.xml.rels", Buffer.from(rels)], ["xl/worksheets/sheet1.xml", Buffer.alloc(1.5 * 1048576, 32)]], true);
   await pick(dom, "stored.xlsx", big);
   for (let i = 0; i < 200 && !dom.window.document.querySelector("#parseErr").textContent; i++) await tick(25);
   assert.match(dom.window.document.querySelector("#parseErr").textContent, /解壓後過大/);
