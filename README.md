@@ -94,9 +94,9 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 
 ### Cloudflare 手動移植（CF-SPI-001）
 
-1. 在自己的 Cloudflare 帳戶確認 R2 訂閱、費用與付款條件，再建立**私有** R2 bucket `spi-spc-analyst-blobs` 與 D1 資料庫 `spi-spc-analyst`。將 D1 實際 `database_id` 填入 `wrangler.jsonc` 的 `PENDING_CLOUDFLARE_RESOURCE`；此佔位值不能用於正式部署。不要公開 R2 bucket。
-2. 透過 Cloudflare Workers 的 Git 連接部署本儲存庫（Worker 名稱須與 `wrangler.jsonc` 的 `name` 一致）：Build command 設 `npm run build:cloudflare`，Deploy command 設 `npx wrangler deploy`；也可在本機依序執行這兩個命令。先保持 `AUTH_*` 未設定，Worker 對受保護頁面與 API 回 503。`npm test`、`npm run release-check`、`npx wrangler deploy --dry-run` 都應先通過。
-3. 對 D1 執行 `npx wrangler d1 execute spi-spc-analyst --remote --file cloudflare/migrations/0001.sql`。確認 Worker 的 `DB`、`BLOBS` 和 `ASSETS` bindings 與 `wrangler.jsonc` 相同。
+1. 在自己的 Cloudflare 帳戶確認 R2 訂閱、費用與付款條件，並建立**私有** R2 bucket `spi-spc-record` 與 D1 資料庫 `spi-spc`。`wrangler.jsonc` 的 D1 UUID 必須對應這個資料庫；不要公開 R2 bucket。
+2. 透過 Cloudflare Workers 的 Git 連接部署本儲存庫（Worker 名稱須與 `wrangler.jsonc` 的 `name` 一致）：Build command 設 `npm run build:cloudflare`，Deploy command 設 `npx wrangler deploy`；也可在本機依序執行這兩個命令。確認 Cloudflare Workers and Pages GitHub App 已獲授權存取 `chenchihcu/spi-spc-analyst`，否則 Git 觸發的建置可能失敗。先保持 `AUTH_*` 未設定，Worker 對受保護頁面與 API 回 503。`npm test`、`npm run release-check`、`npx wrangler deploy --dry-run` 都應先通過。
+3. 對 D1 執行 `npx wrangler d1 execute spi-spc --remote --file cloudflare/migrations/0001.sql`。確認 Worker 的 `DB`、`BLOBS` 和 `ASSETS` bindings 與 `wrangler.jsonc` 相同。
 4. 在**儲存庫以外**建立受控資料夾，將 `NETLIFY_SITE_ID`、`NETLIFY_AUTH_TOKEN` 只放於執行環境。執行 `node tools/migrate-netlify-blobs.mjs export <絕對資料夾>`，唯讀列舉 `spi-records`、`spi-share`、`spi-maint`、`spi-auth-lock`；輸出 `manifest.json`、原始位元組及 SHA-256。先查看數量、來源紀錄指紋與分享期限。此資料夾包含正式資料，勿提交 Git 或公開分享。
 5. 執行 `node tools/migrate-netlify-blobs.mjs import <絕對資料夾> --remote` 預覽，再以 `--remote --apply` 寫入。工具逐物件核對 D1 內容與 R2 讀回的 SHA-256；可重跑，來源 Netlify Blobs 不會刪除。正式目標應在資料搬移和核對完成前維持封閉，避免新寫入與來源快照衝突；若來源仍持續更新，需要重新盤點差額再切換。
 6. 在 Cloudflare Worker secrets 設定原有 `AUTH_USERS`（或 `AUTH_USER`＋`AUTH_PASS_SHA256`）與 `AUTH_SECRET`。這些值須由帳戶持有人核對後安全輸入，勿寫入 Git、終端歷史或部署日誌。登入後檢查 `/__me`、`/api/records`、原始檔下載、稽核及既有分享代碼；再用未登入視窗確認頁面和 API 都無法讀取資料。

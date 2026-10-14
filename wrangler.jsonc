@@ -10,9 +10,9 @@
   },
   "triggers": { "crons": ["0 2 * * *"] },
   "d1_databases": [
-    { "binding": "DB", "database_name": "spi-spc-analyst", "database_id": "PENDING_CLOUDFLARE_RESOURCE" }
+    { "binding": "DB", "database_name": "spi-spc", "database_id": "82cea9aa-3555-4073-8739-a583afa9979d" }
   ],
   "r2_buckets": [
-    { "binding": "BLOBS", "bucket_name": "spi-spc-analyst-blobs" }
+    { "binding": "BLOBS", "bucket_name": "spi-spc-record" }
   ]
 }
