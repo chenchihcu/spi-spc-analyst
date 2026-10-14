@@ -37,7 +37,16 @@
 
 最少需要一個數值欄位。建議欄位（中英文欄名自動辨識）：
 
-`Board`、`Panel`、`Figure`、`Component`、`Pin`／`Pad`、`PosX`、`PosY`、`Volume(%)`、`Height(um)`、`Area(%)`、`OffsetX`、`OffsetY`、`Pad L/W`、`Aperture L/W`、`Result`、`Stroke`、`Date`、`Time`、`Pressure`、`Speed`、`Separation speed`
+`Board`、`Panel`、`Figure`、`Component`、`Package`（封裝，作為元件群組）、`Pin`／`Pad`、`PosX`、`PosY`、`Volume(%)`、`Height(um)`、`Area(%)`、`OffsetX`、`OffsetY`、`Pad L/W`、`Aperture L/W`、`Result`、`Stroke`、`Date`、`Time`、`Pressure`、`Speed`、`Separation speed`
+
+### 加工廠 SPI 格式
+
+每家委外加工廠的 SPI 匯出格式不同，匯入前先在「① 加工廠 SPI 格式」選擇：
+
+- **通用格式**：一列一筆量測，依欄名自動對應（也可存成機台格式設定檔）。
+- **立榮電子**：一列一個焊墊，各板量測橫向排列（`Component ID`、`PAD ID`、`Height(%)1`、`Volume(%)1`、`Area(%)1`、`Result1`…`Result20`）。系統轉成一列一筆；高度 % 依鋼板厚度換算成 µm，**匯入前請先確認鋼板厚度**。TOP、BOT 各匯入成一個回合（依檔名判斷，也可手動指定）。
+- **座標檔（選用）**：Layout 匯出的元件座標（`PartType`、`RefDes`、`X`、`Y`、`Layer`、`Orient.`），以位號對應補上板面位置並依封裝分群；單位 mil／mm／inch 可自動判斷。座標檔只有元件中心，同一元件的焊墊位置為近似。
+- 新增其他加工廠格式時，在 `spi-spc.html` 的「加工廠 SPI 格式」選單加一個選項，並在 `convertImp` 加入對應的轉換。
 
 ## 開發與測試
 
