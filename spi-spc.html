@@ -1492,7 +1492,7 @@ function renderZones(){const groups=[...new Set(S.rows.map(r=>r.group))],{c,base
   $$("#zoneTbl [data-del]").forEach(b=>b.onclick=()=>{S.step.zones.splice(+b.dataset.del,1);zonesChanged()});
   drawZoneMap()}
 let zDrag=null;
-function mapXf(cv){const B=boardBounds(),pad=24,sc=Math.min((cv.width-2*pad)/(B.x1-B.x0),(cv.height-2*pad)/(B.y1-B.y0));return{B,pad,sc,toPx:(x,y)=>[pad+(x-B.x0)*sc,pad+(y-B.y0)*sc],toMm:(px,py)=>[B.x0+(px-pad)/sc,B.y0+(py-pad)/sc]}}
+function mapXf(cv){const B=boardBounds(),pad=24,sc=Math.min((cv.width-2*pad)/(B.x1-B.x0),(cv.height-2*pad)/(B.y1-B.y0));return{B,pad,sc,toPx:(x,y)=>[pad+(x-B.x0)*sc,pad+(B.y1-y)*sc],toMm:(px,py)=>[B.x0+(px-pad)/sc,B.y1-(py-pad)/sc]}} /* CAD 座標：Y 向上 */
 function drawZoneMap(){const cv=$("#zoneMap");if(!cv||!cv.offsetParent||!S.rows.length)return;const ctx=cv.getContext("2d"),X=mapXf(cv),b0=S.rows[0].board;
   ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle=css("--surface2");ctx.fillRect(0,0,cv.width,cv.height);
   const[bx0,by0]=X.toPx(X.B.x0,X.B.y0),[bx1,by1]=X.toPx(X.B.x1,X.B.y1);ctx.fillStyle="#1f4a3a";ctx.globalAlpha=.18;ctx.fillRect(bx0,by0,bx1-bx0,by1-by0);ctx.globalAlpha=1;
@@ -1634,7 +1634,9 @@ function renderFM(){const Me=S.F&&S.F.meta,box=$("#fmCard");if(!box)return;box.h
   $("#fmTbl").innerHTML=`<thead><tr><th>候選失效模式</th><th>判讀</th><th>支持面向</th><th>證據（✓ 支持　✗ 矛盾）</th></tr></thead><tbody>`+Me.modes.map(m=>`<tr><td><b>${esc(m.name)}</b><br><span class="note">${esc(m.cause)}</span></td><td><span class="pill ${cls[m.verdict]}">${m.verdict}</span></td>
     <td class="note">${m.dims.length?m.dims.join("、"):"—"}</td><td>${m.need?`<span class="note">${esc(m.need)}</span>`:""}${m.sup.length||m.con.length?`<ul style="margin:0;padding-left:1.1em">${m.sup.map(e=>ev(e,1)).join("")}${m.con.map(e=>ev(e,0)).join("")}</ul>`:m.need?"":'<span class="note">無相關證據</span>'}</td></tr>`).join("")+"</tbody>";
   $$("#fmTbl [data-fmjump]").forEach(b=>b.onclick=()=>flashIssue(+b.dataset.fmjump))}
-function issuesMd(){return`# SPI 問題偵測清單\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- 資料來源：${S.source}；鋼板 ${S.stencil} µm${S.step.on?"（階梯）":""}\n\n`+S.F.map(x=>`## #${x.id}［${LVL[x.lv]}］${x.title}\n\n- 面向：${x.cat}${x.corrob.length?`；佐證：${x.corrob.map(i=>"#"+i).join("、")}`:""}\n- 事實：\n${x.facts.map(t=>"  - "+t).join("\n")}\n- 推論（信心 ${x.conf}）：${x.cause}\n`).join("\n")}
+function issuesMd(){return`# SPI 問題偵測清單\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- 資料來源：${S.source}；鋼板 ${S.stencil} µm${S.step.on?"（階梯）":""}\n\n`+S.F.map(x=>`## #${x.id}［${LVL[x.lv]}］${x.title}\n\n- 面向：${x.cat}${x.corrob.length?`；佐證：${x.corrob.map(i=>"#"+i).join("、")}`:""}\n- 事實：\n${x.facts.map(t=>"  - "+t).join("\n")}\n- 推論（信心 ${x.conf}）：${x.cause}\n`).join("\n")+fmMd()}
+function fmMd(){const Me=S.F&&S.F.meta;if(!Me||!Me.modes)return"";
+  return`\n## 失效模式交叉比對\n\n規則：至少兩個獨立面向支持、含必要面向且無矛盾，才判「可能」。單板異常共 ${Me.tests} 次檢定，全無異常時預期約 ${f(Me.expFA,1)} 次誤報。\n\n| 候選失效模式 | 判讀 | 支持面向 | 證據 |\n|---|---|---|---|\n`+Me.modes.map(m=>`| ${m.name} | ${m.verdict} | ${m.dims.join("、")||"—"} | ${[m.need||"",...m.sup.map(e=>"✓ "+e.d+"："+e.txt),...m.con.map(e=>"✗ "+e.d+"："+e.txt)].filter(Boolean).join("<br>").replace(/\|/g,"／")} |`).join("\n")+"\n"}
 $("#btnIssMd").onclick=()=>save("spi-issues.md",issuesMd());
 $("#btnIssCsv").onclick=()=>save("spi-issues.csv",toCSV([["no","level","category","title","facts","inference","confidence","corroborated_by"],...S.F.map(x=>[x.id,LVL[x.lv],x.cat,x.title,x.facts.join(" | "),x.cause,x.conf,x.corrob.map(i=>"#"+i).join(" ")])]));
 const nextFrame=f=>window.requestAnimationFrame?requestAnimationFrame(f):setTimeout(f,16);
@@ -1795,19 +1797,19 @@ function drawHeat(){const A=S.A,cv=$("#heat"),ctx=cv.getContext("2d"),W=cv.width
   ctx.clearRect(0,0,W,H);ctx.fillStyle=css("--surface2");ctx.fillRect(0,0,W,H);
   const byPad={};A.rows.forEach(r=>{(byPad[r.pad]=byPad[r.pad]||{r,v:[]}).v.push(r[A.m])});
   const span=A.hasSpec?Math.max(A.sp.usl-A.sp.tgt,A.sp.tgt-A.sp.lsl):3*A.overallSd,tgt=A.hasSpec?A.sp.tgt:A.gMean;
-  for(const k in byPad){const{r,v}=byPad[k],m=mean(v),t=(m-tgt)/(span*.6);const px=pad+(r.x-x0)*sc,py=pad+(r.y-y0)*sc,w=Math.max(r.w*sc*1.6,6),h=Math.max(r.d*sc*1.6,6);
+  for(const k in byPad){const{r,v}=byPad[k],m=mean(v),t=(m-tgt)/(span*.6);const px=pad+(r.x-x0)*sc,py=pad+(y1-r.y)*sc,w=Math.max(r.w*sc*1.6,6),h=Math.max(r.d*sc*1.6,6);
     ctx.fillStyle=divColor(t);if(r.shape==="round"){ctx.beginPath();ctx.arc(px,py,w/2,0,7);ctx.fill()}else ctx.fillRect(px-w/2,py-h/2,w,h);
     const anyBad=A.defRows.some(d=>d.pad===k);if(anyBad){ctx.strokeStyle=css("--ng");ctx.lineWidth=2;ctx.strokeRect(px-w/2-2,py-h/2-2,w+4,h+4)}}
-  if(S.step.on)S.step.zones.forEach((z,i)=>{const R=zoneRect(z);if(!R)return;ctx.strokeStyle=ZCOL[i%ZCOL.length];ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.strokeRect(pad+(R.x0-x0)*sc,pad+(R.y0-y0)*sc,(R.x1-R.x0)*sc,(R.y1-R.y0)*sc);ctx.setLineDash([]);ctx.fillStyle=ZCOL[i%ZCOL.length];ctx.font="17px IBM Plex Mono";ctx.fillText(z.name+" "+z.t+"µm",pad+(R.x0-x0)*sc+4,pad+(R.y0-y0)*sc-5)});
-  ctx.fillStyle=css("--muted");ctx.font="20px IBM Plex Mono";ctx.fillText("← 刮刀行程 X →",pad,H-6);
+  if(S.step.on)S.step.zones.forEach((z,i)=>{const R=zoneRect(z);if(!R)return;ctx.strokeStyle=ZCOL[i%ZCOL.length];ctx.lineWidth=2;ctx.setLineDash([7,5]);const ry=Math.max(R.y0,R.y1);ctx.strokeRect(pad+(R.x0-x0)*sc,pad+(y1-ry)*sc,(R.x1-R.x0)*sc,Math.abs(R.y1-R.y0)*sc);ctx.setLineDash([]);ctx.fillStyle=ZCOL[i%ZCOL.length];ctx.font="17px IBM Plex Mono";ctx.fillText(z.name+" "+z.t+"µm",pad+(R.x0-x0)*sc+4,pad+(y1-ry)*sc-5)});
+  ctx.fillStyle=css("--muted");ctx.font="20px IBM Plex Mono";ctx.fillText(`刮刀行程：沿 ${S.sqDir==="X"?"X ←→":"Y ↕"}　（CAD 座標，Y 向上）`,pad,H-6);
   $("#heatSub").textContent=`各焊墊跨板平均 ${METRICS[A.m].short}`;
-  $("#heatLeg").innerHTML=`<span><i class="sq" style="background:${divColor(-1)}"></i>低於目標</span><span><i class="sq" style="background:${divColor(0)};outline:1px solid var(--line)"></i>接近目標 ${f(tgt,1)}</span><span><i class="sq" style="background:${divColor(1)}"></i>高於目標</span><span><i class="sq" style="background:transparent;outline:2px solid var(--ng)"></i>曾出現不良</span>`;
+  $("#heatLeg").innerHTML=`<span><i class="sq" style="background:${divColor(-1)}"></i>≤ ${f(tgt-span*.6,1)} ${METRICS[A.m].unit}（低）</span><span><i class="sq" style="background:${divColor(0)};outline:1px solid var(--line)"></i>目標 ${f(tgt,1)}</span><span><i class="sq" style="background:${divColor(1)}"></i>≥ ${f(tgt+span*.6,1)} ${METRICS[A.m].unit}（高）</span><span><i class="sq" style="background:transparent;outline:2px solid var(--ng)"></i>曾出現不良</span>`;
 }
 
 /* ---------- 熱圖點選下鑽 ---------- */
 $("#heat").addEventListener("click",e=>{const A=S.A,cv=$("#heat"),rc=cv.getBoundingClientRect(),px=(e.clientX-rc.left)*cv.width/rc.width,py=(e.clientY-rc.top)*cv.height/rc.height;
   const xs=A.rows.map(r=>r.x),ys=A.rows.map(r=>r.y),x0=Math.min(...xs)-3,x1=Math.max(...xs)+3,y0=Math.min(...ys)-3,y1=Math.max(...ys)+3,pad=24,sc=Math.min((cv.width-2*pad)/(x1-x0),(cv.height-2*pad)/(y1-y0));
-  let best=null,bd=1e9;for(const r of A.rows){const d=Math.hypot(pad+(r.x-x0)*sc-px,pad+(r.y-y0)*sc-py);if(d<bd){bd=d;best=r}}if(best&&bd<30)goPad(best.pad)});
+  let best=null,bd=1e9;for(const r of A.rows){const d=Math.hypot(pad+(r.x-x0)*sc-px,pad+(y1-r.y)*sc-py);if(d<bd){bd=d;best=r}}if(best&&bd<30)goPad(best.pad)});
 $("#heat").style.cursor="pointer";
 
 /* ---------- 進階分析 ---------- */
@@ -2029,18 +2031,20 @@ function build3D(){const A=S.A;while(T.root.children.length){const o=T.root.chil
   const rows=S.rows.filter(r=>r.board===S.board&&(S.group==="ALL"||r.group===S.group)),ex=S.exag/1000;T.meshes=[];
   const cuMat=new THREE.MeshStandardMaterial({color:0xb87333,metalness:.6,roughness:.35});
   const hs=S.specs.height,vs=S.specs.volume;
-  for(const r of rows){const ap=aperture(r,S),k=Math.sqrt(Math.max((r.area??100)/100,.05)),w=ap.L*k,d=ap.W*k,h=Math.max((r.height??hs.tgt)*ex,0.05),x=r.x-cx,z=r.y-cy;
+  for(const r of rows){const ap=aperture(r,S),k=Math.sqrt(Math.max((r.area??100)/100,.05)),w=ap.L*k,d=ap.W*k,h=Math.max((r.height??hs.tgt)*ex,0.05),x=r.x-cx,z=cy-r.y,dx=(r.offx||0)/1000,dz=-(r.offy||0)/1000; /* CAD 座標 Y 向上；錫膏依量測偏移（µm→mm）位移，銅墊不動 */
     const cu=new THREE.Mesh(r.shape==="round"?new THREE.CylinderGeometry(r.w/2,r.w/2,0.06,20):new THREE.BoxGeometry(r.w,0.06,r.d),cuMat.clone());cu.position.set(x,0.03,z);T.root.add(cu);
     const thk=S.step.on?padThk(r,S):hs.tgt,half=S.step.on?thk*(S.htol.hi-S.htol.lo)/200:(hs.usl-hs.lsl)/2;
     let col;if(S.colorMode==="status")col=statusCol(r);else if(S.colorMode==="height")col=divColor(((r.height??thk)-thk)/half);else col=divColor(((r.volume??vs.tgt)-vs.tgt)/((vs.usl-vs.lsl)/2));
     const geo=ap.shape==="round"?new THREE.CylinderGeometry(w/2*.92,w/2,h,20):new THREE.BoxGeometry(w,h,d);
-    const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(col),roughness:.55,metalness:.15}));m.position.set(x,0.06+h/2,z);m.userData=r;T.root.add(m);T.meshes.push(m);
+    const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(col),roughness:.55,metalness:.15}));m.position.set(x+dx,0.06+h/2,z+dz);m.userData=r;T.root.add(m);T.meshes.push(m);
     if(S.ghost){const gh=thk*ex,gg=ap.shape==="round"?new THREE.CylinderGeometry(ap.L/2,ap.L/2,gh,16):new THREE.BoxGeometry(ap.L,gh,ap.W);const e=new THREE.LineSegments(new THREE.EdgesGeometry(gg),new THREE.LineBasicMaterial({color:0x9aa3a0,transparent:true,opacity:.45}));gg.dispose();e.position.set(x,0.06+gh/2,z);T.root.add(e)}}
   if(S.step.on)S.step.zones.forEach((z,i)=>{const R=zoneRect(z);if(!R)return;const w=R.x1-R.x0,d=R.y1-R.y0,col=new THREE.Color(ZCOL[i%ZCOL.length]);
-    const pl=new THREE.Mesh(new THREE.BoxGeometry(w,0.02,d),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.22,depthWrite:false}));pl.position.set((R.x0+R.x1)/2-cx,0.012,(R.y0+R.y1)/2-cy);T.root.add(pl);
+    const pl=new THREE.Mesh(new THREE.BoxGeometry(w,0.02,d),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.22,depthWrite:false}));pl.position.set((R.x0+R.x1)/2-cx,0.012,cy-(R.y0+R.y1)/2);T.root.add(pl);
     const eg=new THREE.EdgesGeometry(new THREE.BoxGeometry(w,0.02,d)),ln=new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:col}));ln.position.copy(pl.position);T.root.add(ln)});
   const bd=A.byBoard.find(b=>b.board===S.board),defs=A.defRows.filter(r=>r.board===S.board);
-  $("#hud").innerHTML=`<b>${S.board}</b> · ${rows.length} 焊墊 · 不良 <b>${defs.length}</b>${bd?` · 平均${METRICS[A.m].short} <b>${f(bd.mean,1)}</b>`:""}<br><span class="note">點選錫膏查看量測值</span>`;
+  // 體積檢核：體積% 應約等於 面積% × 高度%厚 ÷ 100；差超過 10 個百分點代表三項量測互相不吻合
+  const vc=rows.filter(r=>r.volume!=null&&r.area!=null&&r.height!=null),vBad=vc.filter(r=>Math.abs(r.volume-r.area*(r.height/padThk(r,S)*100)/100)>10).length;
+  $("#hud").innerHTML=`<b>${S.board}</b> · ${rows.length} 焊墊 · 不良 <b>${defs.length}</b>${bd?` · 平均${METRICS[A.m].short} <b>${f(bd.mean,1)}</b>`:""}${vc.length?`<br>體積 vs 面積×高度：${vBad?`<b style="color:var(--ng)">${vBad} 處不吻合（差 > 10%）</b>`:"一致"}`:""}<br><span class="note">點選錫膏查看量測值 · 錫膏位置含 X／Y 偏移</span>`;
   draw3();
   $("#boardDefSub").textContent=`${S.board} · ${defs.length} 處`;
   $("#boardDefTbl").innerHTML=defs.length?`<thead><tr><th>焊墊</th><th class="num">體積%</th><th class="num">高度µm</th><th class="num">面積%</th><th class="num">偏移X/Y</th><th>判定</th></tr></thead><tbody>`+defs.map(r=>`<tr><td class="mono">${r.pad}</td><td class="num mono">${f(r.volume,1)}</td><td class="num mono">${f(r.height,1)}</td><td class="num mono">${f(r.area,1)}</td><td class="num mono">${f(r.offx,0)}/${f(r.offy,0)}</td><td>${r.codes.map(c=>`<span class="pill ${c==="OFF"||c==="LOWH"||c==="HIH"?"warn":"ng"}">${DEFECTS[c].replace(/（.*）/,"")}</span>`).join(" ")}</td></tr>`).join("")+"</tbody>":'<tbody><tr><td class="note">本板無超規焊墊</td></tr></tbody>';
