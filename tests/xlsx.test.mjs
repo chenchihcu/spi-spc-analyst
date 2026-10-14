@@ -70,3 +70,30 @@ test("xlsx：第一個工作表用廠商自訂欄名時，不會被只有一個�
   const head = [...d.querySelectorAll("#map-board option")].map((o) => o.textContent);
   assert.ok(head.includes("VolPct_Vendor"), "應讀到第一個工作表（Raw）：" + head.join(","));
 });
+
+// 自行組出最小 zip（deflate），用來產生「解壓後過大」的惡意 .xlsx
+function zip(entries) {
+  const { deflateRawSync } = require("node:zlib");
+  const loc = [], cen = []; let off = 0;
+  for (const [name, data] of entries) {
+    const n = Buffer.from(name), c = deflateRawSync(data, { level: 9 });
+    const h = Buffer.alloc(30); h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(8, 8); h.writeUInt32LE(c.length, 18); h.writeUInt32LE(data.length >>> 0, 22); h.writeUInt16LE(n.length, 26);
+    loc.push(h, n, c);
+    const d = Buffer.alloc(46); d.writeUInt32LE(0x02014b50, 0); d.writeUInt16LE(20, 4); d.writeUInt16LE(20, 6); d.writeUInt16LE(8, 10); d.writeUInt32LE(c.length, 20); d.writeUInt32LE(data.length >>> 0, 24); d.writeUInt16LE(n.length, 28); d.writeUInt32LE(off, 42);
+    cen.push(d, n); off += 30 + n.length + c.length;
+  }
+  const cd = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(entries.length, 8); e.writeUInt16LE(entries.length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(off, 16);
+  return Buffer.concat([...loc, cd, e]);
+}
+
+test("xlsx：解壓後過大的惡意檔案會被拒絕，不會讓分頁當掉", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom } = page();
+  await tick(60);
+  const wb = '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>';
+  const rels = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>';
+  const bomb = zip([["xl/workbook.xml", Buffer.from(wb)], ["xl/_rels/workbook.xml.rels", Buffer.from(rels)], ["xl/worksheets/sheet1.xml", Buffer.alloc(160 * 1048576, 32)]]);
+  assert.ok(bomb.length < 1_000_000, `惡意檔大小 ${bomb.length}`);
+  await pick(dom, "bomb.xlsx", bomb);
+  for (let i = 0; i < 200 && !dom.window.document.querySelector("#parseErr").textContent; i++) await tick(25);
+  assert.match(dom.window.document.querySelector("#parseErr").textContent, /解壓後過大/);
+});

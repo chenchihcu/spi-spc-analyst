@@ -216,7 +216,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
   </div>
   <div class="row">
-    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 08:46:21</b></span>
+    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.2</b> · 更新 <b class="num" id="appBuilt">2026-10-14 10:00:53</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
     <button class="chip chipBtn" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
     <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
@@ -1141,7 +1141,8 @@ function grrAnalyze(rows,m,tol){const R=rows.filter(r=>r[m]!=null),parts=[...new
   else{const MSP=SSP/(a-1),MSE=SSE/(a*(n-1));vRep=MSE;vPart=Math.max(0,(MSP-MSE)/n)}
   const vGRR=vRep+vOp+vInt,vTV=vGRR+vPart,s=Math.sqrt;
   return{a,b,n,ev:s(vRep),av:s(vOp),inter:s(vInt),grr:s(vGRR),pv:s(vPart),tv:s(vTV),pctTV:100*s(vGRR/vTV),pctTol:tol>0?100*6*s(vGRR)/tol:NaN,ndc:Math.floor(1.41*s(vPart/vGRR)),pInt}}
-function toCSV(rows){return rows.map(r=>r.map(v=>{const s=v==null?"":String(v);return/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(",")).join("\n")}
+/* 匯出 CSV：文字以 = + - @ 或定位／換行字元開頭時前面加 '，避免在 Excel 開啟時被當成公式執行（數值不受影響） */
+function toCSV(rows){return rows.map(r=>r.map(v=>{let s=v==null?"":String(v);if(typeof v==="string"&&/^[=+\-@\t\r]/.test(s))s="'"+s;return/[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(",")).join("\n")}
 
 if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf};
 </script>
@@ -1874,7 +1875,13 @@ function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);const fail=e
   fl.text().then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(fail)}
 function readBuf(fl){if(fl.arrayBuffer)return fl.arrayBuffer();return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsArrayBuffer(fl)})}
 /* ---------- Excel（.xlsx）讀取：不需外部函式庫；解 zip（瀏覽器內建解壓）＋讀取工作表 XML ---------- */
-async function unzipEntries(buf){const u=new Uint8Array(buf),dv=new DataView(buf);let e=-1;
+/* 解壓 .xlsx 內的單一檔案，累計大小超過上限即中止（防止惡意壓縮檔讓分頁記憶體爆掉） */
+const XLSX_ENTRY_MAX=150*1048576;let xlsxTotal=0;const XLSX_TOTAL_MAX=300*1048576;
+async function inflateCapped(raw){const rd=new Response(raw).body.pipeThrough(new DecompressionStream("deflate-raw")).getReader(),parts=[];let n=0;
+  for(;;){const{done,value}=await rd.read();if(done)break;n+=value.length;xlsxTotal+=value.length;
+    if(n>XLSX_ENTRY_MAX||xlsxTotal>XLSX_TOTAL_MAX){rd.cancel();throw new Error("Excel 檔解壓後過大（超過 150 MB），請改用 CSV 或分割檔案")}parts.push(value)}
+  const all=new Uint8Array(n);let o=0;for(const x of parts){all.set(x,o);o+=x.length}return new TextDecoder().decode(all)}
+async function unzipEntries(buf){xlsxTotal=0;const u=new Uint8Array(buf),dv=new DataView(buf);let e=-1;
   for(let i=u.length-22;i>=Math.max(0,u.length-65558);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
   if(e<0)throw new Error("不是有效的 .xlsx 檔（找不到壓縮目錄）");
   const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={},td=new TextDecoder();
@@ -1883,7 +1890,7 @@ async function unzipEntries(buf){const u=new Uint8Array(buf),dv=new DataView(buf
     const name=td.decode(u.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
     out[name]=async()=>{const ds=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),raw=u.subarray(ds,ds+csize);
       if(method===0)return td.decode(raw);if(method!==8)throw new Error("不支援的 .xlsx 壓縮方式");
-      return new Response(new Response(raw).body.pipeThrough(new DecompressionStream("deflate-raw"))).text()}}
+      return inflateCapped(raw)}}
   return out}
 const X=(doc,tag)=>[...doc.getElementsByTagNameNS("*",tag)];
 const xmlDoc=t=>{const d=new DOMParser().parseFromString(t,"application/xml");if(d.getElementsByTagName("parsererror").length)throw new Error(".xlsx 內容格式錯誤");return d};

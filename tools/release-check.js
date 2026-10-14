@@ -78,8 +78,14 @@ const put = (k, status, messages) => (out[k] = { status, messages });
 // 7. 機密與 API 金鑰
 {
   const pats = [/sk-ant-[A-Za-z0-9_-]{10,}/, /\bsk-[A-Za-z0-9]{20,}/, /AKIA[0-9A-Z]{16}/, /(API_KEY|_TOKEN|_SECRET)\s*[:=]\s*["'][^"']{8,}/, /x-api-key/i, /api\.anthropic\.com/];
-  const hits = pats.filter((re) => re.test(html));
-  put("secrets", hits.length ? "fail" : "pass", hits.length ? hits.map((re) => `INFERENCE: 疑似機密 ${re}`) : ["FACT: 未發現 API 金鑰或直接呼叫外部 API；AI 分析透過頁面內建的 Claude 功能，不需金鑰"]);
+  // 掃描所有會部署的追蹤檔案（排除第三方函式庫、相依套件鎖定檔與二進位測試檔）
+  let files = [];
+  try { files = execSync("git ls-files", { cwd: ROOT, encoding: "utf8" }).split("\n").filter((f) => f && !/^(vendor|node_modules)\/|package-lock\.json$|^tools\/release-check\.js$|\.(xlsx|woff2|png|jpg|pdf)$/.test(f)); /* 本檔含比對樣式本身，略過 */ } catch { files = ["spi-spc.html"]; }
+  const hits = [];
+  for (const f of files) { let t = ""; try { t = fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { continue; } for (const re of pats) if (re.test(t)) hits.push(`${f}：${re}`); }
+  // 密碼雜湊也不應寫進儲存庫
+  for (const f of files) { let t = ""; try { t = fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { continue; } if (/pbkdf2-sha256\$\d+\$[A-Za-z0-9+/=]{16,}\$[0-9a-f]{64}/i.test(t) && !/^tests\//.test(f)) hits.push(`${f}：密碼雜湊`); }
+  put("secrets", hits.length ? "fail" : "pass", hits.length ? hits.map((h) => `INFERENCE: 疑似機密 ${h}`) : [`FACT: 已掃描 ${files.length} 個會部署的檔案，未發現 API 金鑰、密碼雜湊或直接呼叫外部 API；AI 分析透過 Netlify AI Gateway，程式內沒有金鑰`]);
 }
 // 附加：表單控制項無障礙名稱
 {

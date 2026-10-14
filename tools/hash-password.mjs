@@ -2,9 +2,9 @@
 // 產生登入帳號設定（AUTH_USERS）：輸入帳號與密碼（密碼輸入兩次、不顯示），輸出可貼到 Netlify 環境變數的 JSON。
 // 用法：node tools/hash-password.mjs                 → 新增一個帳號
 //       node tools/hash-password.mjs '<現有 AUTH_USERS JSON>'  → 在現有設定中新增或更新帳號
-// 只輸出密碼的 SHA-256，不輸出明文；請勿把輸出結果提交到儲存庫。
+// 只輸出加鹽的慢速雜湊（PBKDF2-SHA256），不輸出明文；請勿把輸出結果提交到儲存庫。
 import { createInterface } from "node:readline";
-import { sha256Hex, norm } from "../lib/auth-core.mjs";
+import { makeCred, norm } from "../lib/auth-core.mjs";
 
 const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: process.stdin.isTTY });
 const lines = rl[Symbol.asyncIterator]();
@@ -29,7 +29,7 @@ if (!/^[^\s@]+@[^\s@]+$/.test(user)) { console.error("帳號格式不正確"); r
 const p1 = await ask("密碼：", true), p2 = await ask("再輸入一次密碼：", true);
 if (!p1 || p1 !== p2) { console.error("兩次密碼不一致或為空，未產生設定"); process.exit(1); }
 if (p1.length < 8) console.warn("提醒：密碼少於 8 個字元，建議加長");
-current[user] = await sha256Hex(p1);
+current[user] = await makeCred(p1); // 加鹽 PBKDF2-SHA256，外洩時難以暴力破解
 console.log("\n請把下面這一行設為 Netlify 環境變數 AUTH_USERS 的值（不要勾選 secret，免費方案的邊緣函式讀不到 secret 變數）：\n");
 console.log(JSON.stringify(current));
 rl.close();

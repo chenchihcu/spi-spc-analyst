@@ -3,7 +3,7 @@
 // /__login（GET 顯示表單、POST 驗證）、/__logout 由此處理。
 import { APP_VERSION, APP_BUILT } from "../../lib/version.mjs";
 import { getStore } from "@netlify/blobs";
-import { COOKIE, SESSION_SECONDS, LOCK, configured, authenticate, issueToken, verifyToken, readCookie, safeNext, norm, lockedFor, recordFail, clearFails } from "../../lib/auth-core.mjs";
+import { COOKIE, SESSION_SECONDS, LOCK, configured, authenticate, issueToken, verifyToken, readCookie, safeNext, norm, reserveAttempt, releaseAttempt, clearFails } from "../../lib/auth-core.mjs";
 
 const env = () => ({
   AUTH_USERS: Netlify.env.get("AUTH_USERS"),
@@ -44,19 +44,19 @@ export async function handle(req, E, next, opts = {}) {
       const fd = await req.formData().catch(() => null);
       const user = fd?.get("user"), pass = fd?.get("pass"), nextPath = safeNext(fd?.get("next"));
       const keys = ["u:" + norm(user), ...(opts.ip ? ["ip:" + opts.ip] : [])];
-      const left = await lockedFor(opts.store, keys, now);
+      const { left, ids } = await reserveAttempt(opts.store, keys, now);
       if (left > 0) {
         console.log(`login locked user=${norm(user) || "-"}`);
         return loginPage(nextPath, `嘗試次數過多，已暫時鎖定。請 ${Math.ceil(left / 60000)} 分鐘後再試。`, String(user || ""), 429);
       }
       const who = fd ? await authenticate(E, user, pass) : null;
       if (who) {
+        await releaseAttempt(opts.store, ids);
         await clearFails(opts.store, ["u:" + who]);
         const token = await issueToken(E, who, Math.floor(now / 1000));
         console.log(`login ok user=${who}`);
         return new Response(null, { status: 303, headers: { ...noStore, Location: nextPath, "Set-Cookie": `${COOKIE}=${token}; Path=/; Max-Age=${SESSION_SECONDS}; HttpOnly; Secure; SameSite=Lax` } });
       }
-      await recordFail(opts.store, keys, now);
       console.log(`login failed user=${norm(user) || "-"}`);
       if (!opts.noDelay) await new Promise((r) => setTimeout(r, 900)); // 減緩暴力嘗試
       return loginPage(nextPath, `帳號或密碼不正確，請再試一次。連續失敗 ${LOCK.maxFails} 次會鎖定 ${LOCK.lockMs / 60000} 分鐘。`, String(user || ""), 401);
