@@ -146,7 +146,7 @@ test("分享資料每日清除：過期或缺少到期資訊者刪除，未過�
   const { purgeExpired, config } = await import("../netlify/functions/share-cleanup.mjs");
   const m = new Map([["a", { metadata: { exp: 100 } }], ["b", { metadata: { exp: 5000 } }], ["c", { metadata: {} }], ["err", "THROW"], ["d", { metadata: { exp: 1 } }]]);
   const st = {
-    async *list({ paginate } = {}) { assert.equal(paginate, true, "需逐頁處理"); const k = [...m.keys()]; yield { blobs: k.slice(0, 3).map((key) => ({ key })) }; yield { blobs: k.slice(3).map((key) => ({ key })) }; },
+    async *list({ paginate, prefix = "" } = {}) { assert.equal(paginate, true, "需逐頁處理"); const k = [...m.keys()].filter((x) => x.startsWith(prefix)); yield { blobs: k.slice(0, 1).map((key) => ({ key })) }; yield { blobs: k.slice(1).map((key) => ({ key })) }; },
     async getMetadata(k) { const v = m.get(k); if (v === "THROW") throw new Error("storage timeout"); return v || null; },
     async delete(k) { m.delete(k); },
   };
@@ -159,7 +159,18 @@ test("鎖定紀錄每日清除：只刪過期的", async () => {
   const { purgeLockRecords, LOCK } = await import("../lib/auth-core.mjs");
   const now = 1_900_000_000_000, keep = LOCK.windowMs + LOCK.lockMs;
   const m = new Set([`l-a/${now - keep - 1}-x`, `l-a/${now - 1000}-y`, `l-b/${now - keep - 50}-z`]);
-  const st = { async *list() { yield { blobs: [...m].map((key) => ({ key })) }; }, async delete(k) { m.delete(k); } };
+  const st = { async *list({ prefix = "" } = {}) { yield { blobs: [...m].filter((k) => k.startsWith(prefix)).map((key) => ({ key })) }; }, async delete(k) { m.delete(k); } };
   assert.equal(await purgeLockRecords(st, now), 2);
   assert.deepEqual([...m], [`l-a/${now - 1000}-y`]);
+});
+
+test("每日清除：超過時間預算即停止，且每天從不同分段開始（輪流處理，不會永遠卡在前面）", async () => {
+  const { purgeExpired, rotation, ID_CHARS } = await import("../netlify/functions/share-cleanup.mjs");
+  assert.notEqual(rotation(ID_CHARS, 0)[0], rotation(ID_CHARS, 86400_000)[0], "隔天起點不同");
+  const firsts = new Set(Array.from({ length: 64 }, (_, d) => rotation(ID_CHARS, d * 86400_000)[0]));
+  assert.equal(firsts.size, 64, "64 天內每個分段都會當過起點");
+  let t = 0, calls = 0;
+  const st = { async *list({ prefix }) { calls++; yield { blobs: [{ key: prefix + "x" }] }; }, async getMetadata() { t += 10; return { metadata: { exp: 9e15 } }; }, async delete() {} };
+  await purgeExpired(st, 0, 25, () => t);
+  assert.ok(calls < 10, `應在預算內停止（掃描 ${calls} 段）`);
 });
