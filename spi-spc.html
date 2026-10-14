@@ -109,6 +109,7 @@ details[open].iss-card>summary{border-bottom:1px solid var(--line);border-radius
 .subtabs{display:flex;gap:6px;flex-wrap:wrap}
 .subtab{border-radius:999px;padding:6px 16px}
 .subtab[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.vendor{display:grid;gap:8px;padding:10px 12px;margin-bottom:10px;border-radius:8px;background:var(--surface2)}
 #zoneMap{max-height:420px;width:auto;max-width:100%;margin:0 auto;display:block}
 /* 長表格：預設 10 列，可展開；表頭固定 */
 tr.more-row{display:none}
@@ -275,7 +276,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.7.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 11:46:42</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.8.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 13:50:42</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -541,7 +542,21 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   </div>
   <div class="grid2" data-sub="import">
     <div class="card">
-      <h3>匯入 SPI 資料 <small>先讀取欄位、確認對應與單位，再套用</small></h3>
+      <h3>匯入 SPI 資料 <small>先選加工廠格式，讀取欄位、確認對應與單位，再套用</small></h3>
+      <div class="vendor" id="vendorBox">
+        <div class="row">
+          <div class="field"><label for="selVendor">① 加工廠 SPI 格式</label><select id="selVendor"><option value="generic">通用格式（每列一筆量測）</option><option value="lirong">立榮電子（每列一焊墊、各板橫排）</option></select></div>
+          <div class="field" id="sideField" hidden><label for="selSide">面別</label><select id="selSide"><option value="auto">依檔名判斷（TOP／BOT）</option><option value="TOP">TOP 面</option><option value="BOT">BOT 面</option></select></div>
+        </div>
+        <div class="row" id="placeRow" hidden>
+          <span class="lbl" style="align-self:center">② 座標檔（選用）</span>
+          <label class="row" style="cursor:pointer"><input type="file" id="placeIn" accept=".csv,.txt,.tsv,.xlsx" class="sr"><span class="chipbtn" style="border:1px solid var(--line);display:inline-flex;align-items:center">上傳座標檔</span></label>
+          <div class="field"><label for="placeUnit">座標單位</label><select id="placeUnit"><option value="auto">自動判斷</option><option value="mil">mil</option><option value="mm">mm</option><option value="inch">inch</option></select></div>
+          <button id="placeClear" hidden>移除座標檔</button>
+          <span class="note" id="placeState"></span>
+        </div>
+        <p class="note" id="vendorNote" hidden style="margin:0">立榮格式每列是一個焊墊，Height(%)1、Volume(%)1…分別是第 1、2…片板。系統會轉成一列一筆，TOP 與 BOT 各匯入成一個回合。高度 % 會依「規格設定」的鋼板厚度換算成 µm，<b>匯入前請先確認鋼板厚度</b>。座標檔（例如 Layout 匯出的 PartType、RefDes、X、Y、Layer）用位號對應，補上焊墊位置，並以封裝（C0402、R0603…）分元件群組。</p>
+      </div>
       <div class="drop" id="drop">拖放 CSV 或 Excel（.xlsx）檔到這裡，或 <label style="color:var(--accent);cursor:pointer;text-decoration:underline"><input type="file" id="fileIn" accept=".csv,.txt,.tsv,.xlsx" class="sr">選擇檔案</label></div>
       <textarea id="pasteIn" aria-label="貼上 CSV 文字" placeholder="或直接貼上 CSV 文字…" style="margin-top:8px"></textarea>
       <div class="row" style="margin-top:8px"><button class="primary" id="btnRead">讀取欄位</button><button id="btnPhme">載入 PHME 格式範例</button><span class="err" id="parseErr"></span></div>
@@ -605,6 +620,8 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
 const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+/* 每個焊墊取第一筆量測當代表（設計值計算用）；不假設每個焊墊在第一片板都有量測 */
+function padReps(R){const m=new Map();for(const r of R)if(!m.has(r.pad))m.set(r.pad,r);return[...m.values()]}
 function sd(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1))}
 function quant(sorted,p){const i=(sorted.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return sorted[lo]+(sorted[hi]-sorted[lo])*(i-lo)}
 function lgamma(z){const g=7,c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];if(z<0.5)return Math.log(Math.PI/Math.sin(Math.PI*z))-lgamma(1-z);z-=1;let x=c[0];for(let i=1;i<g+2;i++)x+=c[i]/(z+i);const t=z+g+0.5;return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x)}
@@ -808,6 +825,7 @@ const FIELDS=[
  ["panel","拼板號 Panel",["panel","panelid","拼板","拼板號","array","arrayid","panelno"]],
  ["figure","子板號 Figure",["figure","figureid","子板","子板號","block","blockid","piece","subboard","boardindex","arrayindex"]],
  ["comp","元件位號",["comp","component","componentid","元件","refdes","ref","位號","partname","reference"]],
+ ["pkg","封裝（元件群組）",["package","pkg","parttype","footprint","封裝","partdecal","pattern"]],
  ["pin","腳位",["pin","pinnumber","pinno","腳位","pinid"]],
  ["pad","焊墊 ID",["pad","padid","padno","焊墊","焊盤","padname"]],
  ["x","X 座標 mm",["x","posx","座標x","xpos","centerx","locationx"]],
@@ -852,6 +870,7 @@ function buildRows(tab,map,opts={},sub=5){
     const comp=g("comp")||null,pin=g("pin"),padId=g("pad");
     const pad=comp&&pin!=null&&pin!==""?`${comp}-${pin}`:padId!=null&&padId!==""?(comp&&!String(padId).startsWith(comp)?`${comp}-${padId}`:String(padId)):"P"+((col("board")!=null||col("panel")!=null?i:i%sub)+1);
     const r={board:String(board),pad,comp};if(panel!=null)r.panel=String(panel);if(figure!=null)r.figure=String(figure);
+    const pk=g("pkg");if(pk)r.pkg=String(pk);
     for(const k of NUMF)r[k]=num(k);
     if(r.height!=null&&o.heightUnit==="mm")r.height=+(r.height*1000).toFixed(2);
     const res=g("result");if(res!=null){r.result=String(res);r.mNG=!OKCODES.includes(String(res).trim().toLowerCase())}
@@ -862,7 +881,8 @@ function buildRows(tab,map,opts={},sub=5){
   // 依時間排序（有日期時間欄時），板的先後才正確
   if(rows.some(r=>r.ts!=null)){const first={};rows.forEach(r=>{if(r.ts!=null&&(first[r.board]==null||r.ts<first[r.board]))first[r.board]=r.ts});rows.sort((a,b)=>(first[a.board]??0)-(first[b.board]??0))}
   const pads=[...new Set(rows.map(r=>r.pad))],side=Math.ceil(Math.sqrt(pads.length));
-  rows.forEach(r=>{r.group=r.comp?(String(r.comp).match(/^[A-Za-z]+/)||["ALL"])[0]:"全部";const pi=pads.indexOf(r.pad);
+  const padIdx=new Map(pads.map((p,i)=>[p,i]));
+  rows.forEach(r=>{r.group=r.pkg?r.pkg:r.comp?(String(r.comp).match(/^[A-Za-z]+/)||["ALL"])[0]:"全部";const pi=padIdx.get(r.pad);
     if(r.x==null||r.y==null){r.x=4+(pi%side)*(52/Math.max(side-1,1));r.y=4+Math.floor(pi/side)*(32/Math.max(side-1,1));r.gridPos=true}
     if(r.padl!=null&&r.padw!=null){r.w=r.padl;r.d=r.padw}else{r.w=r.apl??0.7;r.d=r.apw??0.7;r.dimAssumed=r.apl==null}
     r.apL=r.apl;r.apW=r.apw;r.shape="rect";
@@ -1061,11 +1081,11 @@ function detectIssues(st){
   addAl(sc,`${sc.map(x=>x.b).join("、")} 伸縮（漲縮）`,x=>`${x.b}：伸縮 X ${f(x.a.ex*1000,0)} / Y ${f(x.a.ey*1000,0)} ppm，板邊約 ${f(x.a.strEdge,0)} µm`,"鋼板張力不足或 PCB 批次漲縮，需鋼板補償",a=>a.strEdge,"各板伸縮造成的板邊位移 µm");
 
   // 8. 設計（DFM）：面積比、寬厚比、轉移效率
-  for(const g of groups){const rs=R.filter(r=>r.group===g&&r.board===boards[0]);if(!rs.length)continue;
+  for(const g of groups){const rs=padReps(R.filter(r=>r.group===g));if(!rs.length)continue;
     const ar=Math.min(...rs.map(r=>areaRatio(r,st))),asp=Math.min(...rs.map(r=>aspectRatio(r,st))),tmax=Math.min(...rs.map(r=>maxThkForAR(r,st))),thk=Math.max(...rs.map(r=>padThk(r,st)));
     const tv=R.filter(r=>r.group===g&&r.volume!=null).map(r=>r.volume),te=tv.length?mean(tv):NaN,vt=st.specs.volume.tgt,dimNote=rs.some(r=>r.dimAssumed)?"（焊墊尺寸為估算值）":"";
     if(ar<.66||asp<1.5)add({lv:"ng",cat:"設計 DFM",title:`${g} 開孔設計不符 IPC-7525（${ar<.66?"面積比 "+f(ar,2):"寬厚比 "+f(asp,2)}）`,ents:["g:"+g],score:4,
-      facts:[`最小面積比 ${f(ar,2)}（建議 ≥ 0.66）、寬厚比 ${f(asp,2)}（建議 ≥ 1.5）${dimNote}`,`目前鋼板 ${thk} µm；要達 AR 0.66 需 ≤ ${f(tmax,0)} µm`],cause:"設計因素：開孔過小或鋼板過厚，錫膏脫模困難",conf:"高",ev:evBars("各元件群組最小面積比",groups,groups.map(x=>{const q=R.filter(r=>r.group===x&&r.board===boards[0]);return q.length?Math.min(...q.map(r=>areaRatio(r,st))):NaN}),[groups.indexOf(g)],"",[.66]),go:{tab:"dfm",group:"ALL"}});
+      facts:[`最小面積比 ${f(ar,2)}（建議 ≥ 0.66）、寬厚比 ${f(asp,2)}（建議 ≥ 1.5）${dimNote}`,`目前鋼板 ${thk} µm；要達 AR 0.66 需 ≤ ${f(tmax,0)} µm`],cause:"設計因素：開孔過小或鋼板過厚，錫膏脫模困難",conf:"高",ev:evBars("各元件群組最小面積比",groups,groups.map(x=>{const q=padReps(R.filter(r=>r.group===x));return q.length?Math.min(...q.map(r=>areaRatio(r,st))):NaN}),[groups.indexOf(g)],"",[.66]),go:{tab:"dfm",group:"ALL"}});
     else if(isFinite(te)&&te<vt*.9)add({lv:"warn",cat:"設計 DFM",title:`${g} 面積比合格但轉移效率偏低（${f(te,1)}%）`,ents:["g:"+g],score:2.5,
       facts:[`平均轉移效率 ${f(te,1)}%（目標 ${vt}%），最小面積比 ${f(ar,2)}${dimNote}`,`AR 0.66 下最大可用厚度 ${f(tmax,0)} µm，目前 ${thk} µm`],
       cause:"非幾何因素：孔壁粗糙（未拋光或未塗層）、錫膏粒徑過大、開孔角落殘留；可評估奈米塗層、電鑄鋼板或 Type 4/5 錫膏",conf:"中",ev:evBars("各元件群組平均轉移效率",groups,groups.map(x=>{const v=R.filter(r=>r.group===x&&r.volume!=null).map(r=>r.volume);return v.length?mean(v):NaN}),[groups.indexOf(g)],"%",[vt]),go:{tab:"dfm",group:"ALL",metric:"volume"}})}
@@ -1100,7 +1120,7 @@ function runGroupStats(st,m){const R=st.rows;for(const r of R)if(r.height!=null)
     const bv=new Map();for(const r of rs)if(r.volume!=null){let l=bv.get(r.board);if(!l)bv.set(r.board,l=[]);l.push(r.volume)}
     const bm=boards.map(b=>{const x=bv.get(b);return x&&x.length?mean(x):NaN}).filter(isFinite);
     const mu=v.length?mean(v):NaN,s=v.length>1?sd(v):NaN,ppk=sp&&sp.usl>sp.lsl&&s>0?Math.min(sp.usl-mu,mu-sp.lsl)/(3*s):NaN;
-    const one=rs.filter(r=>r.board===boards[0]);
+    const one=padReps(rs);
     out[g]={g,n:rs.length,nb:new Set(rs.map(r=>r.board)).size,mu,ppk,te:te.length?mean(te):NaN,cv:te.length>1?sd(te)/mean(te)*100:NaN,bm,d:rs.filter(r=>classify(r,st.specs,st).length).length,
       ar:g==="整體"||!one.length?NaN:Math.min(...one.map(r=>areaRatio(r,st))),thk:g==="整體"||!one.length?NaN:Math.max(...one.map(r=>padThk(r,st)))};out[g].rate=out[g].d/out[g].n}
   return out}
@@ -1117,7 +1137,7 @@ function compareRuns(sa,sb,m){const A=runGroupStats(sa,m),B=runGroupStats(sb,m),
 
 /* ============ DFM 開孔修改建議 ============ */
 function dfmTable(st){const R=st.rows;if(!R.length)return[];const b0=R[0].board,groups=[...new Set(R.map(r=>r.group))],vt=st.specs.volume.tgt,sp=st.specs.volume;
-  return groups.map(g=>{const one=R.filter(r=>r.group===g&&r.board===b0),all=R.filter(r=>r.group===g);if(!one.length)return null;
+  return groups.map(g=>{const all=R.filter(r=>r.group===g),one=padReps(all);if(!one.length)return null;
     const ar=Math.min(...one.map(r=>areaRatio(r,st))),asp=Math.min(...one.map(r=>aspectRatio(r,st))),tmax=Math.min(...one.map(r=>maxThkForAR(r,st))),thk=Math.max(...one.map(r=>padThk(r,st))),ap=aperture(one[0],st);
     const tv=all.map(r=>r.volume).filter(v=>v!=null),te=tv.length?mean(tv):NaN,cv=tv.length>1?sd(tv)/te*100:NaN;
     const pads={};all.forEach(r=>{if(r.volume!=null)(pads[r.pad]=pads[r.pad]||[]).push(r.volume)});
@@ -1251,7 +1271,7 @@ function persist(){saveRunsSoon();try{localStorage.setItem("spi-stencil",JSON.st
 /* ---------- 開孔設定 ---------- */
 function renderAperture(){const groups=[...new Set(S.rows.map(r=>r.group))],b0=S.rows[0]&&S.rows[0].board,hasCsv=S.rows.some(r=>r.apL!=null);
   $("#apTbl").innerHTML=`<thead><tr><th>元件群組</th><th class="num">焊墊尺寸 mm</th><th>開孔形狀</th><th>線性縮減 %</th><th>指定 L × W mm</th><th class="num">實際開孔 mm</th><th class="num">鋼板 µm</th><th class="num">面積比 AR</th><th class="num">寬厚比</th><th class="num">AR≥0.66 最大厚度</th><th>判讀</th></tr></thead><tbody>`+groups.map(g=>{
-    const ps=S.rows.filter(r=>r.group===g&&r.board===b0),r=ps[0],c=S.aperture.groups[g]||{},a=aperture(r,S),ars=ps.map(p=>areaRatio(p,S)),asp=Math.min(...ps.map(p=>aspectRatio(p,S))),arMin=Math.min(...ars),tmax=Math.min(...ps.map(p=>maxThkForAR(p,S))),thk=[...new Set(ps.map(p=>padThk(p,S)))].join("/");
+    const ps=padReps(S.rows.filter(r=>r.group===g)),r=ps[0],c=S.aperture.groups[g]||{},a=aperture(r,S),ars=ps.map(p=>areaRatio(p,S)),asp=Math.min(...ps.map(p=>aspectRatio(p,S))),arMin=Math.min(...ars),tmax=Math.min(...ps.map(p=>maxThkForAR(p,S))),thk=[...new Set(ps.map(p=>padThk(p,S)))].join("/");
     const st=arMin<.66||asp<1.5?"ng":arMin<.75?"warn":"ok",tip=arMin<.66?`AR 不足：改用 ≤ ${f(tmax,0)} µm（可用階梯鋼板局部減薄）或加大開孔`:asp<1.5?"寬厚比 < 1.5，細間距易堵孔":arMin<.75?"接近下限，建議使用奈米塗層或電鑄鋼板":"符合 IPC-7525";
     const gid=g.replace(/[^\w]/g,"_");
     return`<tr><td>${g}</td><td class="num mono">${r.shape==="round"?"Ø"+f(r.w,2):f(r.w,2)+" × "+f(r.d,2)}</td>
@@ -1268,7 +1288,7 @@ function boardBounds(){const xs=S.rows.map(r=>r.x),ys=S.rows.map(r=>r.y);return{
 function zoneRect(z){if(z.mode!=="group")return{x0:Math.min(z.x0,z.x1),x1:Math.max(z.x0,z.x1),y0:Math.min(z.y0,z.y1),y1:Math.max(z.y0,z.y1)};
   const ps=S.rows.filter(r=>r.group===z.group&&r.board===S.rows[0].board);if(!ps.length)return null;
   return{x0:Math.min(...ps.map(r=>r.x-r.w/2))-.6,x1:Math.max(...ps.map(r=>r.x+r.w/2))+.6,y0:Math.min(...ps.map(r=>r.y-r.d/2))-.6,y1:Math.max(...ps.map(r=>r.y+r.d/2))+.6}}
-function zoneCounts(){const b0=S.rows[0]&&S.rows[0].board,c={},base={n:0};for(const r of S.rows){if(r.board!==b0)continue;const z=zoneOf(r,{...S,step:{...S.step,on:true}});if(z)c[z.id]=(c[z.id]||0)+1;else base.n++}return{c,base:base.n}}
+function zoneCounts(){const b0=S.rows[0]&&S.rows[0].board,c={},base={n:0};for(const r of padReps(S.rows)){const z=zoneOf(r,{...S,step:{...S.step,on:true}});if(z)c[z.id]=(c[z.id]||0)+1;else base.n++}return{c,base:base.n}}
 function zonesChanged(){persist();syncControls();recompute()}
 function renderZones(){const groups=[...new Set(S.rows.map(r=>r.group))],{c,base}=zoneCounts();
   $("#zoneTbl").innerHTML=`<thead><tr><th>框選</th><th>名稱</th><th>範圍方式</th><th>位置</th><th>厚度 µm</th><th class="num">焊墊數</th><th></th></tr></thead><tbody>`+S.step.zones.map((z,i)=>`<tr>
@@ -1294,13 +1314,13 @@ function drawZoneMap(){const cv=$("#zoneMap");if(!cv||!cv.offsetParent||!S.rows.
   ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle=css("--surface2");ctx.fillRect(0,0,cv.width,cv.height);
   const[bx0,by0]=X.toPx(X.B.x0,X.B.y0),[bx1,by1]=X.toPx(X.B.x1,X.B.y1);ctx.fillStyle="#1f4a3a";ctx.globalAlpha=.18;ctx.fillRect(bx0,by0,bx1-bx0,by1-by0);ctx.globalAlpha=1;
   const st={...S,step:{...S.step,on:true}};
-  for(const r of S.rows){if(r.board!==b0)continue;const z=zoneOf(r,st),i=z?S.step.zones.indexOf(z):-1,[px,py]=X.toPx(r.x,r.y),w=Math.max(r.w*X.sc,5),h=Math.max(r.d*X.sc,5);
+  for(const r of padReps(S.rows)){const z=zoneOf(r,st),i=z?S.step.zones.indexOf(z):-1,[px,py]=X.toPx(r.x,r.y),w=Math.max(r.w*X.sc,5),h=Math.max(r.d*X.sc,5);
     ctx.fillStyle=i>=0?ZCOL[i%ZCOL.length]:css("--muted");if(r.shape==="round"){ctx.beginPath();ctx.arc(px,py,w/2,0,7);ctx.fill()}else ctx.fillRect(px-w/2,py-h/2,w,h)}
   S.step.zones.forEach((z,i)=>{const R=zoneRect(z);if(!R)return;const[a,b]=X.toPx(R.x0,R.y0),[c2,d2]=X.toPx(R.x1,R.y1),col=ZCOL[i%ZCOL.length];
     ctx.strokeStyle=col;ctx.lineWidth=S.selZone===z.id?3:1.5;ctx.setLineDash(z.mode==="group"?[6,4]:[]);ctx.strokeRect(a,b,c2-a,d2-b);ctx.setLineDash([]);
     ctx.font="18px IBM Plex Mono";const lab=`${z.name} ${z.t}µm`,tw=ctx.measureText(lab).width;ctx.fillStyle=css("--surface");ctx.fillRect(a,b-22,tw+10,22);ctx.fillStyle=col;ctx.fillText(lab,a+5,b-6)});
   if(zDrag){const[a,b]=X.toPx(zDrag.x0,zDrag.y0),[c2,d2]=X.toPx(zDrag.x1,zDrag.y1);ctx.strokeStyle=css("--accent");ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeRect(a,b,c2-a,d2-b);ctx.setLineDash([])}
-  ctx.fillStyle=css("--muted");ctx.font="16px IBM Plex Mono";ctx.fillText(`X ${f(X.B.x0,0)}–${f(X.B.x1,0)} mm · Y ${f(X.B.y0,0)}–${f(X.B.y1,0)} mm · 顯示 ${b0} 焊墊配置`,X.pad,cv.height-6);
+  ctx.fillStyle=css("--muted");ctx.font="16px IBM Plex Mono";ctx.fillText(`X ${f(X.B.x0,0)}–${f(X.B.x1,0)} mm · Y ${f(X.B.y0,0)}–${f(X.B.y1,0)} mm · 全部焊墊位置`,X.pad,cv.height-6);
   $("#zoneLeg").innerHTML=S.step.zones.map((z,i)=>`<span><i class="sq" style="background:${ZCOL[i%ZCOL.length]}"></i>${z.name}（${z.mode==="group"?"群組 "+z.group:"座標區域"}）${z.t} µm</span>`).join("")+`<span><i class="sq" style="background:${css("--muted")}"></i>基礎厚度 ${S.stencil} µm</span><span><i style="border-color:${css("--muted")}" class="dash"></i>虛線＝依群組自動範圍</span>`}
 (function(){const cv=$("#zoneMap");const pt=e=>{const rc=cv.getBoundingClientRect(),X=mapXf(cv);return X.toMm((e.clientX-rc.left)*cv.width/rc.width,(e.clientY-rc.top)*cv.height/rc.height)};
   cv.addEventListener("pointerdown",e=>{if(!S.step.zones.length)return;cv.setPointerCapture(e.pointerId);const[x,y]=pt(e);zDrag={x0:x,y0:y,x1:x,y1:y}});
@@ -1914,10 +1934,83 @@ function saveProfiles(p){try{localStorage.setItem("spi-profiles",JSON.stringify(
 function profileOpts(sel){fillSelect($("#selProfile"),[["auto","自動辨識"],["phme","PHME／Bitron 型（拼板 × 子板、偏移 %）"],...profiles().map((p,i)=>["u"+i,p.name])],sel)}
 function setOpts(o){$("#optOff").value=o.offUnit;$("#optH").value=o.heightUnit;$("#optVol").value=o.volBasis}
 function impOpts(){return{offUnit:$("#optOff").value,heightUnit:$("#optH").value,volBasis:$("#optVol").value}}
-function startImport(text,name,tab0){try{const tab=tab0||csvTable(text),map=autoMap(tab.head);IMP={tab,map,name};setOpts(guessOpts(tab.head,map));profileOpts("auto");
+/* ---------- 加工廠 SPI 格式：橫排（每列一焊墊、各板量測橫向排列，如立榮電子）轉成一列一筆；座標檔補位置與封裝 ---------- */
+/* 找出「名稱＋板序號」欄，例如 Height(%)1、Volume(%)12、Result3；同一名稱至少出現 2 次才算 */
+function wideCols(head){const m={};head.forEach((h,i)=>{const x=String(h).trim().match(/^(.*?\D)\s*(\d{1,3})$/);if(x)(m[x[1]]=m[x[1]]||{})[+x[2]]=i});
+  const bases=Object.keys(m).filter(b=>Object.keys(m[b]).length>=2);return bases.length?{bases,m}:null}
+const wideRole=b=>{const k=normH(b);return/^height|高度/.test(k)?"h":/^volume|體積/.test(k)?"v":/^area|面積/.test(k)?"a":/^(offsetx|offx|shiftx|xoffset)/.test(k)?"ox":/^(offsety|offy|shifty|yoffset)/.test(k)?"oy":/^(result|判定|judge|status)/.test(k)?"r":null};
+function isWide(head){const w=wideCols(head);return!!(w&&w.bases.some(b=>["h","v","a"].includes(wideRole(b))))}
+function detectSide(name){const s=String(name||"");return/(^|[^a-z])(bot|bottom|btm)([^a-z]|$)/i.test(s)?"BOT":/(^|[^a-z])top([^a-z]|$)/i.test(s)?"TOP":""}
+/* 依別名優先順序找欄位 */
+const findCol=(n,al)=>{for(const a of al){const i=n.indexOf(a);if(i>=0)return i}return-1};
+/* 座標檔（Layout 匯出的元件座標）：位號、X、Y、封裝、面別、角度；單位換算為 mm */
+function parsePlacement(t,unit="auto"){const n=t.head.map(normH),c=al=>findCol(n,al);
+  const iR=c(["refdes","designator","ref","reference","位號","componentid","component","partname"]),iX=c(["x","centerx","midx","posx","xpos","locationx","座標x"]),iY=c(["y","centery","midy","posy","ypos","locationy","座標y"]),
+    iT=c(["parttype","package","footprint","pkg","封裝","partdecal","pattern"]),iL=c(["layer","side","面別","面","tb","mirror"]),iO=c(["orient","rotation","rot","angle","角度"]);
+  if(iR<0||iX<0||iY<0)throw new Error("座標檔需要位號（RefDes）與 X、Y 欄位");
+  const items=t.data.map(r=>({ref:safeId(r[iR]),x:+r[iX],y:+r[iY],pkg:iT>=0?safeId(r[iT])||"":"",side:iL>=0?(/bot|bottom|^b$|底/i.test(r[iL])?"BOT":/top|^t$|頂|正/i.test(r[iL])?"TOP":""):"",rot:iO>=0?+r[iO]||0:0})).filter(p=>p.ref&&r0(p.x)&&r0(p.y));
+  if(!items.length)throw new Error("座標檔沒有可用的位號與座標");
+  const mx=Math.max(...items.map(p=>Math.max(Math.abs(p.x),Math.abs(p.y)))),u=unit==="auto"?(mx>1000?"mil":"mm"):unit,k=u==="mil"?0.0254:u==="inch"?25.4:1;
+  items.forEach(p=>{p.x=+(p.x*k).toFixed(3);p.y=+(p.y*k).toFixed(3)});
+  return{items,unit:u,auto:unit==="auto",top:items.filter(p=>p.side==="TOP").length,bot:items.filter(p=>p.side==="BOT").length}}
+function r0(v){return typeof v==="number"&&isFinite(v)}
+/* 橫排轉一列一筆。o：{side, place（parsePlacement 結果）, stencil（µm，高度 % 換算用）} */
+function unpivotWide(tab,o={}){const w=wideCols(tab.head),R={};
+  if(w)for(const b of w.bases){const r=wideRole(b);if(r&&!R[r])R[r]={b,pct:/%/.test(b)}}
+  if(!w||!(R.h||R.v||R.a))throw new Error("不是立榮格式：找不到 Height(%)1、Volume(%)1、Area(%)1… 這類各板橫排的欄位。請改選「通用格式」，或確認選對檔案");
+  const n=tab.head.map(normH),iComp=findCol(n,["componentid","component","comp","refdes","位號","元件"]),iPad=findCol(n,["padid","pad","pinid","pin","焊墊"]);
+  if(iComp<0)throw new Error("找不到 Component ID（元件位號）欄位");
+  const idx=[...new Set(Object.values(R).flatMap(x=>Object.keys(w.m[x.b]).map(Number)))].sort((a,b)=>a-b),thk=o.stencil||120;
+  const split=s=>{const v=safeId(s)||"",m=v.match(/^(.*?)_(\d+)$/);return m?[m[1],m[2]]:[v,""]};
+  const sufs=new Set(tab.data.map(c=>split(c[iComp])[1]).filter(Boolean)),useFig=sufs.size>1;
+  // 座標：依面別挑同面的元件；同一元件的焊墊在中心附近以 0.5 mm 間距排成小方陣（座標檔只有元件中心，焊墊位置為近似）
+  const P=o.place,byRef=new Map();if(P)for(const it of P.items){const cur=byRef.get(it.ref);if(!cur||(o.side&&it.side===o.side&&cur.side!==o.side))byRef.set(it.ref,it)}
+  // 立榮匯出檔的已知錯位：PAD ID 空白、焊墊編號被寫進第 1 片板的高度欄（該板體積、面積也空白）→ 取回焊墊編號，第 1 片板視為未量測
+  let shifted=0;const i1=R.h&&w.m[R.h.b][idx[0]],v1=R.v&&w.m[R.v.b][idx[0]],a1=R.a&&w.m[R.a.b][idx[0]];
+  const rowsIn=tab.data.map(c=>{if(iPad<0||i1==null||String(c[iPad]??"").trim()!=="")return c;const hv=String(c[i1]??"").trim();
+    if(/^\d{1,4}$/.test(hv)&&(v1==null||String(c[v1]??"").trim()==="")&&(a1==null||String(c[a1]??"").trim()==="")){const d=c.slice();d[iPad]=hv;d[i1]="";shifted++;return d}return c});
+  tab={head:tab.head,data:rowsIn};
+  const padsOf={};tab.data.forEach(c=>{const[ref]=split(c[iComp]),p=iPad>=0?safeId(c[iPad]):"";(padsOf[ref]=padsOf[ref]||[]);if(!padsOf[ref].includes(p))padsOf[ref].push(p)});
+  const pos=(it,k,np)=>{const cols=Math.ceil(Math.sqrt(np)),rows=Math.ceil(np/cols),cx=(k%cols)-(cols-1)/2,cy=Math.floor(k/cols)-(rows-1)/2,a=(it.rot||0)*Math.PI/180;
+    return[+(it.x+(cx*Math.cos(a)-cy*Math.sin(a))*0.5).toFixed(3),+(it.y+(cx*Math.sin(a)+cy*Math.cos(a))*0.5).toFixed(3)]};
+  const head=["Board",...(useFig?["Figure"]:[]),"Component ID","PAD ID",...(P?["X","Y","Package"]:[]),...(R.h?["Height(um)"]:[]),...(R.v?["Volume(%)"]:[]),...(R.a?["Area(%)"]:[]),...(R.ox?["Offset X(um)"]:[]),...(R.oy?["Offset Y(um)"]:[]),...(R.r?["Result"]:[])];
+  const data=[],missing=new Set(),other=new Set(),matched=new Set();
+  for(const c of tab.data){const[ref,fig]=split(c[iComp]),pad=iPad>=0?safeId(c[iPad]):"";if(!ref)continue;
+    let xy=null,pkg="";if(P){const it=byRef.get(ref);if(it){matched.add(ref);if(o.side&&it.side&&it.side!==o.side)other.add(ref);xy=pos(it,padsOf[ref].indexOf(pad),padsOf[ref].length);pkg=it.pkg}else missing.add(ref)}
+    for(const i of idx){const v=x=>R[x]&&w.m[R[x].b][i]!=null?String(c[w.m[R[x].b][i]]??"").trim():"";
+      let h=v("h");if(h!==""&&isFinite(+h)&&R.h.pct)h=String(+(+h/100*thk).toFixed(2));
+      data.push(["B"+String(i).padStart(2,"0"),...(useFig?[fig]:[]),ref,pad,...(P?[xy?String(xy[0]):"",xy?String(xy[1]):"",pkg]:[]),...(R.h?[h]:[]),...(R.v?[v("v")]:[]),...(R.a?[v("a")]:[]),...(R.ox?[v("ox")]:[]),...(R.oy?[v("oy")]:[]),...(R.r?[v("r")]:[])])}}
+  if(!data.length)throw new Error("轉換後沒有資料列");
+  return{tab:{head,data},info:{boards:idx.length,pads:tab.data.length,comps:Object.keys(padsOf).length,shifted,hPct:!!(R.h&&R.h.pct),thk,fig:useFig?sufs.size:0,
+    place:P?{matched:matched.size,missing:[...missing].sort(),other:[...other].sort()}:null}}}
+/* 加工廠格式與座標檔設定（記在這台電腦，下次自動帶入） */
+let PLACE=null;
+function placeLoad(){try{const s=JSON.parse(localStorage.getItem("spi-place")||"null");if(s&&s.tab){PLACE={name:s.name,tab:s.tab,res:parsePlacement(s.tab,$("#placeUnit").value)}}}catch(e){PLACE=null}}
+function placeShow(){const st=$("#placeState");$("#placeClear").hidden=!PLACE;if(!PLACE){st.textContent="未載入：焊墊位置以格點排列，元件群組依位號字首（C、R…）";return}
+  const r=PLACE.res;st.textContent=`${PLACE.name}：${r.items.length} 個元件（TOP ${r.top}、BOT ${r.bot}），單位 ${r.unit}${r.auto?"（自動判斷）":""}`}
+function vendorUI(){const lr=$("#selVendor").value==="lirong";$("#sideField").hidden=!lr;$("#placeRow").hidden=!lr;$("#vendorNote").hidden=!lr;placeShow()}
+try{const v=localStorage.getItem("spi-vendor");if(v&&[...$("#selVendor").options].some(o=>o.value===v))$("#selVendor").value=v}catch(e){}
+placeLoad();vendorUI();
+function convertImp(keepMap){const v=$("#selVendor").value;IMP.conv=null;
+  if(v==="lirong"||isWide(IMP.raw.head)){if(v!=="lirong"){$("#selVendor").value="lirong";vendorUI();IMP.autoV=true}
+    const side=$("#selSide").value==="auto"?detectSide(IMP.name):$("#selSide").value,res=unpivotWide(IMP.raw,{side,place:PLACE&&PLACE.res,stencil:S.stencil});IMP.tab=res.tab;IMP.conv={...res.info,side}}
+  else IMP.tab=IMP.raw;
+  if(!keepMap){IMP.map=autoMap(IMP.tab.head);setOpts(guessOpts(IMP.tab.head,IMP.map))}}
+function impName(){let s=IMP.name.replace(/\.(csv|txt|tsv|xlsx)$/i,"").replace(/[_\s]+$/,"");const sd=IMP.conv&&IMP.conv.side;if(sd&&!new RegExp(sd==="BOT"?"bot":"top","i").test(s))s+=" "+sd;return s}
+function startImport(text,name,tab0){try{const raw=tab0||csvTable(text);IMP={raw,name};convertImp(false);const tab=IMP.tab;profileOpts("auto");
     const ps=profiles(),hit=ps.findIndex(p=>Object.values(p.cols).every(c=>tab.head.includes(c)));if(hit>=0){$("#selProfile").value="u"+hit;applyProfile("u"+hit)}
-    $("#inRunName").value=name.replace(/\.(csv|txt|tsv|xlsx)$/i,"");$("#mapBox").hidden=false;$("#parseErr").textContent="";renderMap()}
-  catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true}}
+    $("#inRunName").value=impName();$("#mapBox").hidden=false;$("#parseErr").textContent="";renderMap()}
+  catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true;IMP=null}}
+/* 加工廠格式、面別、座標檔變更時，若已讀取檔案就重新轉換 */
+function reconvert(){if(!IMP||!IMP.raw)return;try{convertImp(false);$("#inRunName").value=impName();$("#parseErr").textContent="";renderMap()}catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true;IMP=null}}
+$("#selVendor").onchange=()=>{try{localStorage.setItem("spi-vendor",$("#selVendor").value)}catch(e){}vendorUI();reconvert()};
+$("#selSide").onchange=reconvert;
+$("#placeUnit").onchange=()=>{if(PLACE){try{PLACE.res=parsePlacement(PLACE.tab,$("#placeUnit").value)}catch(e){}}placeShow();reconvert()};
+$("#placeClear").onclick=()=>{PLACE=null;try{localStorage.removeItem("spi-place")}catch(e){}placeShow();reconvert()};
+$("#placeIn").onchange=e=>{const fl=e.target.files[0];e.target.value="";if(!fl)return;
+  const done=tab=>{try{const res=parsePlacement(tab,$("#placeUnit").value),name=safeId(fl.name);PLACE={name,tab,res};try{localStorage.setItem("spi-place",JSON.stringify({name,tab}))}catch(er){}placeShow();reconvert();toast(`已載入座標檔 ${name}：${res.items.length} 個元件`)}catch(er){$("#placeState").innerHTML=`<span class="err">${esc(er.message)}</span>`}};
+  const fail=er=>{$("#placeState").innerHTML=`<span class="err">無法讀取座標檔：${esc(er.message)}</span>`};
+  if(/\.xlsx$/i.test(fl.name))readBuf(fl).then(xlsxTable).then(x=>done(x.tab)).catch(fail);else readText(fl).then(t=>done(csvTable(t))).catch(fail)};
 function applyProfile(v){const head=IMP.tab.head;
   if(v==="auto"){IMP.map=autoMap(head);setOpts(guessOpts(head,IMP.map))}
   else if(v==="phme"){IMP.map=autoMap(head);delete IMP.map.board;setOpts({offUnit:"pct",heightUnit:"um",volBasis:"aperture"})}
@@ -1929,8 +2022,14 @@ function renderMap(){const{tab,map}=IMP,opts=['<option value="">（無）</optio
 function previewImport(){try{const{rows,metrics,info}=buildRows(IMP.tab,IMP.map,impOpts(),Math.max(2,+$("#inSub").value||5));IMP.res={rows,metrics,info};
     const warn=[];if(IMP.map.offx!=null&&$("#optOff").value==="pct"&&rows.some(r=>r.dimAssumed))warn.push("偏移為焊墊 % 但缺焊墊／開孔尺寸欄位，以 0.7 mm 換算");
     if(IMP.map.board==null&&IMP.map.panel==null)warn.push(`沒有板號欄位，將每 ${$("#inSub").value} 筆視為一片板`);
-    const r0=rows[0];
-    $("#mapPrev").innerHTML=`預覽：${rows.length.toLocaleString()} 筆、${info.boards} 片板、${info.pads} 個焊墊位置${info.panels?`（${info.panels} 個拼板 × ${info.figures} 子板）`:""}；量測項目 ${metrics.map(k=>METRICS[k].short).join("、")}${info.results?`；判定碼 ${info.results.length} 種`:""}${info.factors.length?`；參數欄位 ${info.factors.map(k=>FACT[k].label).join("、")}`:""}${info.stroke?"；含刮刀方向":""}${info.ts?"；已依日期時間排序":""}`
+    const r0=rows[0],cv=IMP.conv;let conv="";
+    if(cv){const pl=cv.place;conv=`<b>${IMP.autoV?"偵測到立榮（各板橫排）格式，已自動切換並轉換":"立榮格式已轉換"}</b>：${cv.boards} 片板 × ${cv.pads.toLocaleString()} 個焊墊（${cv.comps} 個元件）${cv.side?`，${cv.side} 面`:"，面別未知（檔名沒有 TOP／BOT，可在上方指定）"}${cv.fig?`，${cv.fig} 個子板`:""}${cv.hPct?`；高度 % 以鋼板厚度 ${cv.thk} µm 換算`:""}`
+      +(pl?`；座標檔對應 ${pl.matched}/${cv.comps} 個元件（座標檔只有元件中心，同一元件的焊墊位置為近似）`:"；未載入座標檔，焊墊位置以格點排列")+"<br>";
+      if(cv.shifted)warn.push(`${cv.shifted} 列的焊墊編號錯放在第 1 片板的高度欄（PAD ID 空白），已取回焊墊編號，這些焊墊的第 1 片板視為未量測`);
+      if(pl&&pl.missing.length)warn.push(`座標檔找不到 ${pl.missing.length} 個位號：${pl.missing.slice(0,10).join("、")}${pl.missing.length>10?"…":""}（這些元件以位號字首分群、位置以格點排列）`);
+      if(pl&&pl.other.length)warn.push(`${pl.other.length} 個位號在座標檔屬於另一面（${pl.other.slice(0,6).join("、")}${pl.other.length>6?"…":""}），請確認面別是否選對`);
+    }
+    $("#mapPrev").innerHTML=conv+`預覽：${rows.length.toLocaleString()} 筆、${info.boards} 片板、${info.pads} 個焊墊位置${info.panels?`（${info.panels} 個拼板 × ${info.figures} 子板）`:""}；量測項目 ${metrics.map(k=>METRICS[k].short).join("、")}${info.results?`；判定碼 ${info.results.length} 種`:""}${info.factors.length?`；參數欄位 ${info.factors.map(k=>FACT[k].label).join("、")}`:""}${info.stroke?"；含刮刀方向":""}${info.ts?"；已依日期時間排序":""}`
       +`<br>第一筆換算後：板 ${esc(r0.board)}、焊墊 ${esc(r0.pad)}${r0.offx!=null?`、X 偏移 ${r0.offx} µm`:""}${r0.offy!=null?`、Y 偏移 ${r0.offy} µm`:""}${r0.height!=null?`、高度 ${r0.height} µm`:""}${r0.volume!=null?`、體積 ${r0.volume}%`:""}`
       +(warn.length?`<br><span class="err">${warn.join("；")}</span>`:"");$("#btnApply").disabled=false}
   catch(e){$("#mapPrev").innerHTML=`<span class="err">${esc(e.message)}</span>`;$("#btnApply").disabled=true}}
@@ -1938,7 +2037,10 @@ function previewImport(){try{const{rows,metrics,info}=buildRows(IMP.tab,IMP.map,
 $("#selProfile").onchange=e=>{if(!IMP)return;applyProfile(e.target.value);renderMap()};
 $("#btnSaveProfile").onclick=()=>{if(!IMP)return;const name=safeId($("#inProfileName").value)||"自訂設定檔",cols={};Object.entries(IMP.map).forEach(([k,i])=>cols[k]=IMP.tab.head[i]);
   const ps=profiles().filter(p=>p.name!==name);ps.push({name,cols,opts:impOpts()});saveProfiles(ps);profileOpts("u"+(ps.length-1));$("#parseErr").textContent="";$("#mapPrev").insertAdjacentHTML("afterbegin",`<span class="pill ok">已儲存設定檔「${esc(name)}」</span> `)};
-$("#btnApply").onclick=()=>{if(!IMP||!IMP.res)return;const{rows,metrics,info}=IMP.res,mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
+$("#btnApply").onclick=()=>{if(!IMP||!IMP.res)return;
+  // 高度 % 依「套用當下」的鋼板厚度換算（讀取後才改厚度也正確）
+  if(IMP.conv&&IMP.conv.hPct&&IMP.conv.thk!==S.stencil){try{convertImp(true);previewImport()}catch(e){$("#parseErr").textContent=e.message;return}if(!IMP.res)return}
+  const{rows,metrics,info}=IMP.res,mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
   runBusy(`正在分析 ${rows.length.toLocaleString()} 筆資料…`,()=>{
   if(mode==="replace"){const c=curRun();c.rows=rows;c.metrics=withHpct(metrics);c.name=name;c.info=info;c.aoi=null;c.sample=false;c.cfg=snapCfg();S.runId=null;switchRun(c.id)}else switchRun(addRun(name,rows,metrics,snapCfg(),info));
   $("#mapBox").hidden=true;IMP=null;setTab("issues")})};
@@ -1948,7 +2050,9 @@ $("#fileIn").onchange=e=>{const fl=e.target.files[0];if(fl)readImportFile(fl);e.
 function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);const fail=er=>{busy(false);$("#parseErr").textContent="無法讀取檔案："+er.message;$("#mapBox").hidden=true};
   if(/\.xls$/i.test(fl.name))return fail(new Error("舊版 Excel（.xls）不支援，請在 Excel 另存為 .xlsx 或 CSV"));
   if(/\.xlsx$/i.test(fl.name))return readBuf(fl).then(xlsxTable).then(x=>runBusy(`正在解析 ${fl.name}…`,()=>{startImport("",fl.name,x.tab);if(x.note)toast(x.note)})).catch(fail);
-  fl.text().then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(fail)}
+  readText(fl).then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(fail)}
+/* 讀取文字檔：先以 UTF-8 解碼，出現亂碼時改用 Big5（台灣廠商機台常見的 CSV 編碼） */
+function readText(fl){return readBuf(fl).then(b=>{const u=new TextDecoder("utf-8").decode(b);if(!u.includes("\uFFFD"))return u;try{return new TextDecoder("big5").decode(b)}catch(e){return u}})}
 function readBuf(fl){if(fl.arrayBuffer)return fl.arrayBuffer();return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsArrayBuffer(fl)})}
 /* ---------- Excel（.xlsx）讀取：不需外部函式庫；解 zip（瀏覽器內建解壓）＋讀取工作表 XML ---------- */
 /* 解壓 .xlsx 內的單一檔案，累計大小超過上限即中止（防止惡意壓縮檔讓分頁記憶體爆掉） */
