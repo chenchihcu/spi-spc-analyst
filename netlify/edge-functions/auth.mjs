@@ -2,22 +2,40 @@
 // 未登入：頁面請求顯示登入頁，API 請求回 401。
 // /__login（GET 顯示表單、POST 驗證）、/__logout 由此處理。
 import { APP_VERSION, APP_BUILT } from "../../lib/version.mjs";
-import { COOKIE, SESSION_SECONDS, configured, checkCredentials, issueToken, verifyToken, readCookie, safeNext } from "../../lib/auth-core.mjs";
+import { getStore } from "@netlify/blobs";
+import { COOKIE, SESSION_SECONDS, LOCK, configured, authenticate, issueToken, verifyToken, readCookie, safeNext, norm, lockedFor, recordFail, clearFails } from "../../lib/auth-core.mjs";
 
 const env = () => ({
+  AUTH_USERS: Netlify.env.get("AUTH_USERS"),
   AUTH_USER: Netlify.env.get("AUTH_USER"),
   AUTH_PASS_SHA256: Netlify.env.get("AUTH_PASS_SHA256"),
   AUTH_SECRET: Netlify.env.get("AUTH_SECRET"),
 });
 
-export default async (req, context) => handle(req, env(), () => context.next());
+let lockStore;
+function store() {
+  if (lockStore === undefined) { try { lockStore = getStore({ name: "spi-auth-lock", consistency: "strong" }); } catch { lockStore = null; } }
+  return lockStore;
+}
 
-/** 與執行環境無關的處理邏輯（測試直接呼叫） */
-export async function handle(req, E, next) {
+export default async (req, context) => handle(req, env(), (r) => context.next(r), { store: store(), ip: context.ip });
+
+// 安全標頭：登入頁與錯誤頁也套用（靜態檔案的標頭在 netlify.toml）
+export const SEC = {
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'",
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "same-origin",
+  "Strict-Transport-Security": "max-age=31536000",
+};
+
+/** 與執行環境無關的處理邏輯（測試直接呼叫）；opts.store＝鎖定紀錄（可注入記憶體版本），opts.ip＝來源 IP */
+export async function handle(req, E, next, opts = {}) {
   const url = new URL(req.url);
-  const noStore = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" };
+  const noStore = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex", ...SEC };
+  const now = opts.now ?? Date.now();
 
-  if (!configured(E)) return new Response("網站登入尚未設定（缺少 AUTH_USER／AUTH_PASS_SHA256／AUTH_SECRET 環境變數），暫停對外服務。", { status: 503, headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8" } });
+  if (!configured(E)) return new Response("網站登入尚未設定（缺少 AUTH_USERS 或 AUTH_USER／AUTH_PASS_SHA256，以及 AUTH_SECRET 環境變數），暫停對外服務。", { status: 503, headers: { ...noStore, "Content-Type": "text/plain; charset=utf-8" } });
 
   if (url.pathname === "/__logout") return new Response(null, { status: 303, headers: { ...noStore, Location: "/__login", "Set-Cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax` } });
 
@@ -25,19 +43,39 @@ export async function handle(req, E, next) {
     if (req.method === "POST") {
       const fd = await req.formData().catch(() => null);
       const user = fd?.get("user"), pass = fd?.get("pass"), nextPath = safeNext(fd?.get("next"));
-      if (fd && (await checkCredentials(E, user, pass))) {
-        const token = await issueToken(E);
+      const keys = ["u:" + norm(user), ...(opts.ip ? ["ip:" + opts.ip] : [])];
+      const left = await lockedFor(opts.store, keys, now);
+      if (left > 0) {
+        console.log(`login locked user=${norm(user) || "-"}`);
+        return loginPage(nextPath, `嘗試次數過多，已暫時鎖定。請 ${Math.ceil(left / 60000)} 分鐘後再試。`, String(user || ""), 429);
+      }
+      const who = fd ? await authenticate(E, user, pass) : null;
+      if (who) {
+        await clearFails(opts.store, ["u:" + who]);
+        const token = await issueToken(E, who, Math.floor(now / 1000));
+        console.log(`login ok user=${who}`);
         return new Response(null, { status: 303, headers: { ...noStore, Location: nextPath, "Set-Cookie": `${COOKIE}=${token}; Path=/; Max-Age=${SESSION_SECONDS}; HttpOnly; Secure; SameSite=Lax` } });
       }
-      await new Promise((r) => setTimeout(r, 900)); // 減緩暴力嘗試
-      return loginPage(nextPath, "帳號或密碼不正確，請再試一次。", String(user || ""), 401);
+      await recordFail(opts.store, keys, now);
+      console.log(`login failed user=${norm(user) || "-"}`);
+      if (!opts.noDelay) await new Promise((r) => setTimeout(r, 900)); // 減緩暴力嘗試
+      return loginPage(nextPath, `帳號或密碼不正確，請再試一次。連續失敗 ${LOCK.maxFails} 次會鎖定 ${LOCK.lockMs / 60000} 分鐘。`, String(user || ""), 401);
     }
     return loginPage(safeNext(url.searchParams.get("next")));
   }
 
-  if (await verifyToken(E, readCookie(req.headers.get("cookie")))) {
+  const who = await verifyToken(E, readCookie(req.headers.get("cookie")), Math.floor(now / 1000));
+  if (who) {
+    if (url.pathname === "/__me") return Response.json({ user: who }, { headers: noStore });
+    // 後端函式可從 x-spi-user 得知是誰呼叫（一律覆寫，用戶端無法偽造）
+    if (url.pathname.startsWith("/api/")) {
+      const h = new Headers(req.headers);
+      h.set("x-spi-user", who);
+      return next(new Request(req, { headers: h }));
+    }
     return next();
   }
+  if (url.pathname === "/__me") return Response.json({ error: "請先登入" }, { status: 401, headers: noStore });
 
   if (url.pathname.startsWith("/api/")) return Response.json({ error: "請先登入" }, { status: 401, headers: noStore });
   return loginPage(url.pathname + url.search, "", "", 401);
@@ -63,12 +101,13 @@ function padArt() {
 function loginPage(nextPath, error = "", user = "", status = 200) {
   const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SPI·SPC 分析台 · 登入</title><meta name="robots" content="noindex">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
+@font-face{font-family:"Barlow Condensed";font-weight:600;font-display:swap;src:url(/vendor/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(/vendor/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
 /* 與分析台同一套色票：防焊漆中性色＋銅色強調；左側品牌區固定深色 */
 :root{--bg:#F2F4F0;--surface:#FFFFFF;--ink:#18201B;--muted:#58625B;--line:#D2D8D1;--accent:#A3521D;--on-accent:#FFFFFF;--ng:#B83A2C;--ng-soft:#F7DDD9;--warn:#A86E12;
   --brand-bg:#18201B;--brand-ink:#E4E9E4;--brand-muted:#98A39B;--brand-accent:#F2C6A5;--paste:#DB8A50;--paste-dim:#3A2516;--paste-bad:#EC6F60;
-  --f-display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;--f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:light}
+  --f-display:"Barlow Condensed","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;--f-body:"Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#0F1311;--surface:#171C19;--ink:#E4E9E4;--muted:#98A39B;--line:#2D3731;--accent:#DB8A50;--on-accent:#14100C;--ng:#EC6F60;--ng-soft:#41201B;--warn:#E3AE50;--brand-bg:#0A0D0B;color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -77,8 +116,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);
 .brand{background:var(--brand-bg);color:var(--brand-ink);padding:36px 32px;display:flex;flex-direction:column;justify-content:space-between;gap:28px}
 .brand h1{margin:0;font:600 40px/1 var(--f-display);letter-spacing:.02em;color:var(--brand-accent)}
 .brand .sub{margin:8px 0 0;color:var(--brand-muted);font-size:13px;letter-spacing:.06em}
-.art{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;max-width:300px}
-.pad{aspect-ratio:1.6;border-radius:2px;background:var(--paste)}
+.art{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:300px}
+.pad{aspect-ratio:1.6;min-width:0;border-radius:2px;background:var(--paste)}
 .pad.r{aspect-ratio:1;border-radius:50%}
 .pad:nth-child(7n+3){background:var(--paste-dim)}
 .pad.bad{background:var(--paste-bad);box-shadow:0 0 0 3px rgba(236,111,96,.25);animation:pulse 2.4s ease-in-out infinite}
@@ -124,7 +163,7 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
     <p class="caps" id="caps" hidden>Caps Lock 已開啟</p>
     <input type="hidden" name="next" value="${esc(nextPath)}">
     <button type="submit" class="submit" id="go">登入</button>
-    <p class="foot">只有授權人員可以使用。資料只在您的瀏覽器中分析。</p>
+    <p class="foot">只有授權人員可以使用。資料在您的瀏覽器中分析；只有在您建立分享連結時，該回合資料才會上傳到本網站。</p>
   </form>
 </main>
 <script>
@@ -137,7 +176,8 @@ f.addEventListener("submit",function(e){if(!u.value.trim()){e.preventDefault();u
 if(document.getElementById("err"))p.select();})();
 </script>
 </body></html>`;
-  return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "X-Frame-Options": "DENY" } });
+  return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex", ...SEC } });
 }
 
-export const config = { path: "/*" };
+// 公開的第三方函式庫與字型（vendor/）不含任何資料，不經登入檢查，減少邊緣函式呼叫
+export const config = { path: "/*", excludedPath: ["/vendor/*"] };

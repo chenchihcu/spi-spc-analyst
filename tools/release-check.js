@@ -36,7 +36,9 @@ const put = (k, status, messages) => (out[k] = { status, messages });
 // 3. 除錯殘留
 {
   const pats = { "console 輸出": /console\.(log|debug|warn|error)\(/g, debugger: /\bdebugger\s*;/g, "alert()": /\balert\(/g, "TODO/FIXME": /\b(TODO|FIXME|HACK|XXX)\b/g, "本機位址": /localhost|127\.0\.0\.1|0\.0\.0\.0/g };
-  const m = Object.entries(pats).map(([k, re]) => [k, (html.match(re) || []).length]).filter(([, n]) => n);
+  // 判斷是否有後端的那一行（HAS_API）刻意列出本機位址，供本機測試分享功能，不算殘留
+  const scan = html.split("\n").filter((l) => !/const HAS_API=/.test(l)).join("\n");
+  const m = Object.entries(pats).map(([k, re]) => [k, (scan.match(re) || []).length]).filter(([, n]) => n);
   put("debug", m.length ? (m.some(([k]) => k === "debugger") ? "fail" : "warn") : "pass", m.length ? m.map(([k, n]) => `FACT: ${k} ${n} 處`) : ["FACT: 無 console 輸出、debugger、alert、TODO、本機位址"]);
 }
 // 4. 文件
@@ -52,8 +54,9 @@ const put = (k, status, messages) => (out[k] = { status, messages });
 {
   const m = [];
   let st = "pass";
-  const urls = [...html.matchAll(/<script src="([^"]+)"/g)].map((x) => x[1]);
-  for (const u of urls) { const pinned = /\/\d+\.\d+\.\d+\/|@\d+\.\d+\.\d+|\/r\d+\//.test(u); if (!pinned) { st = "fail"; } m.push(`FACT: ${pinned ? "已鎖版" : "未鎖版"} ${u}`); }
+  // 外部網址與本站 vendor/ 檔案都需在路徑或檔名中標明版本
+  const urls = [...html.matchAll(/<script src="([^"]+)"/g), ...html.matchAll(/loadScript\("([^"]+)"\)/g)].map((x) => x[1]);
+  for (const u of urls) { const pinned = /\/\d+\.\d+\.\d+\/|@\d+\.\d+\.\d+|\/r\d+\/|-\d+\.\d+\.\d+[.-]|-r\d+[.-]/.test(u); if (!pinned) { st = "fail"; } m.push(`FACT: ${pinned ? "已鎖版" : "未鎖版"} ${u}`); }
   const pkg = read("package.json");
   if (pkg) { const d = { ...(JSON.parse(pkg).devDependencies || {}), ...(JSON.parse(pkg).dependencies || {}) };
     const loose = Object.entries(d).filter(([, v]) => /[\^~*]|latest/.test(v)); if (loose.length) { st = "warn"; m.push(`FACT: package.json 未鎖版：${loose.map((x) => x.join("@")).join("、")}`); } else m.push("FACT: package.json 相依皆鎖定版本"); }

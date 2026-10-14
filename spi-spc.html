@@ -1,15 +1,18 @@
 <title>SPI·SPC 分析台</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
+/* 字型自帶（網站內 vendor/fonts）：英文標題與數字用 Barlow Condensed／IBM Plex Mono；中文使用系統字（微軟正黑體／蘋方），不需下載 */
+@font-face{font-family:"Barlow Condensed";font-weight:500;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-weight:600;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:400;font-display:swap;src:url(vendor/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 /* Layout: instrument console — sticky control rail, tab strip, panels of charts; copper accent on solder-mask neutrals */
 :root{
   --bg:#F2F4F0;--surface:#FFFFFF;--surface2:#E8ECE6;--ink:#18201B;--muted:#58625B;--line:#D2D8D1;
   --accent:#A3521D;--accent-soft:#F4E4D6;--accent-ink:#6E3410;
   --ok:#2C7A4C;--ok-soft:#DDEFE3;--warn:#A86E12;--warn-soft:#F6E9CF;--ng:#B83A2C;--ng-soft:#F7DDD9;
   --series2:#3D6E8F;--grid:rgba(24,32,27,.08);--on-strong:#FFFFFF;
-  --f-display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
-  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-display:"Barlow Condensed","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;
+  --f-body:"Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:10px;
 }
@@ -32,6 +35,36 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .brand h1{font-family:var(--f-display);font-size:34px;font-weight:600;letter-spacing:.02em;line-height:1}
 .brand .tag{font-size:12px;color:var(--muted);letter-spacing:.08em}
+.chipBtn{border:none;min-height:0;cursor:pointer;font:inherit;font-size:12px;color:var(--ink)}.chipBtn:hover{background:var(--line)}
+/* hidden 屬性一律隱藏：避免 .panel{display:grid} 等規則蓋過瀏覽器預設，導致未選取的頁籤也顯示 */
+[hidden]{display:none!important}
+.printHead,.print3d{display:none}
+@media print{
+  @page{size:A4;margin:12mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{background:#fff!important}
+  .wrap{max-width:none!important;padding:0!important}
+  .printHead{display:block;font-size:12px;border-bottom:1.5px solid #000;padding:0 0 6px;margin:0 0 10px;color:#000}
+  .printHead b{font-size:15px;margin-right:10px}
+  header.top,.rail,.tabs,.ctxbar,#toast,#busy,dialog,#libWarn,.railToggle{display:none!important}
+  .sticky{position:static!important;box-shadow:none!important}
+  .panel button:not([data-ent]),.panel input[type=file],.panel .drop,#hud{display:none!important}
+  .card,.iss-card,.kpi,table,figure{break-inside:avoid}
+  .card{box-shadow:none!important}
+  canvas{max-width:100%!important;height:auto!important}
+  #view3d canvas{display:none!important}
+  .view3d{height:auto!important;min-height:0!important;background:none!important}
+  .print3d{display:block;width:100%;height:auto;border:1px solid #ccc;border-radius:6px}
+  a[href]{text-decoration:none;color:inherit}
+}
+#busy{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:999px;font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.18)}#busy[hidden]{display:none}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+dialog#shareDlg{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:20px 22px;width:min(560px,calc(100% - 32px))}
+dialog#shareDlg::backdrop{background:rgba(10,13,11,.45)}
+dialog#shareDlg h3{margin:0 0 8px;font-size:17px}
+.shareRow{display:flex;gap:8px;margin:10px 0}.shareRow input{flex:1;min-width:0;font-family:var(--f-mono);font-size:12.5px}
+.shareHint{font-size:12.5px;color:var(--muted);margin:8px 0 14px}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
 .chip b{color:var(--ink);font-weight:500}
 .sticky{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg)}
@@ -59,6 +92,8 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 .ev-cap{font-size:11.5px;color:var(--muted);margin-bottom:2px}
 .iss-body{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px 20px;align-items:start}
 @media (max-width:720px){.iss-body{grid-template-columns:1fr}.pmap-row{grid-template-columns:1fr}.pmap-cells button{min-height:26px;font-size:0}}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:min(560px,calc(100% - 32px))}
+#toast.on{opacity:1;transform:translate(-50%,0)}
 .iss-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
 .iss{display:grid;gap:12px}
 .iss-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:8px;min-width:0}
@@ -93,6 +128,22 @@ button:disabled{opacity:.5;cursor:default}
 .tabs{display:flex;gap:2px;overflow-x:auto;margin-top:4px;border-bottom:1px solid var(--line);scrollbar-width:none}
 .tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;color:var(--muted);white-space:nowrap;min-height:40px}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
+/* 頁籤列可左右滑動時，在有更多頁籤的一側淡出提示 */
+.tabs.fr{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.tabs.fl{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
+.tabs.fl.fr{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent)}
+/* 平板（觸控）：放大可點範圍到約 44px，畫布拖曳不觸發頁面捲動 */
+@media (pointer:coarse){
+  button,select,input[type=number],input[type=text],textarea{min-height:44px}
+  .tab{min-height:46px;padding:10px 16px}
+  .chip.chipBtn,a.chip{min-height:36px;padding:6px 14px}
+  .pmap-cells button{min-height:40px}
+  .seg button{min-height:40px}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px}
+  input[type=range]{min-height:36px}
+  #zoneMap{touch-action:none}
+  .linkbtn{min-height:40px}
+}
 .panel{padding-top:18px;display:grid;gap:16px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
@@ -149,22 +200,34 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
+<div id="busy" role="status" aria-live="polite" hidden><span class="spin" aria-hidden="true"></span><span id="busyMsg">計算中…</span></div>
+<dialog id="shareDlg" aria-labelledby="shareTtl"><form method="dialog">
+  <h3 id="shareTtl">分享連結</h3>
+  <p id="shareMsg" role="status">正在建立連結…</p>
+  <div class="shareRow" id="shareRow" hidden><input type="text" id="shareUrl" readonly aria-label="分享連結網址"><button type="button" class="primary" id="btnCopyShare">複製</button></div>
+  <p class="shareHint">開啟連結的人必須先登入本網站；連結 30 天後失效。分享時，這個回合的量測資料會上傳到本網站的儲存空間（不會分享到其他地方）。</p>
+  <div class="row" style="justify-content:flex-end"><button value="close">關閉</button></div>
+</form></dialog>
 <div class="wrap">
+<div class="printHead" id="printHead" aria-hidden="true"></div>
 <header class="top">
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
   </div>
   <div class="row">
-    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.5.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 07:03:54</b></span>
+    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 07:58:24</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
+    <button class="chip chipBtn" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
+    <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
+    <span class="chip" id="userChip" hidden title="目前登入的帳號">帳號 <b id="userName"></b></span>
     <a class="chip" id="logoutLink" href="/__logout" hidden>登出</a>
     <span class="chip">板數 <b id="srcBoards" class="num">—</b></span>
     <span class="chip">焊墊數 <b id="srcPads" class="num">—</b></span>
   </div>
 </header>
 
-<p class="err" id="libWarn" hidden role="alert" style="margin:0 0 8px">圖表或 3D 函式庫未能載入（可能是網路阻擋 CDN），數據分析與問題偵測仍可使用，圖表會空白。請重新整理頁面或檢查網路。</p>
+<p class="err" id="libWarn" hidden role="alert" style="margin:0 0 8px">圖表函式庫未能載入，數據分析與問題偵測仍可使用，圖表會空白。請重新整理頁面或檢查網路。</p>
 <div class="sticky">
 <div class="rail" role="region" aria-label="分析設定">
   <div class="field"><label for="selRun">試產回合</label><select id="selRun"></select></div>
@@ -417,7 +480,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="grid2">
     <div class="card">
       <h3>匯入 SPI 資料 <small>先讀取欄位、確認對應與單位，再套用</small></h3>
-      <div class="drop" id="drop">拖放 CSV 檔到這裡，或 <label style="color:var(--accent);cursor:pointer;text-decoration:underline"><input type="file" id="fileIn" accept=".csv,.txt,.tsv" class="sr">選擇檔案</label></div>
+      <div class="drop" id="drop">拖放 CSV 或 Excel（.xlsx）檔到這裡，或 <label style="color:var(--accent);cursor:pointer;text-decoration:underline"><input type="file" id="fileIn" accept=".csv,.txt,.tsv,.xlsx" class="sr">選擇檔案</label></div>
       <textarea id="pasteIn" aria-label="貼上 CSV 文字" placeholder="或直接貼上 CSV 文字…" style="margin-top:8px"></textarea>
       <div class="row" style="margin-top:8px"><button class="primary" id="btnRead">讀取欄位</button><button id="btnPhme">載入 PHME 格式範例</button><span class="err" id="parseErr"></span></div>
       <div id="mapBox" hidden style="margin-top:12px;display:grid;gap:10px">
@@ -450,9 +513,9 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     </div>
   </div>
   <div class="grid2">
-    <div class="card"><h3>試產回合管理 <small>回合資料只存在此頁面，重新整理後會還原範例</small></h3>
+    <div class="card"><h3>試產回合管理 <small id="runSaveNote">回合資料保存在這台電腦的瀏覽器，重新整理不會遺失</small></h3>
       <div class="tbl"><table id="runTbl"></table></div>
-      <div class="row" style="margin-top:8px"><button id="btnAddB">新增範例：改版 B 回合</button><button id="btnSample">還原全部範例</button></div></div>
+      <div class="row" style="margin-top:8px"><button id="btnAddB">新增範例：改版 B 回合</button><button id="btnSample">還原範例並清除已保存的回合</button></div></div>
     <div class="card"><h3>機台判定碼對照 <small id="resSub"></small></h3><div id="resBox"></div></div>
   </div>
   <div class="card">
@@ -472,9 +535,9 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
+<script src="vendor/chart-4.4.1.umd.min.js"></script>
+<script>/* 網站版用自帶的 Chart.js；在 claude.ai 等沒有 vendor 檔的地方才改用 CDN */window.Chart||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>')</script>
+<script id="core">
 "use strict";
 /* ============ 統計核心 ============ */
 function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -731,7 +794,7 @@ function buildRows(tab,map,opts={},sub=5){
     if(r.height!=null&&o.heightUnit==="mm")r.height=+(r.height*1000).toFixed(2);
     const res=g("result");if(res!=null){r.result=String(res);r.mNG=!OKCODES.includes(String(res).trim().toLowerCase())}
     const sk=g("stroke");if(sk!=null&&sk!=="")r.stroke=String(sk);
-    const d=g("date"),t=g("time");if(d||t){const ts=Date.parse(`${(d||"1970-01-01").replace(/\//g,"-")}T${t||"00:00:00"}`);if(isFinite(ts))r.ts=ts}
+    const d=g("date"),t=g("time");if(d||t){const dd=String(d||"1970-01-01").replace(/\//g,"-").trim(),both=!t&&/\d[ T]\d{1,2}:\d{2}/.test(dd);const ts=Date.parse(both?dd.replace(" ","T"):`${dd}T${t||"00:00:00"}`);if(isFinite(ts))r.ts=ts}
     if(mets.every(k=>r[k]==null))return;rows.push(r)});
   if(!rows.length)throw new Error("沒有可用的數值列");
   // 依時間排序（有日期時間欄時），板的先後才正確
@@ -787,7 +850,8 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
   const arGroups=[...new Set(arPads.map(p=>p.group))].map(g=>{const ps=arPads.filter(p=>p.group===g);return{g,n:ps.length,ar:mean(ps.map(p=>p.ar)),arMin:Math.min(...ps.map(p=>p.ar)),asp:mean(ps.map(p=>p.asp)),tmax:Math.min(...ps.map(p=>p.tmax)),vol:mean(ps.map(p=>p.vol)),
     te:mean(ps.map(p=>p.te)),cv:mean(ps.map(p=>p.cv)),thk:[...new Set(ps.map(p=>p.thk))].join("/"),src:[...new Set(ps.map(p=>p.ap.src))].join("、"),apL:mean(ps.map(p=>p.ap.L)),apW:mean(ps.map(p=>p.ap.W)),shape:ps[0].ap.shape}});
   // 對位
-  const align=A.boards.map(b=>({board:b,...(alignFit(G.filter(r=>r.board===b))||{})})).filter(a=>a.tx!=null);
+  const GB=new Map();for(const r of G){let l=GB.get(r.board);if(!l)GB.set(r.board,l=[]);l.push(r)}
+  const align=A.boards.map(b=>({board:b,...(alignFit(GB.get(b)||[])||{})})).filter(a=>a.tx!=null);
   // 刮刀前 / 後（依板序奇偶）
   const bm=A.byBoard.map(b=>b.mean),odd=bm.filter((_,i)=>i%2===0),even=bm.filter((_,i)=>i%2===1),stroke=welch(odd,even);
   // 擦拭週期
@@ -802,7 +866,7 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
 }
 /* ============ 問題偵測引擎 ============
    逐面向掃描全部量測項目，輸出「事實 / 推論 / 佐證」結構化的問題清單 */
-function med(a){const s=a.filter(v=>isFinite(v)).sort((x,y)=>x-y);return s.length?quant(s,.5):NaN}
+function med(a){const s=Float64Array.from(a.filter(v=>isFinite(v)));s.sort();return s.length?quant(s,.5):NaN} /* 型別陣列排序：大量資料時比比較函式排序快數倍，結果相同 */
 function robust(v){const m=med(v);let s=med(v.map(x=>Math.abs(x-m)))*1.4826;if(!(s>1e-9))s=sd(v)||1e-9;return{m,s}}
 /* 扣除長期趨勢：以長度為週期整數倍的移動平均估計趨勢（各類別權重相同），回傳殘差 */
 function detrend(v,P){const n=v.length;if(n<P+2)return v.slice();const tr=v.map((_,i)=>{const lo=Math.max(0,Math.min(i-Math.floor(P/2),n-P));let s=0;for(let j=lo;j<lo+P;j++)s+=v[j];return s/P});return v.map((x,i)=>x-tr[i])}
@@ -971,7 +1035,8 @@ function runGroupStats(st,m){const R=st.rows;for(const r of R)if(r.height!=null)
   const boards=[...new Set(R.map(r=>r.board))],groups=[...new Set(R.map(r=>r.group))],out={};
   for(const g of ["整體",...groups]){const rs=g==="整體"?R:R.filter(r=>r.group===g);if(!rs.length)continue;
     const v=rs.map(r=>r[m]).filter(v=>v!=null),te=rs.map(r=>r.volume).filter(v=>v!=null),sp=st.specs[m];
-    const bm=boards.map(b=>{const x=rs.filter(r=>r.board===b).map(r=>r.volume).filter(v=>v!=null);return x.length?mean(x):NaN}).filter(isFinite);
+    const bv=new Map();for(const r of rs)if(r.volume!=null){let l=bv.get(r.board);if(!l)bv.set(r.board,l=[]);l.push(r.volume)}
+    const bm=boards.map(b=>{const x=bv.get(b);return x&&x.length?mean(x):NaN}).filter(isFinite);
     const mu=v.length?mean(v):NaN,s=v.length>1?sd(v):NaN,ppk=sp&&sp.usl>sp.lsl&&s>0?Math.min(sp.usl-mu,mu-sp.lsl)/(3*s):NaN;
     const one=rs.filter(r=>r.board===boards[0]);
     out[g]={g,n:rs.length,nb:new Set(rs.map(r=>r.board)).size,mu,ppk,te:te.length?mean(te):NaN,cv:te.length>1?sd(te)/mean(te)*100:NaN,bm,d:rs.filter(r=>classify(r,st.specs,st).length).length,
@@ -1040,7 +1105,8 @@ const RESP={vol:{label:"板平均體積 %",goal:"接近目標"},cv:{label:"板�
 function doeAnalyze(st,resp){const R=st.rows,facs=Object.keys(FACT).filter(k=>R.some(r=>r[k]!=null));if(!facs.length)return null;
   for(const r of R)if(r.height!=null)r.hpct=+(r.height/padThk(r,st)*100).toFixed(1);
   const boards=[...new Set(R.map(r=>r.board))],tv=st.specs.volume.tgt;
-  const B=boards.map(b=>{const rs=R.filter(r=>r.board===b),fv={};facs.forEach(k=>{const x=rs.find(r=>r[k]!=null);fv[k]=x?x[k]:null});
+  const RB=new Map();for(const r of R){let l=RB.get(r.board);if(!l)RB.set(r.board,l=[]);l.push(r)}
+  const B=boards.map(b=>{const rs=RB.get(b)||[],fv={};facs.forEach(k=>{const x=rs.find(r=>r[k]!=null);fv[k]=x?x[k]:null});
     const v=rs.map(r=>r.volume).filter(v=>v!=null),hp=rs.map(r=>r.hpct).filter(v=>v!=null);
     const y={vol:v.length?mean(v):NaN,cv:v.length>1?sd(v)/mean(v)*100:NaN,def:rs.filter(r=>classify(r,st.specs,st).length).length/rs.length*100,hp:hp.length?mean(hp):NaN};return{b,fv,y}})
     .filter(x=>facs.every(k=>x.fv[k]!=null));
@@ -1117,7 +1183,7 @@ function syncControls(){
 $("#railToggle").onclick=()=>{const o=$("#railMore").classList.toggle("open");$("#railToggle").setAttribute("aria-expanded",o)};
 /* ---------- 階梯鋼板區域 ---------- */
 const ZCOL=["#3D6E8F","#B5652B","#7A5BA6","#2C7A4C","#B5487A","#8A7A2C"];
-function persist(){try{localStorage.setItem("spi-stencil",JSON.stringify({t:S.stencil,lo:S.htol.lo,hi:S.htol.hi,step:S.step,aperture:S.aperture}))}catch(e){}}
+function persist(){saveRunsSoon();try{localStorage.setItem("spi-stencil",JSON.stringify({t:S.stencil,lo:S.htol.lo,hi:S.htol.hi,step:S.step,aperture:S.aperture}))}catch(e){}}
 /* ---------- 開孔設定 ---------- */
 function renderAperture(){const groups=[...new Set(S.rows.map(r=>r.group))],b0=S.rows[0]&&S.rows[0].board,hasCsv=S.rows.some(r=>r.apL!=null);
   $("#apTbl").innerHTML=`<thead><tr><th>元件群組</th><th class="num">焊墊尺寸 mm</th><th>開孔形狀</th><th>線性縮減 %</th><th>指定 L × W mm</th><th class="num">實際開孔 mm</th><th class="num">鋼板 µm</th><th class="num">面積比 AR</th><th class="num">寬厚比</th><th class="num">AR≥0.66 最大厚度</th><th>判讀</th></tr></thead><tbody>`+groups.map(g=>{
@@ -1193,7 +1259,26 @@ $("#inHhi").onchange=e=>applyStencil(NaN,NaN,parseFloat(e.target.value));
 /* 問題偵測只受資料與鋼板／規格設定影響；切換量測項目、群組、管制圖時沿用上次結果，避免大量資料時每次操作都重算 */
 let F_SIG=null;
 function detectSig(){return JSON.stringify([S.runId,S.rows.length,S.specs,S.stencil,S.htol,S.step,S.aperture,S.wipe])}
-function recompute(){S.A=analyze(S);const sig=detectSig();if(sig!==F_SIG||S.F.rowsRef!==S.rows){S.F=detectIssues(S);S.F.rowsRef=S.rows;F_SIG=sig}
+/* 大量資料（超過 2 萬筆）時，問題偵測改在背景執行緒（Web Worker）執行，畫面不會卡住；不支援時改回直接計算 */
+const WORKER_MIN=20000;let detW=null,detSeq=0;
+function detWorker(){if(detW!==null)return detW;try{const core=document.getElementById("core").textContent;
+    const src=core+"\nonmessage=function(e){var d=e.data;try{postMessage({seq:d.seq,F:detectIssues(d.st)})}catch(er){postMessage({seq:d.seq,err:String(er&&er.message||er)})}};";
+    detW=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})))}catch(e){detW=false}return detW}
+function detState(){const st={};for(const k in S){if(["A","F","runs","ctx","issEnt"].includes(k))continue;const v=S[k];if(typeof v!=="function")st[k]=v}return st}
+function detectSync(sig){S.F=detectIssues(S);S.F.rowsRef=S.rows;F_SIG=sig}
+function busy(on,msg){const b=$("#busy");if(!b)return;if(on){$("#busyMsg").textContent=msg||"計算中…";b.hidden=false}else b.hidden=true}
+/* 先顯示「處理中」再做耗時的同步工作，讓提示有機會畫出來 */
+function runBusy(msg,fn){busy(true,msg);return new Promise(ok=>setTimeout(()=>{try{fn()}finally{if(!S.F||!S.F.pending)busy(false);ok()}},30))}
+function recompute(){S.A=analyze(S);const sig=detectSig();
+  if(sig!==F_SIG||S.F.rowsRef!==S.rows){const w=S.rows.length>WORKER_MIN&&detWorker();
+    if(!w)detectSync(sig);
+    else{const seq=++detSeq,rowsRef=S.rows;F_SIG=sig;
+      for(const r of S.rows)if(r.height!=null)r.hpct=+(r.height/padThk(r,S)*100).toFixed(1);
+      S.F=[];S.F.rowsRef=rowsRef;S.F.pending=true;busy(true,`正在偵測問題（${S.rows.length.toLocaleString()} 筆，背景計算）…`);
+      w.onmessage=e=>{if(e.data.seq!==detSeq)return;busy(false);if(S.rows!==rowsRef)return;
+        if(e.data.err){detectSync(sig);toast("背景計算失敗，已改為直接計算")}else{S.F=e.data.F;S.F.rowsRef=rowsRef}renderTab()};
+      w.onerror=e=>{e.preventDefault&&e.preventDefault();detW=false;busy(false);if(S.rows===rowsRef){detectSync(sig);renderTab()}};
+      try{w.postMessage({seq,st:detState()})}catch(e){w.onerror(e)}}}
   fillSelect($("#selPad"),S.A.pads.map(p=>[p,p]),S.A.imr.pad);S.pad=S.A.imr.pad;applyScope();
   fillSelect($("#selBoard"),S.A.boards.map(b=>[b,b+(S.A.byBoard.find(x=>x.board===b).defects?"  ·  不良 "+S.A.byBoard.find(x=>x.board===b).defects:"")]),S.board);
   if(!S.board||!S.A.boards.includes(S.board))S.board=S.A.worst?S.A.worst.board:S.A.boards[0];$("#selBoard").value=S.board;
@@ -1209,7 +1294,10 @@ $("#ctxBack").onclick=()=>{const id=S.ctx&&S.ctx.id;setTab("issues");if(id)setTi
 $("#ctxClose").onclick=()=>{S.ctx=null;showCtx()};
 function flashIssue(id){if(!issueList().some(x=>x.id===id)){S.issLv="all";S.issCat="all";S.issEnt=null;renderIssues()}const el=$("#iss-"+id);if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),1600)}}
 /* 問題涵蓋的板：直接指向的板，加上漂移起點之後的所有板 */
-function issueBoards(x){const B=[...new Set(S.rows.map(r=>r.board))],out=new Set();x.ents.forEach(e=>{if(e.startsWith("b:"))out.add(e.slice(2));if(e.startsWith("drift:")){const i=B.indexOf(e.slice(6));if(i>=0)B.slice(i).forEach(b=>out.add(b))}});return out}
+/* 結果依問題物件快取：板數多（數千片）時，問題地圖每格都會查詢，不可每次重掃全部資料 */
+let IB_ROWS=null,IB_B=[],IB_C=new WeakMap();
+function issueBoards(x){if(IB_ROWS!==S.rows){IB_ROWS=S.rows;IB_B=[...new Set(S.rows.map(r=>r.board))];IB_C=new WeakMap()}
+  let out=IB_C.get(x);if(out)return out;const B=IB_B;out=new Set();x.ents.forEach(e=>{if(e.startsWith("b:"))out.add(e.slice(2));if(e.startsWith("drift:")){const i=B.indexOf(e.slice(6));if(i>=0)B.slice(i).forEach(b=>out.add(b))}});IB_C.set(x,out);return out}
 function issueList(){return S.F.filter(x=>(S.issLv==="all"||x.lv===S.issLv)&&(S.issCat==="all"||x.cat===S.issCat)&&(!S.issEnt||(S.issEnt.startsWith("b:")?issueBoards(x).has(S.issEnt.slice(2)):x.ents.includes(S.issEnt))))}
 /* 證據迷你圖（SVG）：序列＝每板一點，長條＝群組／焊墊／分箱；異常處以嚴重度顏色標示 */
 function evSvg(ev,lv){if(!ev||!ev.values||!ev.values.some(isFinite))return"";const W=320,H=76,pl=34,pr=6,pt=6,pb=16,iw=W-pl-pr,ih=H-pt-pb,V=ev.values,n=V.length;
@@ -1235,6 +1323,7 @@ function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set
     ${S.issEnt?`<p style="margin:0"><span class="pill warn">只顯示 ${esc(S.issEnt.slice(S.issEnt.indexOf(":")+1))} 相關的問題</span> <button class="linkbtn" id="pmapClear">顯示全部</button></p>`:""}`;
   $$("#pmap [data-ent]").forEach(b=>b.onclick=()=>{S.issEnt=S.issEnt===b.dataset.ent?null:b.dataset.ent;renderIssues()});if($("#pmapClear"))$("#pmapClear").onclick=()=>{S.issEnt=null;renderIssues()}}
 function renderIssues(){const F=S.F,c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]++);
+  if(F.pending){$("#issHead").textContent=`正在偵測問題（${S.rows.length.toLocaleString()} 筆）…`;$("#issSub").textContent="資料量大，於背景計算中，完成後會自動顯示結果。";$("#pmap").innerHTML="";$("#issList").innerHTML='<p class="note">計算中…</p>';return}
   $("#issHead").textContent=F.length?`偵測到 ${F.length} 項問題：嚴重 ${c.ng}、警示 ${c.warn}、資訊 ${c.info}`:"未偵測到統計上顯著的問題";
   const multi=F.filter(x=>x.corrob.length>=2).length;
   $("#issSub").textContent=F.length?`排序：嚴重度 → 佐證數 → 異常強度。${multi} 項有兩個以上其他發現互相佐證，建議優先處理。`:"十個面向皆在正常範圍；仍可至各頁籤檢視細節。";
@@ -1271,7 +1360,11 @@ $$(".tab").forEach(t=>{const p=$("#p-"+t.dataset.tab);t.id="tab-"+t.dataset.tab;
 $(".tabs").addEventListener("keydown",e=>{const T=$$(".tab"),i=T.findIndex(t=>t.dataset.tab===S.tab);let j=null;if(e.key==="ArrowRight")j=(i+1)%T.length;else if(e.key==="ArrowLeft")j=(i-1+T.length)%T.length;else if(e.key==="Home")j=0;else if(e.key==="End")j=T.length-1;if(j==null)return;e.preventDefault();setTab(T[j].dataset.tab);T[j].focus()});
 const AN_TABS=new Set(["overview","control","capability","sim3d","cross","adv","ai"]),RAIL_NOTE={issues:"問題偵測自動掃描全部量測項目與元件群組，不需要選擇。",compare:"此頁使用頁內的 A／B 回合選項。",dfm:"DFM 建議涵蓋全部元件群組。",lab:"此頁使用各區塊內的選項。"};
 function applyScope(){const on=AN_TABS.has(S.tab);$$("[data-scope=a]").forEach(el=>{el.hidden=!on||(el.id==="padField"&&S.chart!=="imr")});const n=RAIL_NOTE[S.tab];$("#railNote").hidden=!n;$("#railNote").textContent=n||""}
-function setTab(t){S.tab=t;$$(".tab").forEach(x=>{x.setAttribute("aria-selected",x.dataset.tab===t);x.tabIndex=x.dataset.tab===t?0:-1});$$(".panel").forEach(p=>p.hidden=p.id!=="p-"+t);if(t!=="sim3d")stopPlay();applyScope();showCtx();renderTab();try{history.replaceState(null,"","#"+t)}catch(e){}}
+/* 選取的頁籤捲到可見範圍（平板直式時頁籤列放不下）；並依可捲動方向顯示淡出提示 */
+function tabIntoView(t){const bar=$(".tabs"),el=$(`.tab[data-tab="${t}"]`);if(!bar||!el)return;const l=el.offsetLeft-bar.offsetLeft,r=l+el.offsetWidth;
+  if(l<bar.scrollLeft+24)bar.scrollLeft=Math.max(0,l-24);else if(r>bar.scrollLeft+bar.clientWidth-24)bar.scrollLeft=r-bar.clientWidth+24;tabFade()}
+function tabFade(){const bar=$(".tabs");if(!bar)return;bar.classList.toggle("fl",bar.scrollLeft>2);bar.classList.toggle("fr",bar.scrollLeft+bar.clientWidth<bar.scrollWidth-2)}
+function setTab(t){S.tab=t;$$(".tab").forEach(x=>{x.setAttribute("aria-selected",x.dataset.tab===t);x.tabIndex=x.dataset.tab===t?0:-1});tabIntoView(t);$$(".panel").forEach(p=>p.hidden=p.id!=="p-"+t);if(t!=="sim3d")stopPlay();applyScope();showCtx();renderTab();try{history.replaceState(null,"","#"+t)}catch(e){}}
 
 /* ---------- 總覽 ---------- */
 function kpi(k,v,s,cls=""){return`<div class="kpi ${cls}"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`}
@@ -1483,13 +1576,17 @@ $("#inWipe").onchange=e=>{const v=Math.round(+e.target.value);if(v>=2){S.wipe=v;
 
 /* ---------- 試產比較 ---------- */
 let CMP=null;
+/* 比較頁的問題清單依回合與設定快取：大量資料時切換比較項目不必重算 */
+function runIssues(run,st){if(run.id===S.runId&&S.F&&!S.F.pending&&S.F.rowsRef===run.rows)return S.F;
+  const k=JSON.stringify([run.rows.length,st.specs,st.stencil,st.htol,st.step,st.aperture,st.wipe]);
+  if(run._F&&run._Fk===k&&run._Fr===run.rows)return run._F;run._F=detectIssues(st);run._Fk=k;run._Fr=run.rows;return run._F}
 function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTitle").textContent="需要至少兩個試產回合";$("#cmpText").textContent="到「資料與規格」匯入第二份 SPI 資料（選「新增為新回合」），或新增範例 B 回合。";$("#cmpVerdict").className="verdict warn";return}
   const ids=S.runs.map(r=>[String(r.id),r.name]);if(!S.runs.some(r=>r.id===S.cmpA))S.cmpA=S.runs[0].id;if(!S.runs.some(r=>r.id===S.cmpB)||S.cmpB===S.cmpA)S.cmpB=(S.runs.find(r=>r.id!==S.cmpA)).id;
   fillSelect($("#cmpA"),ids,String(S.cmpA));fillSelect($("#cmpB"),ids,String(S.cmpB));
   const ra=S.runs.find(r=>r.id===S.cmpA),rb=S.runs.find(r=>r.id===S.cmpB),ms=ra.metrics.filter(k=>rb.metrics.includes(k));if(!ms.includes(S.cmpM))S.cmpM=ms.includes("volume")?"volume":ms[0];
   fillSelect($("#cmpM"),ms.map(k=>[k,METRICS[k].label]),S.cmpM);
   const sa=runState(ra),sb=runState(rb),R=compareRuns(sa,sb,S.cmpM),all=R.find(x=>x.g==="整體"),gs=R.filter(x=>x.g!=="整體");
-  const FA=detectIssues(sa),FB=detectIssues(sb);
+  const FA=runIssues(ra,sa),FB=runIssues(rb,sb);
   CMP={ra,rb,R,FA,FB};
   const lv={改善:"ok",惡化:"ng",有好有壞:"warn",無顯著差異:"warn"}[all.verdict];
   $("#cmpVerdict").className="verdict "+lv;
@@ -1573,8 +1670,8 @@ function renderAOI(){const r=curRun(),ms=S.metrics.filter(k=>k!=="offx"&&k!=="of
         y:{beginAtZero:true,suggestedMax:Math.min(100,Math.max(...B.filter(b=>b.n>=20).map(b=>b.ci[1]*100),1)),ticks:{color:css("--muted"),callback:v=>v+"%",font:{family:"IBM Plex Mono",size:10}},grid:{color:css("--grid")},title:{display:true,text:"回焊不良率",color:css("--muted"),font:{size:11}}},
         y2:{position:"right",type:"logarithmic",ticks:{color:css("--muted"),font:{family:"IBM Plex Mono",size:10}},grid:{display:false},title:{display:true,text:"焊墊數（對數）",color:css("--muted"),font:{size:11}}}}})});
 }
-$("#aoiFile").onchange=e=>{const fl=e.target.files[0];if(!fl)return;fl.text().then(t=>{try{curRun().aoi=parseAOI(t);renderAOI()}catch(er){$("#aoiState").textContent=er.message}})};
-$("#btnAoiSample").onclick=()=>{curRun().aoi=parseAOI(sampleAOI(S));renderAOI()};
+$("#aoiFile").onchange=e=>{const fl=e.target.files[0];if(!fl)return;fl.text().then(t=>{try{curRun().aoi=parseAOI(t);saveRunsSoon();renderAOI()}catch(er){$("#aoiState").textContent=er.message}})};
+$("#btnAoiSample").onclick=()=>{curRun().aoi=parseAOI(sampleAOI(S));saveRunsSoon();renderAOI()};
 $("#aoiM").onchange=e=>{S.aoiM=e.target.value;renderAOI()};$("#aoiBw").onchange=e=>{const v=+e.target.value;if(v>0){S.aoiBw=v;renderAOI()}};
 
 function renderDOE(){fillSelect($("#doeResp"),Object.entries(RESP).map(([k,v])=>[k,v.label]),S.doeResp||"vol");S.doeResp=$("#doeResp").value;
@@ -1660,7 +1757,11 @@ function build3D(){const A=S.A;while(T.root.children.length){const o=T.root.chil
 }
 function pick(e){const el=$("#view3d"),rc=el.getBoundingClientRect(),v=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(v,T.cam);const hit=ray.intersectObjects(T.meshes||[])[0];if(!hit)return;const r=hit.object.userData,d=classify(r,S.specs,S);
   $("#hud").innerHTML=`<b>${r.board} · ${r.pad}</b>（${r.group}）<br>體積 <b>${f(r.volume,1)}%</b> · 高度 <b>${f(r.height,1)}µm</b> · 面積 <b>${f(r.area,1)}%</b><br>偏移 X <b>${f(r.offx,0)}</b> / Y <b>${f(r.offy,0)}</b> µm<br>鋼板 <b>${padThk(r,S)} µm</b>${zoneOf(r,S)?"（"+zoneOf(r,S).name+"）":""} · 高度 <b>${f(r.height/padThk(r,S)*100,0)}%</b> 厚度<br>${d.length?d.map(c=>DEFECTS[c]).join("、"):"規格內"}`}
-function render3D(){if(!init3D())return;size3();build3D()}
+/* three.js 只在第一次開啟 3D 頁籤時載入（約 600 KB），先用網站自帶檔，沒有才用 CDN */
+let threeP=null;
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>{s.remove();no(new Error(src))};document.head.appendChild(s)})}
+function ensureThree(){if(window.THREE)return Promise.resolve();return threeP||(threeP=loadScript("vendor/three-r128.min.js").catch(()=>loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js")).catch(e=>{threeP=null;throw e}))}
+async function render3D(){if(!window.THREE){$("#hud").textContent="載入 3D 元件中…";try{await ensureThree()}catch(e){}if(S.tab!=="sim3d")return}if(!init3D())return;size3();build3D()}
 $("#selBoard").onchange=e=>{S.board=e.target.value;build3D()};
 $("#btnWorst").onclick=()=>{if(S.A.worst){S.board=S.A.worst.board;$("#selBoard").value=S.board;build3D()}};
 let playT=0;function stopPlay(){clearInterval(playT);playT=0;$("#btnPlay").setAttribute("aria-pressed","false");$("#btnPlay").textContent="逐板播放"}
@@ -1683,23 +1784,41 @@ function runState(run){return run.id===S.runId?{...S}:{...S,rows:run.rows,metric
 function addRun(name,rows,metrics,cfg,info){name=safeId(name)||"未命名回合";const id=Math.max(0,...S.runs.map(r=>r.id))+1;S.runs.push({id,name,rows,metrics:withHpct(metrics),cfg:cfg||snapCfg(),info:info||null,aoi:null});return id}
 function switchRun(id){const c=curRun();if(c)c.cfg=snapCfg();const n=S.runs.find(r=>r.id===id);if(!n)return;
   S.runId=id;S.rows=n.rows;S.metrics=n.metrics;S.source=n.name;S.issEnt=null;S.ctx=null;Object.assign(S,clone(n.cfg));S.group="ALL";S.board=null;S.pad=null;
-  if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute()}
+  if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon()}
+/* ---------- 回合保存（IndexedDB）：資料留在這台電腦的瀏覽器，不上傳 ---------- */
+const RunDB={
+  open(){return new Promise((ok,no)=>{if(!window.indexedDB)return no(new Error("no-idb"));const q=indexedDB.open("spi-spc",1);q.onupgradeneeded=()=>q.result.createObjectStore("kv");q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
+  async get(k){const db=await this.open();return new Promise((ok,no)=>{const q=db.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
+  async set(k,v){const db=await this.open();return new Promise((ok,no)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=()=>ok();t.onerror=()=>no(t.error)})},
+  async del(k){const db=await this.open();return new Promise((ok,no)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").delete(k);t.oncomplete=()=>ok();t.onerror=()=>no(t.error)})}};
+let saveT=0,saveGate=false;
+function saveRunsSoon(){if(!saveGate||!S.runs||!S.runs.length)return;clearTimeout(saveT);saveT=setTimeout(saveRunsNow,500)}
+async function saveRunsNow(){const c=curRun();if(c)c.cfg=snapCfg();let ok=true;
+  try{await RunDB.set("runs",{v:1,savedAt:Date.now(),runId:S.runId,cmpA:S.cmpA,cmpB:S.cmpB,runs:S.runs.map(r=>({id:r.id,name:r.name,rows:r.rows,metrics:r.metrics,cfg:r.cfg,info:r.info,aoi:r.aoi,sample:!!r.sample}))})}
+  catch(e){ok=false}
+  const n=$("#runSaveNote");if(n)n.textContent=ok?`回合資料保存在這台電腦的瀏覽器（${new Date().toLocaleTimeString("zh-TW",{hour12:false})} 已保存），重新整理不會遺失`:"此瀏覽器無法保存回合資料（可能是私密瀏覽模式），重新整理後會還原範例";return ok}
+async function restoreRuns(){try{const d=await RunDB.get("runs");
+    if(!d||!Array.isArray(d.runs)||!d.runs.length||d.runs.every(r=>r.sample))return false;
+    S.runs=d.runs;S.cmpA=d.cmpA;S.cmpB=d.cmpB;S.runId=null;switchRun(S.runs.some(r=>r.id===d.runId)?d.runId:S.runs[0].id);
+    toast(`已還原上次的 ${d.runs.length} 個試產回合（${new Date(d.savedAt).toLocaleString("zh-TW",{hour12:false})} 保存）`);return true}
+  catch(e){return false}finally{saveGate=true}}
+function toast(msg){let t=$("#toast");if(!t){t=document.createElement("div");t.id="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),4200)}
 function initRuns(reset){S.runs=[];S.runId=null;
   if(reset){S.specs=clone(DEF_SPECS);S.stencil=120;S.htol={lo:75,hi:125};S.step=DEF_ZONES();S.selZone=1;S.aperture={groups:{}};S.wipe=5;persist()}
-  const a=addRun("試產 1 · 鋼板 V1",sampleData(),["volume","height","area","offx","offy"],snapCfg());
+  const a=addRun("試產 1 · 鋼板 V1",sampleData(),["volume","height","area","offx","offy"],snapCfg());S.runs[0].sample=true;
   const cb=snapCfg();cb.aperture={groups:{"U2 BGA":{red:-8}}};cb.wipe=3;
-  addRun("試產 2 · V2 BGA 加大＋奈米塗層",sampleData({variant:"B"}),["volume","height","area","offx","offy"],cb);
+  addRun("試產 2 · V2 BGA 加大＋奈米塗層",sampleData({variant:"B"}),["volume","height","area","offx","offy"],cb);S.runs[1].sample=true;
   S.cmpA=1;S.cmpB=2;switchRun(a)}
 function renderRuns(){if(!S.runs)return;fillSelect($("#selRun"),S.runs.map(r=>[String(r.id),r.name]),String(S.runId));
   $("#runTbl").innerHTML=`<thead><tr><th>回合名稱</th><th class="num">板</th><th class="num">焊墊</th><th class="num">鋼板 µm</th><th></th></tr></thead><tbody>`+S.runs.map(r=>{const cfg=r.id===S.runId?snapCfg():r.cfg;
     return`<tr${r.id===S.runId?' style="background:var(--accent-soft)"':""}><td><input type="text" id="rn-${r.id}" data-rid="${r.id}" value="${esc(r.name)}" style="min-width:180px" aria-label="回合名稱"></td><td class="num mono">${new Set(r.rows.map(x=>x.board)).size}</td><td class="num mono">${new Set(r.rows.map(x=>x.pad)).size}</td><td class="num mono">${cfg.stencil}${cfg.step&&cfg.step.on?"·階梯":""}</td>
     <td style="white-space:nowrap">${r.id===S.runId?'<span class="pill ok">目前</span>':`<button data-use="${r.id}">設為目前</button>`} <button data-delrun="${r.id}" ${S.runs.length<2?"disabled":""}>刪除</button></td></tr>`}).join("")+"</tbody>";
-  $$("#runTbl [data-rid]").forEach(el=>el.onchange=()=>{const r=S.runs.find(x=>x.id===+el.dataset.rid);r.name=safeId(el.value)||r.name;if(r.id===S.runId)S.source=r.name;syncControls();renderTab()});
+  $$("#runTbl [data-rid]").forEach(el=>el.onchange=()=>{const r=S.runs.find(x=>x.id===+el.dataset.rid);r.name=safeId(el.value)||r.name;saveRunsSoon();if(r.id===S.runId)S.source=r.name;syncControls();renderTab()});
   $$("#runTbl [data-use]").forEach(b=>b.onclick=()=>switchRun(+b.dataset.use));
-  $$("#runTbl [data-delrun]").forEach(b=>b.onclick=()=>{const id=+b.dataset.delrun;if(S.runs.length<2)return;S.runs=S.runs.filter(r=>r.id!==id);if(id===S.runId){S.runId=null;switchRun(S.runs[0].id)}else{syncControls();renderTab()}})}
+  $$("#runTbl [data-delrun]").forEach(b=>b.onclick=()=>{const id=+b.dataset.delrun;if(S.runs.length<2)return;S.runs=S.runs.filter(r=>r.id!==id);saveRunsSoon();if(id===S.runId){S.runId=null;switchRun(S.runs[0].id)}else{syncControls();renderTab()}})}
 $("#selRun").onchange=e=>switchRun(+e.target.value);
 $("#btnAddB").onclick=()=>{const cb=snapCfg();cb.aperture={groups:{"U2 BGA":{red:-8}}};cb.wipe=3;const id=addRun("改版 B 範例 "+(S.runs.length+1),sampleData({variant:"B",seed:20261020+S.runs.length}),["volume","height","area","offx","offy"],cb);S.cmpB=id;switchRun(id)};
-$("#btnSample").onclick=()=>{initRuns(true);setTab("issues")};
+$("#btnSample").onclick=()=>{RunDB.del("runs").catch(()=>{}).finally(()=>{initRuns(true);setTab("issues");toast("已還原範例，並清除這台電腦上保存的回合")})};
 function renderResults(){const rs=S.rows.filter(r=>r.result!=null);if(!rs.length){$("#resSub").textContent="";$("#resBox").innerHTML='<p class="note">目前回合沒有機台判定碼欄位（Result）。匯入時對應「機台判定碼」即可比對機台判定與本系統依規格的判定。</p>';return}
   const cnt={};rs.forEach(r=>cnt[r.result]=(cnt[r.result]||0)+1);const sys=r=>classify(r,S.specs,S).length>0;
   const tt=rs.filter(r=>r.mNG&&sys(r)).length,tf=rs.filter(r=>r.mNG&&!sys(r)).length,ft=rs.filter(r=>!r.mNG&&sys(r)).length,ff=rs.length-tt-tf-ft;
@@ -1715,9 +1834,9 @@ function saveProfiles(p){try{localStorage.setItem("spi-profiles",JSON.stringify(
 function profileOpts(sel){fillSelect($("#selProfile"),[["auto","自動辨識"],["phme","PHME／Bitron 型（拼板 × 子板、偏移 %）"],...profiles().map((p,i)=>["u"+i,p.name])],sel)}
 function setOpts(o){$("#optOff").value=o.offUnit;$("#optH").value=o.heightUnit;$("#optVol").value=o.volBasis}
 function impOpts(){return{offUnit:$("#optOff").value,heightUnit:$("#optH").value,volBasis:$("#optVol").value}}
-function startImport(text,name){try{const tab=csvTable(text),map=autoMap(tab.head);IMP={tab,map,name};setOpts(guessOpts(tab.head,map));profileOpts("auto");
+function startImport(text,name,tab0){try{const tab=tab0||csvTable(text),map=autoMap(tab.head);IMP={tab,map,name};setOpts(guessOpts(tab.head,map));profileOpts("auto");
     const ps=profiles(),hit=ps.findIndex(p=>Object.values(p.cols).every(c=>tab.head.includes(c)));if(hit>=0){$("#selProfile").value="u"+hit;applyProfile("u"+hit)}
-    $("#inRunName").value=name.replace(/\.(csv|txt|tsv)$/i,"");$("#mapBox").hidden=false;$("#parseErr").textContent="";renderMap()}
+    $("#inRunName").value=name.replace(/\.(csv|txt|tsv|xlsx)$/i,"");$("#mapBox").hidden=false;$("#parseErr").textContent="";renderMap()}
   catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true}}
 function applyProfile(v){const head=IMP.tab.head;
   if(v==="auto"){IMP.map=autoMap(head);setOpts(guessOpts(head,IMP.map))}
@@ -1740,13 +1859,58 @@ $("#selProfile").onchange=e=>{if(!IMP)return;applyProfile(e.target.value);render
 $("#btnSaveProfile").onclick=()=>{if(!IMP)return;const name=safeId($("#inProfileName").value)||"自訂設定檔",cols={};Object.entries(IMP.map).forEach(([k,i])=>cols[k]=IMP.tab.head[i]);
   const ps=profiles().filter(p=>p.name!==name);ps.push({name,cols,opts:impOpts()});saveProfiles(ps);profileOpts("u"+(ps.length-1));$("#parseErr").textContent="";$("#mapPrev").insertAdjacentHTML("afterbegin",`<span class="pill ok">已儲存設定檔「${esc(name)}」</span> `)};
 $("#btnApply").onclick=()=>{if(!IMP||!IMP.res)return;const{rows,metrics,info}=IMP.res,mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
-  if(mode==="replace"){const c=curRun();c.rows=rows;c.metrics=withHpct(metrics);c.name=name;c.info=info;c.aoi=null;c.cfg=snapCfg();S.runId=null;switchRun(c.id)}else switchRun(addRun(name,rows,metrics,snapCfg(),info));
-  $("#mapBox").hidden=true;IMP=null;setTab("issues")};
+  runBusy(`正在分析 ${rows.length.toLocaleString()} 筆資料…`,()=>{
+  if(mode==="replace"){const c=curRun();c.rows=rows;c.metrics=withHpct(metrics);c.name=name;c.info=info;c.aoi=null;c.sample=false;c.cfg=snapCfg();S.runId=null;switchRun(c.id)}else switchRun(addRun(name,rows,metrics,snapCfg(),info));
+  $("#mapBox").hidden=true;IMP=null;setTab("issues")})};
 $("#btnRead").onclick=()=>startImport($("#pasteIn").value,"貼上資料");
 $("#btnPhme").onclick=()=>{$("#pasteIn").value=samplePhmeCSV();startImport($("#pasteIn").value,"PHME 格式範例")};
-$("#fileIn").onchange=e=>{const fl=e.target.files[0];if(fl)fl.text().then(t=>startImport(t,fl.name))};
+$("#fileIn").onchange=e=>{const fl=e.target.files[0];if(fl)readImportFile(fl);e.target.value=""};
+function readImportFile(fl){busy(true,`正在讀取 ${fl.name}…`);const fail=er=>{busy(false);$("#parseErr").textContent="無法讀取檔案："+er.message;$("#mapBox").hidden=true};
+  if(/\.xls$/i.test(fl.name))return fail(new Error("舊版 Excel（.xls）不支援，請在 Excel 另存為 .xlsx 或 CSV"));
+  if(/\.xlsx$/i.test(fl.name))return readBuf(fl).then(xlsxTable).then(x=>runBusy(`正在解析 ${fl.name}…`,()=>{startImport("",fl.name,x.tab);if(x.note)toast(x.note)})).catch(fail);
+  fl.text().then(t=>runBusy(`正在解析 ${fl.name}…`,()=>startImport(t,fl.name))).catch(fail)}
+function readBuf(fl){if(fl.arrayBuffer)return fl.arrayBuffer();return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsArrayBuffer(fl)})}
+/* ---------- Excel（.xlsx）讀取：不需外部函式庫；解 zip（瀏覽器內建解壓）＋讀取工作表 XML ---------- */
+async function unzipEntries(buf){const u=new Uint8Array(buf),dv=new DataView(buf);let e=-1;
+  for(let i=u.length-22;i>=Math.max(0,u.length-65558);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)throw new Error("不是有效的 .xlsx 檔（找不到壓縮目錄）");
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={},td=new TextDecoder();
+  for(let k=0;k<n;k++){if(dv.getUint32(p,true)!==0x02014b50)throw new Error(".xlsx 壓縮目錄損毀");
+    const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+    const name=td.decode(u.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
+    out[name]=async()=>{const ds=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),raw=u.subarray(ds,ds+csize);
+      if(method===0)return td.decode(raw);if(method!==8)throw new Error("不支援的 .xlsx 壓縮方式");
+      return new Response(new Response(raw).body.pipeThrough(new DecompressionStream("deflate-raw"))).text()}}
+  return out}
+const X=(doc,tag)=>[...doc.getElementsByTagNameNS("*",tag)];
+const xmlDoc=t=>{const d=new DOMParser().parseFromString(t,"application/xml");if(d.getElementsByTagName("parsererror").length)throw new Error(".xlsx 內容格式錯誤");return d};
+function colIdx(ref){let n=0;for(const ch of ref){const c=ch.charCodeAt(0);if(c<65||c>90)break;n=n*26+c-64}return n-1}
+function xlDate(v){const ms=Math.round((v-25569)*86400000),d=new Date(ms),p=x=>String(x).padStart(2,"0");
+  const day=`${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;return v%1?`${day} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`:day}
+async function xlsxTable(buf){if(!window.DecompressionStream)throw new Error("此瀏覽器不支援讀取 .xlsx，請另存為 CSV");
+  const z=await unzipEntries(buf),get=async n=>z[n]?z[n]():null;
+  const wb=await get("xl/workbook.xml");if(!wb)throw new Error("不是有效的 Excel 檔（缺少活頁簿）");
+  const wd=xmlDoc(wb),sheets=X(wd,"sheet"),rels=xmlDoc(await get("xl/_rels/workbook.xml.rels")||"<r/>");
+  const tgt=id=>{const r=X(rels,"Relationship").find(x=>x.getAttribute("Id")===id);if(!r)return null;const t=r.getAttribute("Target");return t.startsWith("/")?t.slice(1):"xl/"+t.replace(/^\.\//,"")};
+  const sst=await get("xl/sharedStrings.xml"),strs=sst?X(xmlDoc(sst),"si").map(si=>X(si,"t").map(t=>t.textContent).join("")):[];
+  // 日期格式：內建 14–22、45–47，或自訂格式含年月日時分秒
+  const sty=await get("xl/styles.xml"),dateXf=[];
+  if(sty){const sd=xmlDoc(sty),custom={};X(sd,"numFmt").forEach(f=>custom[f.getAttribute("numFmtId")]=f.getAttribute("formatCode")||"");
+    const xfs=X(sd,"cellXfs")[0];if(xfs)X(xfs,"xf").forEach((xf,i)=>{const id=+xf.getAttribute("numFmtId")||0,code=(custom[id]||"").replace(/"[^"]*"|\[[^\]]*\]|\\./g,"");dateXf[i]=(id>=14&&id<=22)||(id>=45&&id<=47)||/[ymdhs]/i.test(code)})}
+  let pick=null,name="";
+  for(const sh of sheets){const path=tgt(sh.getAttribute("r:id")||sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id"));const t=path&&await get(path);if(!t)continue;
+    const rows=X(xmlDoc(t),"row");if(rows.length>=2){pick=rows;name=sh.getAttribute("name")||"";break}}
+  if(!pick)throw new Error("Excel 檔中找不到有資料的工作表（至少需要標題列與 1 列資料）");
+  const grid=[];for(const row of pick){const line=[];for(const c of X(row,"c")){const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t"),v=X(c,"v")[0];let val="";
+      if(t==="s")val=v?strs[+v.textContent]??"":"";else if(t==="inlineStr")val=X(c,"t").map(x=>x.textContent).join("");else if(t==="b")val=v&&v.textContent==="1"?"TRUE":"FALSE";
+      else if(v){val=v.textContent;if(t!=="str"&&t!=="e"&&dateXf[+c.getAttribute("s")||0]&&isFinite(+val))val=xlDate(+val)}
+      line[i]=safeId(String(val).replace(/[\r\n\t]+/g," "))}
+    if(line.some(x=>x!=null&&x!==""))grid.push(Array.from(line,x=>x??""))}
+  if(grid.length<2)throw new Error("至少需要標題列與 1 列資料");
+  const w=grid[0].length,head=grid[0].map(h=>h.trim()),data=grid.slice(1).map(r=>{const o=r.slice(0,w);while(o.length<w)o.push("");return o.map(x=>x.trim())});
+  return{tab:{head,data},note:sheets.length>1?`已讀取第一個有資料的工作表「${safeId(name)}」（共 ${sheets.length} 個工作表）`:""}}
 const drop=$("#drop");["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over")}));["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over")}));
-drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)fl.text().then(t=>startImport(t,fl.name))});
+drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)readImportFile(fl)});
 
 /* ---------- 報告 / 匯出 ---------- */
 function reportMd(){const A=S.A,u=METRICS[A.m].unit,lab={ok:"一致/正常",warn:"警示",ng:"異常",na:"—"};
@@ -1812,13 +1976,60 @@ async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPaylo
 try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>renderTab());new MutationObserver(()=>renderTab()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]})}catch(e){}
 
 /* ---------- 啟動 ---------- */
-if(!window.Chart||!window.THREE)$("#libWarn").hidden=false;
+$(".tabs").addEventListener("scroll",tabFade,{passive:true});addEventListener("resize",tabFade);setTimeout(tabFade,0);
+if(!window.Chart)$("#libWarn").hidden=false;
 /* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
-if(/\.netlify\.app$/.test(location.hostname))$("#logoutLink").hidden=false;
+const HAS_API=/\.netlify\.app$/.test(location.hostname)||/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+if(/\.netlify\.app$/.test(location.hostname)){$("#logoutLink").hidden=false;fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.user){$("#userName").textContent=j.user;$("#userChip").hidden=false}}).catch(()=>{})}
+/* ---------- 分享連結：壓縮後上傳到本網站（Netlify Blobs），連結需登入才能開啟，30 天失效 ---------- */
+async function gzipJSON(o){return new Uint8Array(await new Response(new Response(JSON.stringify(o)).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
+async function gunzipJSON(buf){return JSON.parse(await new Response(new Response(buf).body.pipeThrough(new DecompressionStream("gzip"))).text())}
+/* 分享內容來自別人：所有字串都過濾，數值必須有限，避免注入 */
+function deepClean(v,d=0){if(d>12||v==null)return null;if(typeof v==="string")return safeId(v);if(typeof v==="number")return isFinite(v)?v:null;if(typeof v==="boolean")return v;
+  if(Array.isArray(v))return v.map(x=>deepClean(x,d+1));if(typeof v==="object"){const o={};for(const k of Object.keys(v)){if(k==="__proto__"||k==="constructor"||k==="prototype")continue;o[safeId(k)]=deepClean(v[k],d+1)}return o}return null}
+function sharePack(){const c=curRun();if(c)c.cfg=snapCfg();const cmp=S.tab==="compare";
+  const pick=cmp?[S.cmpA,S.cmpB].map(id=>S.runs.find(r=>r.id===id)).filter(Boolean):[c];
+  const runs=[...new Set(pick)].map(r=>({name:r.name,rows:r.rows,metrics:r.metrics,cfg:r.cfg,info:r.info,aoi:r.aoi}));
+  return{kind:"spi-share",v:1,created:Date.now(),app:$("#appVer").textContent,runs,view:{tab:S.tab,metric:S.metric,group:S.group,board:S.board,cur:pick.indexOf(c),cmp}}}
+async function createShare(){const dlg=$("#shareDlg");$("#shareRow").hidden=true;$("#shareMsg").textContent="正在壓縮並上傳…";try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
+  try{const body=await gzipJSON(sharePack());if(body.length>5*1048576)throw new Error(`壓縮後仍有 ${(body.length/1048576).toFixed(1)} MB，超過分享上限 5 MB`);
+    const r=await fetch("/api/share",{method:"POST",headers:{"Content-Type":"application/gzip"},body});
+    const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+    const url=`${location.origin}/?share=${j.id}`;$("#shareUrl").value=url;$("#shareRow").hidden=false;
+    $("#shareMsg").textContent=`連結已建立（${(body.length/1024).toFixed(0)} KB），${new Date(j.expires).toLocaleDateString("zh-TW")} 前有效。`;$("#shareUrl").select()}
+  catch(e){$("#shareMsg").textContent="無法建立分享連結："+e.message}}
+async function openShareFromUrl(){const id=new URLSearchParams(location.search).get("share");if(!id)return;
+  const u=new URL(location.href);u.searchParams.delete("share");history.replaceState(null,"",u.pathname+u.search+u.hash);
+  if(!/^[A-Za-z0-9_-]{22}$/.test(id)){toast("分享連結格式不正確");return}
+  try{toast("正在開啟分享的回合…");const r=await fetch("/api/share?id="+id);if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}
+    const d=await gunzipJSON(await r.arrayBuffer());if(!d||d.kind!=="spi-share"||!Array.isArray(d.runs)||!d.runs.length)throw new Error("內容不是分享資料");
+    const ids=d.runs.slice(0,4).map(r0=>{const r1=deepClean(r0);if(!Array.isArray(r1.rows)||!r1.rows.length)throw new Error("分享資料沒有量測值");
+      const mets=(r1.metrics||[]).filter(m=>METRICS[m]&&m!=="hpct");const id=addRun("分享 · "+(r1.name||"回合"),r1.rows,mets.length?mets:["volume"],r1.cfg&&typeof r1.cfg==="object"?{...snapCfg(),...r1.cfg}:snapCfg(),r1.info||null);
+      const run=S.runs.find(x=>x.id===id);run.aoi=r1.aoi||null;return id});
+    const v=deepClean(d.view||{});if(v.cmp&&ids.length>1){S.cmpA=ids[0];S.cmpB=ids[1]}
+    switchRun(ids[Math.max(0,Math.min(ids.length-1,v.cur|0))]);
+    if(v.metric&&S.metrics.includes(v.metric))S.metric=v.metric;if(v.group&&(v.group==="ALL"||S.rows.some(x=>x.group===v.group)))S.group=v.group;
+    syncControls();recompute();if(v.tab&&$(`.tab[data-tab="${v.tab}"]`))setTab(v.tab);saveRunsSoon();
+    toast(`已開啟分享的 ${ids.length} 個回合`)}
+  catch(e){toast("無法開啟分享連結："+e.message)}}
+/* ---------- 列印／存成 PDF：列印目前頁籤，固定用淺色，頁首附回合與設定資訊 ---------- */
+const IN_CLAUDE=!!window.claude||/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
+let prTheme=null;
+function beforePrint(){const ht=document.documentElement;prTheme=ht.getAttribute("data-theme");if(prTheme!=="light")ht.setAttribute("data-theme","light");
+  const tabName=($(`.tab[data-tab="${S.tab}"]`)||{}).textContent||"";
+  $("#printHead").innerHTML=`<b>SPI·SPC 分析台 · ${esc(tabName)}</b>回合：${esc(S.source)}｜量測項目：${esc((METRICS[S.metric]||{}).label||S.metric)}｜元件群組：${esc(S.group==="ALL"?"全部":S.group)}｜鋼板 ${S.stencil} µm${S.step&&S.step.on?"（階梯）":""}｜列印時間 ${new Date().toLocaleString("zh-TW",{hour12:false})}｜系統 ${esc($("#appVer").textContent)} · ${esc($("#appBuilt").textContent)}`;
+  $$(".print3d").forEach(x=>x.remove());
+  if(S.tab==="sim3d"&&T.ok){try{if(prTheme!=="light")build3D();T.renderer.render(T.scene,T.cam);const img=new Image();img.className="print3d";img.alt="3D 錫膏模擬畫面";img.src=T.renderer.domElement.toDataURL("image/png");$("#view3d").appendChild(img)}catch(e){}}}
+function afterPrint(){const ht=document.documentElement;if(prTheme===null)ht.removeAttribute("data-theme");else if(prTheme!=="light")ht.setAttribute("data-theme",prTheme);prTheme=null;$$(".print3d").forEach(x=>x.remove())}
+addEventListener("beforeprint",beforePrint);addEventListener("afterprint",afterPrint);
+if(!IN_CLAUDE){$("#btnPrint").hidden=false;$("#btnPrint").onclick=()=>window.print()}
+if(HAS_API&&window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}
+$("#btnCopyShare").onclick=async()=>{const el=$("#shareUrl");try{await navigator.clipboard.writeText(el.value);$("#btnCopyShare").textContent="已複製"}catch(e){el.select();document.execCommand&&document.execCommand("copy");$("#btnCopyShare").textContent="已複製"}setTimeout(()=>$("#btnCopyShare").textContent="複製",1800)};
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
 try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t){S.stencil=sv.t;S.htol={lo:sv.lo||75,hi:sv.hi||125};S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}
 initRuns(false);
+restoreRuns().then(()=>{if(HAS_API&&window.DecompressionStream)return openShareFromUrl()});
 const h=(location.hash||"").slice(1);
 if(["issues","overview","compare","dfm","control","capability","sim3d","cross","adv","lab","ai","data"].includes(h))setTab(h);
 })();

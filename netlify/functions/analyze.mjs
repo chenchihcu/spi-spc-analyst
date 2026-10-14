@@ -31,6 +31,7 @@ export default async (req) => {
     throw e;
   }
 
+  console.log(`analyze user=${req.headers.get("x-spi-user") || "-"} issues=${payload["系統偵測問題清單"].length}`);
   const client = new Anthropic();
   const stream = client.messages.stream({ model: MODEL, max_tokens: MAX_TOKENS, system: SYSTEM_PROMPT, messages: buildMessages(payload) });
 
