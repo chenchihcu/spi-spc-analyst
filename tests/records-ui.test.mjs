@@ -153,3 +153,43 @@ test("座標檔：未填料號與版本不能上傳；存入後可在資料庫�
   assert.ok(await until(() => /料號 X3000 版本 V5/.test($("#placeState").textContent)));
   assert.ok(await until(() => /目前使用/.test($("#recPlace").textContent)));
 });
+
+test("從資料庫開啟當時沒用座標檔的立榮紀錄：不套用目前載入的座標檔；有用座標檔的紀錄會帶回原座標檔", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page([]);
+  await tick(50);
+  const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
+  const head = ["Component ID", "Height(%)1", "Volume(%)1", "Area(%)1", "PAD ID", "Result1", "Height(%)2", "Volume(%)2", "Area(%)2", "Result2"].join(",");
+  const WIDE = head + "\nC1_1,100,101,99,1,PASS,102,103,98,PASS\nC1_1,100,101,99,2,PASS,102,103,98,PASS\n";
+  const sv = $("#selVendor"); sv.value = "lirong"; sv.dispatchEvent(new w.Event("change"));
+  $("[data-tab=data]").click();
+  await pickFile(dom, "W_TOP.csv", WIDE);
+  assert.match($("#mapPrev").textContent, /未載入座標檔/);
+  $("#inLot").value = "LW"; $("#inPart").value = "PW"; $("#btnApply").click();
+  assert.ok(await until(() => w.eval("S.runs.length") === 3));
+  // 之後載入座標檔，再從資料庫開啟舊紀錄
+  $("#placePart").value = "PW"; $("#placeRev").value = "V1";
+  const inp = $("#placeIn"); Object.defineProperty(inp, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nC1,10,20,C0402,TOP\n")], "pl.csv")] }); inp.dispatchEvent(new w.Event("change"));
+  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+  $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click();
+  assert.ok(await until(() => d.querySelector('#recSpi [data-ract="open"]')));
+  $('#recSpi [data-ract="open"]').click();
+  assert.ok(await until(() => !$("#mapBox").hidden && $("#inLot").value === "LW"));
+  assert.match($("#mapPrev").textContent, /未載入座標檔/, "不套用之後才載入的座標檔");
+  assert.match($("#toast").textContent, /當時沒有使用座標檔/);
+  // 用座標檔再匯入一次（另存一筆，因為座標檔不同），再開啟它會帶回該座標檔
+  $("#btnApply").click(); assert.ok(await until(() => w.eval("S.runs.length") === 4));
+  await pickFile(dom, "W_TOP.csv", WIDE);
+  assert.match($("#mapPrev").textContent, /座標檔對應 1\/1/);
+  $("#inLot").value = "LW"; $("#inPart").value = "PW"; $("#btnApply").click();
+  assert.ok(await until(() => w.eval("S.runs.length") === 5));
+  const recs = (await w.eval("SPI_TEST_HOOK.RecDB.list()")).filter((r) => r.kind === "spi");
+  assert.equal(recs.length, 2, "座標檔不同 → 另存一筆，不沿用舊紀錄");
+  assert.ok(recs.some((r) => r.placeId) && recs.some((r) => !r.placeId));
+  $("#placeClear").click();
+  $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $("#recReload").click();
+  assert.ok(await until(() => d.querySelectorAll('#recSpi [data-ract="open"]').length === 2));
+  const withPl = recs.find((r) => r.placeId);
+  [...d.querySelectorAll('#recSpi [data-ract="open"]')].find((b) => b.dataset.id === withPl.id).click();
+  assert.ok(await until(() => !$("#mapBox").hidden && /座標檔對應 1\/1/.test($("#mapPrev").textContent)), "帶回當時的座標檔");
+  assert.deepEqual(errs, []);
+});

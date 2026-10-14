@@ -278,7 +278,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.9.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 14:27:44</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.9.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 14:42:20</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -2010,11 +2010,12 @@ try{const v=localStorage.getItem("spi-vendor");if(v&&[...$("#selVendor").options
 placeLoad();vendorUI();
 function convertImp(keepMap){const v=$("#selVendor").value;IMP.conv=null;
   if(v==="lirong"||isWide(IMP.raw.head)){if(v!=="lirong"){$("#selVendor").value="lirong";vendorUI();IMP.autoV=true}
-    const side=$("#selSide").value==="auto"?detectSide(IMP.name):$("#selSide").value,res=unpivotWide(IMP.raw,{side,place:PLACE&&PLACE.res,stencil:S.stencil});IMP.tab=res.tab;IMP.conv={...res.info,side}}
+    const side=$("#selSide").value==="auto"?detectSide(IMP.name):$("#selSide").value,res=unpivotWide(IMP.raw,{side,place:!IMP.noPlace&&PLACE?PLACE.res:null,stencil:S.stencil});IMP.tab=res.tab;IMP.conv={...res.info,side}}
   else IMP.tab=IMP.raw;
   if(!keepMap){IMP.map=autoMap(IMP.tab.head);setOpts(guessOpts(IMP.tab.head,IMP.map))}}
 function impName(){let s=IMP.name.replace(/\.(csv|txt|tsv|xlsx)$/i,"").replace(/[_\s]+$/,"");const sd=IMP.conv&&IMP.conv.side;if(sd&&!new RegExp(sd==="BOT"?"bot":"top","i").test(s))s+=" "+sd;return s}
-function startImport(text,name,tab0,bytes){try{const raw=tab0||csvTable(text);IMP={raw,name,bytes:bytes||new TextEncoder().encode(text)};convertImp(false);const tab=IMP.tab;profileOpts("auto");
+let IMP_NEXT=null; /* 從資料庫開啟時帶入的設定（來源紀錄、是否不套用座標檔），在轉換前就要生效 */
+function startImport(text,name,tab0,bytes){try{const raw=tab0||csvTable(text),nx=IMP_NEXT||{};IMP_NEXT=null;IMP={raw,name,bytes:bytes||new TextEncoder().encode(text),rec:nx.rec||null,noPlace:!!nx.noPlace};convertImp(false);const tab=IMP.tab;profileOpts("auto");
     const ps=profiles(),hit=ps.findIndex(p=>Object.values(p.cols).every(c=>tab.head.includes(c)));if(hit>=0){$("#selProfile").value="u"+hit;applyProfile("u"+hit)}
     $("#inRunName").value=impName();$("#mapBox").hidden=false;$("#parseErr").textContent="";recFields();renderMap()}
   catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true;IMP=null}}
@@ -2077,7 +2078,7 @@ $("#btnApply").onclick=async()=>{if(!IMP||!IMP.res)return;
     if(!lot||!part){$("#recNote").innerHTML='<span class="err">請填寫批號與產品料號（資料回溯必填）</span>';(lot?$("#inPart"):$("#inLot")).focus();return}
     if(IMP.rec)src=IMP.rec;
     else{const I0=IMP;busy(true,"正在存入資料庫…");
-      try{src=await RecDB.create({kind:"spi",lot,part,side:(I0.conv&&I0.conv.side)||"",vendor:$("#selVendor").value,name:safeId(I0.name)||"量測紀錄.csv",rows:I0.res.rows.length,boards:I0.res.info.boards,pads:I0.res.info.pads,placeId:(PLACE&&PLACE.recId)||""},I0.bytes)}
+      try{src=await RecDB.create({kind:"spi",lot,part,side:(I0.conv&&I0.conv.side)||"",vendor:$("#selVendor").value,name:safeId(I0.name)||"量測紀錄.csv",rows:I0.res.rows.length,boards:I0.res.info.boards,pads:I0.res.info.pads,placeId:(I0.conv&&I0.conv.place&&PLACE&&PLACE.recId)||""},I0.bytes)}
       catch(e){if(e.existing){src=await recFind(e.existing).catch(()=>null);if(src)toast(`這個檔案已存過（${src.user}，${fmtTime(src.created)}），回合連結到既有紀錄`)}
         if(!src){busy(false);$("#recNote").innerHTML=`<span class="err">無法存入資料庫：${esc(e.message)}；未建立回合</span>`;return}}
       busy(false);if(IMP!==I0)return}
@@ -2345,7 +2346,8 @@ async function gunzipBytes(buf,max=100*1048576){const rd=new Response(buf).body.
 /* 上傳欄位檢查（與後端規則相同） */
 function recCheck(m){const c=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\u007f]/g,"").trim().slice(0,n);const o={...m,part:c(m.part,64),name:c(m.name,200)};
   if(!o.part)return{error:"請填寫產品料號"};if(m.kind==="spi"){o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"}}else{o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"}}return{meta:o}}
-const recSame=(a,b)=>a.kind===b.kind&&a.sha256===b.sha256&&a.part===b.part&&(a.kind==="spi"?a.lot===b.lot:a.rev===b.rev);
+/* 重複判定與後端相同：內容與回溯欄位（量測紀錄含面別、格式、座標檔）全部相同才算 */
+const recSame=(a,b)=>a.kind===b.kind&&a.sha256===b.sha256&&a.part===b.part&&(a.kind==="spi"?a.lot===b.lot&&(a.side||"")===(b.side||"")&&(a.vendor||"")===(b.vendor||"")&&(a.placeId||"")===(b.placeId||""):a.rev===b.rev);
 /* 本機版：IndexedDB「spi-records」 */
 const LocalRec={db:null,
   open(){if(this.db)return this.db;this.db=new Promise((ok,no)=>{if(!window.indexedDB)return no(new Error("這個瀏覽器無法保存資料庫（可能是無痕模式）"));const q=indexedDB.open("spi-records",1);
@@ -2355,7 +2357,7 @@ const LocalRec={db:null,
   async index(){return this.tx(["meta"],"readonly",t=>this.req(t.objectStore("meta").getAll()))},
   async create(meta,u8,user){const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);
     const rec={...chk.meta,id:newRecId(),bytes:u8.length,sha256:await sha256Hex(u8),user,created:Date.now()};
-    const dup=(await this.index()).find(r=>recSame(r,rec));if(dup){const e=new Error("這個檔案已經存過（相同內容與相同批號／料號）");e.existing=dup.id;e.status=409;throw e}
+    const dup=(await this.index()).find(r=>recSame(r,rec));if(dup){const e=new Error("這個檔案已經存過（相同內容與相同回溯欄位）");e.existing=dup.id;e.status=409;throw e}
     await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").put(u8,rec.id);t.objectStore("meta").put(rec);t.objectStore("log").add({action:"create",at:rec.created,by:user,id:rec.id,kind:rec.kind,lot:rec.lot||"",part:rec.part,rev:rec.rev||"",name:rec.name,sha256:rec.sha256,bytes:rec.bytes})});return rec},
   async get(id){return this.tx(["files"],"readonly",t=>this.req(t.objectStore("files").get(id)))},
   async del(id,user){const all=await this.index(),r=all.find(x=>x.id===id);if(!r)throw new Error("找不到這筆紀錄（可能已被刪除）");if(r.user!==user)throw new Error(`只有上傳者（${r.user}）可以刪除這筆紀錄`);
@@ -2366,12 +2368,13 @@ const RecDB={mode:"local",me:"本機",cache:null,ready:null,
   async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));e.existing=j.existing;e.status=r.status;throw e}return j},
   async list(){await this.ready;let l;if(this.mode==="cloud"){const j=await this.jfetch("/api/records");this.me=j.me||this.me;l=j.records||[]}else l=(await LocalRec.index()).sort((a,b)=>b.created-a.created);return this.cache=l.map(r=>deepClean(r))},
   async create(meta,bytes){await this.ready;const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
-    if(this.mode==="cloud"){const gz=await gzipBytes(u8);if(gz.length>4*1048576)throw new Error(`檔案壓縮後 ${(gz.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
-      return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{"Content-Type":"application/gzip","X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta))},body:gz})).record)}
+    if(this.mode==="cloud"){/* 支援壓縮的瀏覽器先壓縮；不支援時直接送原始檔（由伺服器壓縮），不擋分析 */const cz=!!window.CompressionStream,body=cz?await gzipBytes(u8):u8;
+      if(body.length>4*1048576)throw new Error(`檔案${cz?"壓縮後":""} ${(body.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
+      return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{"Content-Type":cz?"application/gzip":"application/octet-stream","X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta))},body})).record)}
     return LocalRec.create(chk.meta,u8,this.me)},
   /* 取回原始檔並重新計算指紋；ok＝與上傳時記錄的指紋相同 */
   async get(rec){await this.ready;let u8;
-    if(this.mode==="cloud"){const r=await fetch("/api/records?id="+encodeURIComponent(rec.id),{cache:"no-store"});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}u8=await gunzipBytes(await r.arrayBuffer())}
+    if(this.mode==="cloud"){const dz=!!window.DecompressionStream,r=await fetch("/api/records?id="+encodeURIComponent(rec.id)+(dz?"":"&raw=1"),{cache:"no-store"});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}const buf=await r.arrayBuffer();u8=dz?await gunzipBytes(buf):new Uint8Array(buf)}
     else{u8=await LocalRec.get(rec.id);if(!u8)throw new Error("找不到這筆紀錄的原始檔")}
     const sha=await sha256Hex(u8);return{bytes:u8,sha,ok:sha===rec.sha256}},
   async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});return LocalRec.del(id,this.me)},
@@ -2409,11 +2412,13 @@ async function usePlaceRec(rec){const g=await RecDB.get(rec);if(!g.ok)throw new 
   PLACE={recId:rec.id,part:rec.part,rev:rec.rev,name:rec.name,tab,res:parsePlacement(tab,$("#placeUnit").value)};placeSave();placeShow();$("#placePart").value=rec.part;$("#placeRev").value=rec.rev}
 async function openRecord(rec){busy(true,"正在從資料庫取回原始檔…");
   try{const g=await RecDB.get(rec);if(!g.ok)throw new Error("原始檔指紋與上傳時不同，已停止開啟");
-    let note="";if(rec.placeId){const pr=await recFind(rec.placeId);if(pr){await usePlaceRec(pr)}else note="當時使用的座標檔已從資料庫刪除，改用目前的座標檔設定"}
+    /* 只用當時的座標檔重現；沒有連結座標檔（或已刪除）時，這次匯入不套用目前的座標檔，避免位置與分群和當初不同 */
+    let note="",noPlace=false;if(rec.placeId){const pr=await recFind(rec.placeId);if(pr){await usePlaceRec(pr)}else{noPlace=true;note="當時使用的座標檔已從資料庫刪除，這次不套用座標檔"}}else if(rec.vendor==="lirong"){noPlace=true;note="當時沒有使用座標檔，這次也不套用"}
+    IMP_NEXT={rec,noPlace};
     $("#selVendor").value=[...$("#selVendor").options].some(o=>o.value===rec.vendor)?rec.vendor:"generic";$("#selSide").value=rec.side||"auto";vendorUI();
     setSub("import");busy(false);
     if(/\.xlsx$/i.test(rec.name)){const x=await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length));startImport("",rec.name,x.tab,g.bytes)}else startImport(decodeBytes(g.bytes),rec.name,null,g.bytes);
-    if(IMP){IMP.rec=rec;recFields()}toast(`已開啟批號 ${rec.lot} 的原始檔（指紋驗證相同）${note?"；"+note:""}`);const mb=$("#mapBox");if(mb&&!mb.hidden&&mb.scrollIntoView)mb.scrollIntoView({block:"start"})}
+    if(IMP)recFields();toast(`已開啟批號 ${rec.lot} 的原始檔（指紋驗證相同）${note?"；"+note:""}`);const mb=$("#mapBox");if(mb&&!mb.hidden&&mb.scrollIntoView)mb.scrollIntoView({block:"start"})}
   catch(e){busy(false);toast("無法開啟："+e.message)}}
 $("#recQ").oninput=()=>renderRecords();
 $("#recReload").onclick=()=>{REC_VER={};renderRecords(true)};
