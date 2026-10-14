@@ -1,5 +1,5 @@
 // Excel（.xlsx）匯入測試：以 openpyxl 產生的檔案（tests/fixtures/spi-sample.xlsx）走完整匯入流程
-// 檔案內容：第一個工作表只有說明（略過），第二個工作表「SPI資料」12 片板 × 20 焊墊，含日期時間欄與一格惡意字串
+// 檔案內容：第一個工作表是 3 列說明文字（標題列對不到量測欄位，應略過），第二個工作表「SPI資料」12 片板 × 20 焊墊，含日期時間欄與一格惡意字串
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -59,4 +59,14 @@ test("xlsx：舊版 .xls 與損毀檔給出清楚訊息", { skip: !JSDOM && "未
   d.querySelector("#parseErr").textContent = "";
   await pick(dom, "broken.xlsx", Buffer.from("this is not a zip file at all, just text"));
   assert.match(d.querySelector("#parseErr").textContent, /不是有效的 \.xlsx/);
+});
+
+test("xlsx：第一個工作表用廠商自訂欄名時，不會被只有一個通用欄名的摘要頁取代", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom } = page();
+  await tick(60);
+  const d = dom.window.document;
+  await pick(dom, "vendor.xlsx", fs.readFileSync(new URL("./fixtures/vendor-first-sheet.xlsx", import.meta.url)));
+  assert.equal(d.querySelector("#mapBox").hidden, false, d.querySelector("#parseErr").textContent);
+  const head = [...d.querySelectorAll("#map-board option")].map((o) => o.textContent);
+  assert.ok(head.includes("VolPct_Vendor"), "應讀到第一個工作表（Raw）：" + head.join(","));
 });

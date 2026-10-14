@@ -4,7 +4,7 @@
 // 整個網站（含本函式）都在登入保護之後，只有已登入的人能建立或開啟分享連結。
 import { getStore } from "@netlify/blobs";
 
-export const MAX_BYTES = 5 * 1024 * 1024; // 函式本文上限約 6 MB，留餘裕
+export const MAX_BYTES = 4 * 1024 * 1024; // 二進位本文經 Base64 編碼後，函式實際上限約 4.5 MB，留餘裕
 export const TTL_DAYS = 30;
 const ID_RE = /^[A-Za-z0-9_-]{22}$/;
 
@@ -37,9 +37,9 @@ export async function handleShare(req, store, now = Date.now()) {
   if (origin && origin !== url.origin) return json({ error: "不接受其他網站的請求" }, 403);
 
   const len = +req.headers.get("content-length") || 0;
-  if (len > MAX_BYTES) return json({ error: `資料太大（${(len / 1048576).toFixed(1)} MB），分享上限 5 MB` }, 413);
+  if (len > MAX_BYTES) return json({ error: `資料太大（${(len / 1048576).toFixed(1)} MB），分享上限 4 MB` }, 413);
   const buf = new Uint8Array(await req.arrayBuffer());
-  if (buf.length > MAX_BYTES) return json({ error: "資料太大，分享上限 5 MB" }, 413);
+  if (buf.length > MAX_BYTES) return json({ error: "資料太大，分享上限 4 MB" }, 413);
   if (buf.length < 20 || buf[0] !== 0x1f || buf[1] !== 0x8b) return json({ error: "資料格式不正確（需為 gzip 壓縮）" }, 400);
 
   const id = newId(), exp = now + TTL_DAYS * 86400_000;

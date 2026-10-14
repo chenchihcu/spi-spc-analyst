@@ -58,7 +58,7 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
   - 新增／變更帳號：執行 `node tools/hash-password.mjs '<現有 AUTH_USERS>'`，輸入帳號與兩次密碼，把輸出貼到 `AUTH_USERS`，重新部署後生效。改密碼或刪帳號後，該帳號的舊登入立即失效；更換 `AUTH_SECRET` 會讓所有人重新登入。
   - 同一帳號或同一來源 IP 在 15 分鐘內登入失敗 5 次，鎖定 15 分鐘（紀錄存在 Netlify Blobs `spi-auth-lock`）。
   - `/__me` 回傳目前登入帳號；AI 分析與分享會記錄使用者（函式記錄檔）。
-- 分享連結：`/api/share` 把瀏覽器壓縮後的回合資料（上限 5 MB）存在 Netlify Blobs `spi-share`，30 天後失效。
+- 分享連結：`/api/share` 把瀏覽器壓縮後的回合資料（上限 4 MB）存在 Netlify Blobs `spi-share`，30 天後失效。
 - 安全標頭（CSP、X-Frame-Options、HSTS、Permissions-Policy）設定在 `netlify.toml` 與登入頁。
 
 ## 已知限制

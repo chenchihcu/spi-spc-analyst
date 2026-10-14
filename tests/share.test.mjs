@@ -105,3 +105,39 @@ test("頁面：分享比較頁時帶兩個回合，並設定比較對象", { ski
   assert.equal(b.eval("S.tab"), "compare");
   assert.equal(b.eval("S.cmpA+','+S.cmpB"), "3,4");
 });
+
+test("頁面：分享時的板號一併還原（例如 3D 頁正在看的板）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const st = memStore();
+  const A = openPage("http://localhost/", st);
+  await tick(60);
+  const a = A.dom.window, d = a.document;
+  d.querySelector("[data-tab=overview]").click();
+  const sel = d.querySelector("#selBoard"); sel.value = "B03"; sel.dispatchEvent(new a.Event("change"));
+  assert.equal(a.eval("S.board"), "B03");
+  d.querySelector("#btnShare").click();
+  for (let i = 0; i < 50 && d.querySelector("#shareRow").hidden; i++) await tick(20);
+  const B = openPage(d.querySelector("#shareUrl").value, st);
+  for (let i = 0; i < 50 && B.dom.window.eval("S.runs.length") < 3; i++) await tick(20);
+  assert.equal(B.dom.window.eval("S.board"), "B03");
+});
+
+test("頁面：解壓後過大的分享資料會被拒絕，不會開啟", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const st = memStore();
+  const bomb = gzipSync(Buffer.alloc(210 * 1048576, 32)); // 約 200 KB，解壓後 210 MB
+  const r = await handleShare(new Request(U, { method: "POST", body: bomb }), st);
+  const { id } = await r.json();
+  const B = openPage(`http://localhost/?share=${id}`, st);
+  for (let i = 0; i < 200 && !/無法開啟/.test(B.dom.window.document.querySelector("#toast")?.textContent || ""); i++) await tick(25);
+  assert.match(B.dom.window.document.querySelector("#toast").textContent, /超過 200 MB/);
+  assert.equal(B.dom.window.eval("S.runs.length"), 2);
+});
+
+test("頁面：自訂網域也能偵測到登入後端（以 /__me 判斷），顯示帳號、登出與分享", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const st = memStore();
+  const P = openPage("https://spi.mycompany.example/", st, { fetch: async (u) => (String(u) === "/__me" ? Response.json({ user: "qa@example.com" }) : new Response("{}", { status: 404 })) });
+  await tick(80);
+  const d = P.dom.window.document;
+  assert.equal(d.querySelector("#userName").textContent, "qa@example.com");
+  assert.equal(d.querySelector("#logoutLink").hidden, false);
+  assert.equal(d.querySelector("#btnShare").hidden, false);
+});
