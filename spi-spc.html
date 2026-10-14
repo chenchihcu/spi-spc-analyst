@@ -278,7 +278,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.9.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 14:46:46</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.9.2</b> · 更新 <b class="num" id="appBuilt">2026-10-14 15:12:13</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -2404,8 +2404,8 @@ async function renderRecords(force){if(!$("#recSpi"))return;await RecDB.ready;$(
   $("#recPlace").innerHTML=P1.length?`<thead><tr><th>產品料號</th><th>版本</th><th>原始檔</th><th class="num">元件數</th><th>上傳者</th><th>上傳時間</th><th>檔案指紋</th><th></th></tr></thead><tbody>`+P1.map(r=>`<tr${PLACE&&PLACE.recId===r.id?' style="background:var(--accent-soft)"':""}><td><b>${esc(r.part)}</b></td><td>${esc(r.rev)}</td><td>${esc(r.name)}</td><td class="num mono">${r.comps||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
     <td><div class="rec-act">${PLACE&&PLACE.recId===r.id?'<span class="pill ok">目前使用</span>':`<button data-ract="use" data-id="${esc(r.id)}">設為目前座標檔</button>`}<button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`).join("")+"</tbody>":`<tbody><tr><td class="note">${q?"沒有符合的座標檔":"尚無座標檔。在「匯入與規格」選立榮格式，填寫產品料號與版本後上傳座標檔，就會存到這裡。"}</td></tr></tbody>`;
   if($("#recAuditBox").open)renderAudit()}
-async function renderAudit(){const box=$("#recAudit");try{const es=await RecDB.audit();box.innerHTML=es.length?`<table><thead><tr><th>時間</th><th>動作</th><th>類型</th><th>批號</th><th>產品料號</th><th>版本</th><th>原始檔</th><th>執行者</th><th>檔案指紋</th></tr></thead><tbody>`+es.map(e=>`<tr><td class="mono" style="white-space:nowrap">${esc(fmtTime(e.at))}</td><td>${e.action==="delete"?'<span class="pill ng">刪除</span>':'<span class="pill ok">新增</span>'}</td><td>${e.kind==="place"?"座標檔":"量測紀錄"}</td><td>${esc(e.lot||"—")}</td><td>${esc(e.part)}</td><td>${esc(e.rev||"—")}</td><td>${esc(e.name)}</td><td>${esc(e.by)}</td><td class="mono" title="${esc(e.sha256)}">${esc(String(e.sha256).slice(0,10))}…</td></tr>`).join("")+"</tbody></table>":'<p class="note">尚無紀錄</p>'}catch(e){box.innerHTML=`<p class="err">無法讀取稽核紀錄：${esc(e.message)}</p>`}}
-async function recFind(id){return(RecDB.cache||await RecDB.list()).find(r=>r.id===id)}
+async function renderAudit(){const box=$("#recAudit");try{const es=await RecDB.audit();box.innerHTML=es.length?`<table><thead><tr><th>時間</th><th>動作</th><th>類型</th><th>批號</th><th>產品料號</th><th>版本</th><th>原始檔</th><th>執行者</th><th>檔案指紋</th></tr></thead><tbody>`+es.map(e=>`<tr><td class="mono" style="white-space:nowrap">${esc(fmtTime(e.at))}</td><td>${e.action==="delete"?'<span class="pill ng">刪除</span>':'<span class="pill ok">新增</span>'}${e.ok===false?' <span class="pill warn" title="動作前已記錄，但未完成（已撤回）">未完成</span>':""}</td><td>${e.kind==="place"?"座標檔":"量測紀錄"}</td><td>${esc(e.lot||"—")}</td><td>${esc(e.part)}</td><td>${esc(e.rev||"—")}</td><td>${esc(e.name)}</td><td>${esc(e.by)}</td><td class="mono" title="${esc(e.sha256)}">${esc(String(e.sha256).slice(0,10))}…</td></tr>`).join("")+"</tbody></table>":'<p class="note">尚無紀錄</p>'}catch(e){box.innerHTML=`<p class="err">無法讀取稽核紀錄：${esc(e.message)}</p>`}}
+async function recFind(id,fresh){return((!fresh&&RecDB.cache)||await RecDB.list()).find(r=>r.id===id)}
 /* 從資料庫載入座標檔（不重新存檔） */
 async function usePlaceRec(rec){const g=await RecDB.get(rec);if(!g.ok)throw new Error("座標檔指紋與上傳時不同，已停止使用");
   const tab=/\.xlsx$/i.test(rec.name)?(await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length))).tab:csvTable(decodeBytes(g.bytes));
@@ -2413,13 +2413,13 @@ async function usePlaceRec(rec){const g=await RecDB.get(rec);if(!g.ok)throw new 
 async function openRecord(rec){busy(true,"正在從資料庫取回原始檔…");
   try{const g=await RecDB.get(rec);if(!g.ok)throw new Error("原始檔指紋與上傳時不同，已停止開啟");
     /* 只用當時的座標檔重現；沒有連結座標檔（或已刪除）時，這次匯入不套用目前的座標檔，避免位置與分群和當初不同 */
-    let note="",noPlace=false;if(rec.placeId){const pr=await recFind(rec.placeId);if(pr){await usePlaceRec(pr)}else{noPlace=true;note="當時使用的座標檔已從資料庫刪除，這次不套用座標檔"}}else if(rec.vendor==="lirong"){noPlace=true;note="當時沒有使用座標檔，這次也不套用"}
-    IMP_NEXT={rec,noPlace};
+    let note="",noPlace=false;if(rec.placeId){const pr=await recFind(rec.placeId,true);let okp=false;if(pr){try{await usePlaceRec(pr);okp=true}catch(er){}}if(!okp){noPlace=true;note="當時使用的座標檔已從資料庫刪除或無法取回，這次不套用座標檔"}}else if(rec.vendor==="lirong"){noPlace=true;note="當時沒有使用座標檔，這次也不套用"}
     $("#selVendor").value=[...$("#selVendor").options].some(o=>o.value===rec.vendor)?rec.vendor:"generic";$("#selSide").value=rec.side||"auto";vendorUI();
     setSub("import");busy(false);
-    if(/\.xlsx$/i.test(rec.name)){const x=await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length));startImport("",rec.name,x.tab,g.bytes)}else startImport(decodeBytes(g.bytes),rec.name,null,g.bytes);
+    /* 來源紀錄只交給緊接著的這一次匯入；讀檔失敗時不留給下一次手動匯入 */
+    if(/\.xlsx$/i.test(rec.name)){const x=await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length));IMP_NEXT={rec,noPlace};startImport("",rec.name,x.tab,g.bytes)}else{IMP_NEXT={rec,noPlace};startImport(decodeBytes(g.bytes),rec.name,null,g.bytes)}
     if(IMP)recFields();toast(`已開啟批號 ${rec.lot} 的原始檔（指紋驗證相同）${note?"；"+note:""}`);const mb=$("#mapBox");if(mb&&!mb.hidden&&mb.scrollIntoView)mb.scrollIntoView({block:"start"})}
-  catch(e){busy(false);toast("無法開啟："+e.message)}}
+  catch(e){IMP_NEXT=null;busy(false);toast("無法開啟："+e.message)}}
 $("#recQ").oninput=()=>renderRecords();
 $("#recReload").onclick=()=>{REC_VER={};renderRecords(true)};
 $("#recAuditBox").addEventListener("toggle",()=>{if($("#recAuditBox").open)renderAudit()});
