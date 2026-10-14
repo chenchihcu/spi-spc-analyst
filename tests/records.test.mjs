@@ -172,3 +172,30 @@ test("稽核紀錄寫入失敗時：刪除不會發生（可重試），新增�
   assert.equal((await (await req(st, "")).json()).records.length, 0, "新增時稽核失敗不留資料");
   assert.equal([...st.m.keys()].filter((k) => k.startsWith("f/")).length, 0, "也不留檔案");
 });
+
+test("撤回失敗時稽核頁不誤報：依資料庫現況標示未完成", async () => {
+  const st = memStore();
+  const { record } = await (await post(st, spi())).json();
+  // 刪除時索引寫入一直失敗，而撤回稽核紀錄也失敗 → 稽核紀錄殘留，但應標為未完成
+  const setJ = st.setJSON.bind(st), del = st.delete.bind(st);
+  st.setJSON = async (k, v, o) => { if (k === "index.json") throw new Error("索引寫入失敗"); return setJ(k, v, o); };
+  st.delete = async (k) => { if (k.startsWith("log/")) throw new Error("刪除失敗"); return del(k); };
+  assert.equal((await req(st, `?id=${record.id}`, "DELETE")).status, 503);
+  st.setJSON = setJ; st.delete = del;
+  let { entries } = await (await req(st, "?audit=1")).json();
+  assert.deepEqual(entries.map((e) => [e.action, e.ok]), [["delete", false], ["create", true]], "刪除未完成、新增完成");
+  // 之後真的刪除成功：最新的刪除為完成，先前那筆仍為未完成；新增仍算完成
+  assert.equal((await req(st, `?id=${record.id}`, "DELETE", "a@x.tw", 9000)).status, 200);
+  ({ entries } = await (await req(st, "?audit=1")).json());
+  assert.deepEqual(entries.map((e) => [e.action, e.ok]), [["delete", true], ["delete", false], ["create", true]]);
+});
+
+test("舊瀏覽器取回未壓縮原始檔：超過 5 MB 時清楚說明（避免超過平台回應上限）", async () => {
+  const st = memStore();
+  const big = "x".repeat(5 * 1048576 + 10);
+  const { record } = await (await post(st, spi(), big)).json();
+  const r = await req(st, `?id=${record.id}&raw=1`);
+  assert.equal(r.status, 413);
+  assert.match((await r.json()).error, /請改用新版/);
+  assert.equal((await req(st, `?id=${record.id}`)).status, 200, "壓縮版仍可取回");
+});
