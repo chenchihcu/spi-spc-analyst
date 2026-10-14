@@ -36,8 +36,10 @@ test("列印：一般網站顯示按鈕；列印前頁首帶回合與版本、�
   assert.equal(d.documentElement.getAttribute("data-theme"), "light");
   const head = d.querySelector("#printHead").textContent;
   assert.match(head, /問題偵測/); assert.match(head, /回合：/); assert.match(head, new RegExp(d.querySelector("#appVer").textContent.replace(".", "\\.")));
+  assert.equal(d.querySelectorAll("#issList details.iss-card:not([open])").length, 0, "列印時問題卡片全部展開");
   w.dispatchEvent(new w.Event("afterprint"));
   assert.equal(d.documentElement.getAttribute("data-theme"), "dark", "列印後還原原本主題");
+  assert.equal(d.querySelectorAll("#issList details.iss-card[open]").length, 0, "列印後恢復收合");
 });
 
 test("列印：在 claude.ai 內不顯示列印按鈕", { skip: !JSDOM && "未安裝 jsdom" }, async () => {

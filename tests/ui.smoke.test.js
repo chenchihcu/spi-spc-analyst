@@ -38,6 +38,16 @@ test("所有頁籤與主要流程無執行錯誤", { skip: !JSDOM && "未安裝 
   assert.ok(d.querySelectorAll("#pmap [data-ent]").length >= 25, "問題地圖應有每片板的格子");
   assert.ok(d.querySelectorAll(".iss-card svg.ev").length === d.querySelectorAll(".iss-card").length, "每個問題卡片都應有證據迷你圖");
   assert.ok(d.querySelectorAll("#issList .sevhead").length >= 2, "問題應依嚴重度分段");
+  // 問題卡片預設收合成一行，可全部展開／收合
+  assert.equal(d.querySelectorAll("#issList details.iss-card[open]").length, 0, "問題卡片預設收合");
+  assert.ok(d.querySelectorAll("#issList details.iss-card > summary .iss-sum-t b").length === d.querySelectorAll(".iss-card").length, "每張卡片的摘要列有標題");
+  $("#issExpand").click();
+  assert.equal(d.querySelectorAll("#issList details.iss-card:not([open])").length, 0, "全部展開");
+  $("#issCollapse").click();
+  assert.equal(d.querySelectorAll("#issList details.iss-card[open]").length, 0, "全部收合");
+  // 頂端不再重複規格輸入；資料與規格頁分為子分頁
+  assert.equal(d.querySelector("#inLsl"), null, "規格輸入只保留在資料與規格頁");
+  assert.equal(d.querySelectorAll("#p-data .subtab").length, 3);
   d.querySelector('#pmap [data-ent="b:B13"]').click();
   assert.ok(d.querySelectorAll(".iss-card").length >= 1 && d.querySelectorAll(".iss-card").length < 12, "點選板格應只顯示該板相關問題");
   d.querySelector("#pmapClear").click();

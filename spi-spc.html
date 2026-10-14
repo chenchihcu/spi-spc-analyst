@@ -2175,8 +2175,11 @@ function beforePrint(){const ht=document.documentElement;prTheme=ht.getAttribute
   const tabName=($(`.tab[data-tab="${S.tab}"]`)||{}).textContent||"";
   $("#printHead").innerHTML=`<b>SPI·SPC 分析台 · ${esc(tabName)}</b>回合：${esc(S.source)}｜量測項目：${esc((METRICS[S.metric]||{}).label||S.metric)}｜元件群組：${esc(S.group==="ALL"?"全部":S.group)}｜鋼板 ${S.stencil} µm${S.step&&S.step.on?"（階梯）":""}｜列印時間 ${new Date().toLocaleString("zh-TW",{hour12:false})}｜系統 ${esc($("#appVer").textContent)} · ${esc($("#appBuilt").textContent)}`;
   $$(".print3d").forEach(x=>x.remove());
+  /* 列印時問題卡片全部展開（列印後恢復原狀） */
+  prOpened=$$("#issList details.iss-card:not([open])");prOpened.forEach(d=>d.open=true);
   if(S.tab==="sim3d"&&T.ok){try{if(prTheme!=="light")build3D();T.renderer.render(T.scene,T.cam);const img=new Image();img.className="print3d";img.alt="3D 錫膏模擬畫面";img.src=T.renderer.domElement.toDataURL("image/png");$("#view3d").appendChild(img)}catch(e){}}}
-function afterPrint(){const ht=document.documentElement;if(prTheme===null)ht.removeAttribute("data-theme");else if(prTheme!=="light")ht.setAttribute("data-theme",prTheme);prTheme=null;$$(".print3d").forEach(x=>x.remove())}
+let prOpened=[];
+function afterPrint(){prOpened.forEach(d=>d.open=false);prOpened=[];const ht=document.documentElement;if(prTheme===null)ht.removeAttribute("data-theme");else if(prTheme!=="light")ht.setAttribute("data-theme",prTheme);prTheme=null;$$(".print3d").forEach(x=>x.remove())}
 addEventListener("beforeprint",beforePrint);addEventListener("afterprint",afterPrint);
 if(!IN_CLAUDE){$("#btnPrint").hidden=false;$("#btnPrint").onclick=()=>window.print()}
 if(HAS_API&&window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}
