@@ -1,5 +1,5 @@
 // Excel（.xlsx）匯入測試：以 openpyxl 產生的檔案（tests/fixtures/spi-sample.xlsx）走完整匯入流程
-// 檔案內容：第一個工作表只有說明（略過），第二個工作表「SPI資料」12 片板 × 20 焊墊，含日期時間欄與一格惡意字串
+// 檔案內容：第一個工作表是 3 列說明文字（標題列對不到量測欄位，應略過），第二個工作表「SPI資料」12 片板 × 20 焊墊，含日期時間欄與一格惡意字串
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";

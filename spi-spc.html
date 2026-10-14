@@ -216,7 +216,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
   </div>
   <div class="row">
-    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 07:58:24</b></span>
+    <span class="chip" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.6.1</b> · 更新 <b class="num" id="appBuilt">2026-10-14 08:35:31</b></span>
     <span class="chip">目前回合 <b id="srcName">範例資料</b></span>
     <button class="chip chipBtn" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
     <button class="chip chipBtn" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
@@ -1798,7 +1798,10 @@ async function saveRunsNow(){const c=curRun();if(c)c.cfg=snapCfg();let ok=true;
   catch(e){ok=false}
   const n=$("#runSaveNote");if(n)n.textContent=ok?`回合資料保存在這台電腦的瀏覽器（${new Date().toLocaleTimeString("zh-TW",{hour12:false})} 已保存），重新整理不會遺失`:"此瀏覽器無法保存回合資料（可能是私密瀏覽模式），重新整理後會還原範例";return ok}
 async function restoreRuns(){try{const d=await RunDB.get("runs");
-    if(!d||!Array.isArray(d.runs)||!d.runs.length||d.runs.every(r=>r.sample))return false;
+    if(!d||!Array.isArray(d.runs)||!d.runs.length)return false;
+    /* 只有與預設範例完全相同（名稱、設定、AOI 都沒改）時才不還原；改過的範例回合照樣還原 */
+    const sig=r=>JSON.stringify([r.name,r.cfg,r.aoi||null,r.rows.length]);
+    if(d.runs.every(r=>r.sample)&&d.runs.length===S.runs.length&&d.runs.every((r,i)=>sig(r)===sig(S.runs[i])))return false;
     S.runs=d.runs;S.cmpA=d.cmpA;S.cmpB=d.cmpB;S.runId=null;switchRun(S.runs.some(r=>r.id===d.runId)?d.runId:S.runs[0].id);
     toast(`已還原上次的 ${d.runs.length} 個試產回合（${new Date(d.savedAt).toLocaleString("zh-TW",{hour12:false})} 保存）`);return true}
   catch(e){return false}finally{saveGate=true}}
@@ -1897,15 +1900,20 @@ async function xlsxTable(buf){if(!window.DecompressionStream)throw new Error("�
   const sty=await get("xl/styles.xml"),dateXf=[];
   if(sty){const sd=xmlDoc(sty),custom={};X(sd,"numFmt").forEach(f=>custom[f.getAttribute("numFmtId")]=f.getAttribute("formatCode")||"");
     const xfs=X(sd,"cellXfs")[0];if(xfs)X(xfs,"xf").forEach((xf,i)=>{const id=+xf.getAttribute("numFmtId")||0,code=(custom[id]||"").replace(/"[^"]*"|\[[^\]]*\]|\\./g,"");dateXf[i]=(id>=14&&id<=22)||(id>=45&&id<=47)||/[ymdhs]/i.test(code)})}
-  let pick=null,name="";
+  /* 依序讀工作表：第一個「標題列能對應到量測欄位」的工作表優先；都沒有時才用第一個有 2 列以上的工作表 */
+  let pick=null,name="",fallback=null;
   for(const sh of sheets){const path=tgt(sh.getAttribute("r:id")||sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id"));const t=path&&await get(path);if(!t)continue;
-    const rows=X(xmlDoc(t),"row");if(rows.length>=2){pick=rows;name=sh.getAttribute("name")||"";break}}
+    const rows=X(xmlDoc(t),"row");if(rows.length<2)continue;const g=sheetGrid(rows);if(g.length<2)continue;
+    const m=autoMap(g[0].map(h=>h.trim()));if(["volume","height","area","offx","offy"].some(k=>m[k]!=null)){pick=g;name=sh.getAttribute("name")||"";break}
+    if(!fallback)fallback=[g,sh.getAttribute("name")||""]}
+  if(!pick&&fallback)[pick,name]=fallback;
   if(!pick)throw new Error("Excel 檔中找不到有資料的工作表（至少需要標題列與 1 列資料）");
-  const grid=[];for(const row of pick){const line=[];for(const c of X(row,"c")){const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t"),v=X(c,"v")[0];let val="";
+  const grid=pick;
+  function sheetGrid(rowsEl){const grid=[];for(const row of rowsEl){const line=[];for(const c of X(row,"c")){const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t"),v=X(c,"v")[0];let val="";
       if(t==="s")val=v?strs[+v.textContent]??"":"";else if(t==="inlineStr")val=X(c,"t").map(x=>x.textContent).join("");else if(t==="b")val=v&&v.textContent==="1"?"TRUE":"FALSE";
       else if(v){val=v.textContent;if(t!=="str"&&t!=="e"&&dateXf[+c.getAttribute("s")||0]&&isFinite(+val))val=xlDate(+val)}
       line[i]=safeId(String(val).replace(/[\r\n\t]+/g," "))}
-    if(line.some(x=>x!=null&&x!==""))grid.push(Array.from(line,x=>x??""))}
+    if(line.some(x=>x!=null&&x!==""))grid.push(Array.from(line,x=>x??""))}return grid}
   if(grid.length<2)throw new Error("至少需要標題列與 1 列資料");
   const w=grid[0].length,head=grid[0].map(h=>h.trim()),data=grid.slice(1).map(r=>{const o=r.slice(0,w);while(o.length<w)o.push("");return o.map(x=>x.trim())});
   return{tab:{head,data},note:sheets.length>1?`已讀取第一個有資料的工作表「${safeId(name)}」（共 ${sheets.length} 個工作表）`:""}}
@@ -1979,11 +1987,18 @@ try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>ren
 $(".tabs").addEventListener("scroll",tabFade,{passive:true});addEventListener("resize",tabFade);setTimeout(tabFade,0);
 if(!window.Chart)$("#libWarn").hidden=false;
 /* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
-const HAS_API=/\.netlify\.app$/.test(location.hostname)||/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-if(/\.netlify\.app$/.test(location.hostname)){$("#logoutLink").hidden=false;fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{if(j&&j.user){$("#userName").textContent=j.user;$("#userChip").hidden=false}}).catch(()=>{})}
+/* 本機開發（沒有登入後端）時也開放分享，方便測試 */
+const HAS_API=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+/* 是否有登入後端：以 /__me 實際回應判斷（自訂網域也適用），不依網址名稱 */
+const meP=typeof fetch==="function"&&/^https?:$/.test(location.protocol)&&!/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname)?fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>j&&j.user?j:null).catch(()=>null):Promise.resolve(null);
+meP.then(j=>{if(!j)return;$("#userName").textContent=j.user;$("#userChip").hidden=false;$("#logoutLink").hidden=false;if(window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}});
 /* ---------- 分享連結：壓縮後上傳到本網站（Netlify Blobs），連結需登入才能開啟，30 天失效 ---------- */
 async function gzipJSON(o){return new Uint8Array(await new Response(new Response(JSON.stringify(o)).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
-async function gunzipJSON(buf){return JSON.parse(await new Response(new Response(buf).body.pipeThrough(new DecompressionStream("gzip"))).text())}
+const SHARE_MAX=4*1048576,SHARE_RAW_MAX=200*1048576;
+/* 解壓時累計大小，超過上限就中止，避免異常的壓縮資料讓分頁記憶體爆掉 */
+async function gunzipJSON(buf,max=SHARE_RAW_MAX){const rd=new Response(buf).body.pipeThrough(new DecompressionStream("gzip")).getReader(),parts=[];let n=0;
+  for(;;){const{done,value}=await rd.read();if(done)break;n+=value.length;if(n>max){rd.cancel();throw new Error("分享資料解壓後超過 200 MB，已停止開啟")}parts.push(value)}
+  const all=new Uint8Array(n);let o=0;for(const x of parts){all.set(x,o);o+=x.length}return JSON.parse(new TextDecoder().decode(all))}
 /* 分享內容來自別人：所有字串都過濾，數值必須有限，避免注入 */
 function deepClean(v,d=0){if(d>12||v==null)return null;if(typeof v==="string")return safeId(v);if(typeof v==="number")return isFinite(v)?v:null;if(typeof v==="boolean")return v;
   if(Array.isArray(v))return v.map(x=>deepClean(x,d+1));if(typeof v==="object"){const o={};for(const k of Object.keys(v)){if(k==="__proto__"||k==="constructor"||k==="prototype")continue;o[safeId(k)]=deepClean(v[k],d+1)}return o}return null}
@@ -1992,7 +2007,7 @@ function sharePack(){const c=curRun();if(c)c.cfg=snapCfg();const cmp=S.tab==="co
   const runs=[...new Set(pick)].map(r=>({name:r.name,rows:r.rows,metrics:r.metrics,cfg:r.cfg,info:r.info,aoi:r.aoi}));
   return{kind:"spi-share",v:1,created:Date.now(),app:$("#appVer").textContent,runs,view:{tab:S.tab,metric:S.metric,group:S.group,board:S.board,cur:pick.indexOf(c),cmp}}}
 async function createShare(){const dlg=$("#shareDlg");$("#shareRow").hidden=true;$("#shareMsg").textContent="正在壓縮並上傳…";try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
-  try{const body=await gzipJSON(sharePack());if(body.length>5*1048576)throw new Error(`壓縮後仍有 ${(body.length/1048576).toFixed(1)} MB，超過分享上限 5 MB`);
+  try{const body=await gzipJSON(sharePack());if(body.length>SHARE_MAX)throw new Error(`壓縮後仍有 ${(body.length/1048576).toFixed(1)} MB，超過分享上限 4 MB`);
     const r=await fetch("/api/share",{method:"POST",headers:{"Content-Type":"application/gzip"},body});
     const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
     const url=`${location.origin}/?share=${j.id}`;$("#shareUrl").value=url;$("#shareRow").hidden=false;
@@ -2009,6 +2024,7 @@ async function openShareFromUrl(){const id=new URLSearchParams(location.search).
     const v=deepClean(d.view||{});if(v.cmp&&ids.length>1){S.cmpA=ids[0];S.cmpB=ids[1]}
     switchRun(ids[Math.max(0,Math.min(ids.length-1,v.cur|0))]);
     if(v.metric&&S.metrics.includes(v.metric))S.metric=v.metric;if(v.group&&(v.group==="ALL"||S.rows.some(x=>x.group===v.group)))S.group=v.group;
+    syncControls();recompute();if(v.board&&S.A.boards.includes(v.board)){S.board=v.board;$("#selBoard").value=v.board}
     syncControls();recompute();if(v.tab&&$(`.tab[data-tab="${v.tab}"]`))setTab(v.tab);saveRunsSoon();
     toast(`已開啟分享的 ${ids.length} 個回合`)}
   catch(e){toast("無法開啟分享連結："+e.message)}}
@@ -2029,7 +2045,7 @@ S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
 try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t){S.stencil=sv.t;S.htol={lo:sv.lo||75,hi:sv.hi||125};S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}
 initRuns(false);
-restoreRuns().then(()=>{if(HAS_API&&window.DecompressionStream)return openShareFromUrl()});
+restoreRuns().then(()=>meP).then(j=>{if((j||HAS_API)&&window.DecompressionStream)return openShareFromUrl()});
 const h=(location.hash||"").slice(1);
 if(["issues","overview","compare","dfm","control","capability","sim3d","cross","adv","lab","ai","data"].includes(h))setTab(h);
 })();

@@ -96,7 +96,7 @@ test("登入頁：品牌區、焊墊識別圖、顯示密碼、版本與主頁�
 // ---------- 多帳號、使用者識別、鎖定、安全標頭 ----------
 function memStore() {
   const m = new Map();
-  return { m, async get(k) { return m.has(k) ? JSON.parse(m.get(k)) : null; }, async setJSON(k, v) { m.set(k, JSON.stringify(v)); }, async delete(k) { m.delete(k); } };
+  return { m, async set(k, v) { m.set(k, v); }, async delete(k) { m.delete(k); }, async list({ prefix = "" } = {}) { return { blobs: [...m.keys()].filter((k) => k.startsWith(prefix)).map((key) => ({ key })) }; } };
 }
 const E2 = { AUTH_USERS: JSON.stringify({ "Alice@Example.com": await sha256Hex("alice-pass-1"), "bob@example.com": await sha256Hex("bob-pass-22"), "bad@x": "not-a-hash" }), AUTH_SECRET: "z".repeat(40) };
 
@@ -158,4 +158,17 @@ test("安全標頭：登入頁有 CSP、禁止被嵌入、HSTS；netlify.toml �
   const toml = fs.readFileSync(new URL("../netlify.toml", import.meta.url), "utf8");
   for (const h of ["Content-Security-Policy", "X-Frame-Options", "Strict-Transport-Security", "Permissions-Policy"]) assert.match(toml, new RegExp(h));
   assert.match(toml, /worker-src[^"\n]*blob:/, "背景計算需要 blob: worker");
+});
+
+test("AUTH_USERS 與舊設定同名時以 AUTH_USERS 為準（改密碼後舊密碼失效）", async () => {
+  const env = { AUTH_USER: "tester@example.com", AUTH_PASS_SHA256: await sha256Hex("old-pass"), AUTH_USERS: JSON.stringify({ "Tester@Example.com": await sha256Hex("new-pass") }), AUTH_SECRET: "z".repeat(40) };
+  assert.equal(await authenticate(env, "tester@example.com", "new-pass"), "tester@example.com");
+  assert.equal(await authenticate(env, "tester@example.com", "old-pass"), null);
+});
+
+test("鎖定：同時大量失敗不會因互相覆蓋而少算（每次失敗獨立記錄）", async () => {
+  const st = memStore(), t0 = 1_900_000_000_000;
+  await Promise.all(Array.from({ length: 12 }, (_, i) => handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "alice@example.com", pass: "x" + i }) }), E2, ok, { store: st, ip: "5.5.5." + i, now: t0, noDelay: true })));
+  const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "alice@example.com", pass: "alice-pass-1" }) }), E2, ok, { store: st, ip: "6.6.6.6", now: t0 + 10, noDelay: true });
+  assert.equal(r.status, 429);
 });
