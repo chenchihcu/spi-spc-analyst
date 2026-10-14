@@ -75,6 +75,11 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
 .sticky.compact{top:calc(-1 * var(--railH,0px))}
 /* 問題卡片：預設收合成一行 */
 details.iss-card{padding:0;gap:0}
+details.fm{border-top:1px solid var(--line)}details.fm:first-child{border-top:0}
+details.fm>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:6px 2px}
+details.fm>summary::-webkit-details-marker{display:none}details.fm>summary:hover{background:var(--surface2)}
+details.fm>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.fm-body{padding:2px 4px 10px 4px}.fm-body ul{margin:0;padding-left:1.1em}
 details.iss-card>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:2px 12px;align-items:center;padding:7px 14px;border-radius:var(--r)}
 details.iss-card>summary::-webkit-details-marker{display:none}
 details.iss-card>summary:hover{background:var(--surface2)}
@@ -278,7 +283,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.9.2</b> · 更新 <b class="num" id="appBuilt">2026-10-14 15:12:13</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 17:18:22</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -340,12 +345,11 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <div>
       <h2 id="issHead" style="font-size:20px">掃描中…</h2>
       <p class="note" id="issSub" style="margin:4px 0 0;max-width:80ch"></p>
+      <p id="fmLine" style="margin:6px 0 0;max-width:80ch"></p>
     </div>
     <div class="row"><button id="btnIssMd">匯出問題清單 .md</button><button id="btnIssCsv">.csv</button></div>
   </div>
   <details class="how"><summary>偵測邏輯</summary><p>系統自動掃描全部量測項目（體積、高度佔鋼板厚%、面積、X/Y 偏移），不受上方「量測項目」選擇影響，依十個面向找問題：單板突發（整板／局部元件群組）、拼板子板位置效應、系統性能力不足、焊墊位置長期偏離、持續漂移（CUSUM 回推起點）、空間梯度、刮刀前後差、擦拭週期、對位（平移／旋轉／伸縮）、設計 DFM（面積比、寬厚比、轉移效率），以及量測一致性。統計量採中位數與 MAD 等穩健方法，避免單一異常板拉偏基準。多個發現指向同一板、同一元件群組或同一焊墊時，互相列為佐證，佐證越多信心越高。「事實」為資料計算結果；「推論」為可能原因，需現場驗證。</p></details>
-  <div class="card" id="fmCard"><h3>失效模式交叉比對 <small>錫膏印刷的失效通常是多因素的：每個候選原因需至少兩個獨立面向（形狀、時間、空間、設計、對位、量測）支持且無矛盾，才判為「可能」</small></h3>
-    <div class="tbl"><table id="fmTbl"></table></div></div>
   <div class="card"><h3>問題地圖 <small id="pmapSub">每格一片板，顏色為該板最嚴重的問題；點格子只看該板相關問題</small></h3><div class="pmap" id="pmap"></div>
     <div class="legend" style="margin:8px 0 0"><span><i class="sq" style="background:var(--ng)"></i>嚴重</span><span><i class="sq" style="background:var(--warn)"></i>警示</span><span><i class="sq" style="background:var(--series2)"></i>資訊</span><span><i class="sq" style="background:var(--surface2);outline:1px solid var(--line)"></i>無問題</span></div></div>
   <div class="row" id="issFilter" role="group" aria-label="篩選問題"></div>
@@ -419,6 +423,8 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </section>
 
 <section class="panel" id="p-cross" role="tabpanel" hidden>
+  <div class="card" id="fmCard"><h3>失效模式交叉比對 <small>錫膏印刷的失效通常是多因素的：每個候選原因需至少兩個獨立面向（形狀、時間、空間、設計、對位、量測）支持且無矛盾，才判為「可能」</small></h3>
+    <div id="fmTbl"></div><p class="note" id="fmRest" style="margin:6px 0 0"></p></div>
   <div class="card"><h3>交叉驗證矩陣 <small>不同圖表與統計檢定是否指向同一結論</small></h3>
     <details class="how"><summary>怎麼看</summary><p>單一圖表容易誤判。當兩個以上獨立來源（例如 Ppk÷Cpk 與管制圖、X̄ 圖與 P 圖）指向同一結論，信心較高；彼此矛盾時，先檢查資料分層與量測系統，再下結論。</p></details>
     <div class="tbl"><table class="xv" id="xvTbl"></table></div></div>
@@ -432,7 +438,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   </div>
   <div class="grid2">
     <div class="card"><h3>元件群組比較 <small>平均 ± 1σ</small></h3><div class="chartbox"><canvas id="cGroups" role="img" aria-label="元件群組比較"></canvas></div></div>
-    <div class="card"><h3>X̄ 越界板 vs P 圖越界板 <small>兩張管制圖是否抓到同一批板</small></h3><div id="overlap"></div></div>
+    <div class="card"><h3>X̄ 越界板 vs P' 圖越界板 <small>兩張管制圖是否抓到同一批板</small></h3><div id="overlap"></div></div>
   </div>
 </section>
 
@@ -829,7 +835,7 @@ function analyze(st){
     else{const G=gStat.map(x=>{let ss=0,df=0;for(const bm of cellsB.values()){const v=bm.get(x.g);if(v&&v.length>1){const mu=mean(v);ss+=v.reduce((s,y)=>s+(y-mu)**2,0);df+=v.length-1}}
         const sw=df>0?Math.sqrt(ss/df):sd(x.v)||1e-9,sl=sd(x.v)||1e-9;return{g:x.g,...capOf(x.mu,sw,sl,x.v.length),ppmObs:x.v.filter(v=>v<sp.lsl||v>sp.usl).length/x.v.length*1e6}}).filter(x=>isFinite(x.cpk));
       const worst=G.reduce((w,x)=>!w||x.cpk<w.cpk?x:w,null),wp=G.reduce((w,x)=>!w||x.ppk<w.ppk?x:w,null);
-      cap={cp:Math.min(...G.map(x=>x.cp)),cpk:worst.cpk,pp:Math.min(...G.map(x=>x.pp)),ppk:wp.ppk,ci:worst.ci,n:worst.n,worst:worst.g,worstP:wp.g,
+      cap={cp:worst.cp,cpk:worst.cpk,pp:worst.pp,ppk:worst.ppk,ci:worst.ci,n:worst.n,mu:worst.mu,worst:worst.g,worstP:wp.g,
         ppmExp:G.reduce((s,x)=>s+x.ppmExp*x.n,0)/G.reduce((s,x)=>s+x.n,0),ppmObs,mixed:true,groups:G.sort((a,b)=>a.cpk-b.cpk),stable,ratio:sigmaW/sigmaLT}}
     if(cap&&!cap.mixed)cap.ratio=sigmaW/overallSd}
   const ad=andersonDarling(all.length>4000?all.filter((_,i)=>i%Math.ceil(all.length/4000)===0):all),sk=skewKurt(all);
@@ -1110,11 +1116,12 @@ function detectIssues(st){
   // 3. 持續漂移：CUSUM（板平均先縮尾，避免單板突發觸發），回推變化起點
   for(const k of MS){const bm=boardMeans(k);if(nb<8||bm.some(v=>!isFinite(v)))continue;
     const w=winsor(bm),mr=w.slice(1).map((v,i)=>Math.abs(v-w[i])),sB=mean(mr)/1.128,mu=mean(w);if(!(sB>0))continue;
-    let cp=0,cm=0,first=-1,dir=0;const cps=[],cms=[];
-    for(let i=0;i<nb;i++){const z=(w[i]-mu)/sB;cp=Math.max(0,z-.5+cp);cm=Math.max(0,-z-.5+cm);cps.push(cp);cms.push(cm);if(first<0&&(cp>5||cm>5)){first=i;dir=cp>5?1:-1}}
-    if(first<0)continue;const arr=dir>0?cps:cms;let s0=first;while(s0>0&&arr[s0-1]>0)s0--;
-    const after=w.slice(s0),before=w.slice(0,s0);if(after.length<2||before.length<3)continue;
-    const t=welch(after,before),d=mean(after)-mean(before);if(!t||t.p>=.01||Math.abs(d)<(spanOf(k)||0)*.03)continue;
+    let cp=0,cm=0;const cps=[],cms=[];
+    for(let i=0;i<nb;i++){const z=(w[i]-mu)/sB;cp=Math.max(0,z-.5+cp);cm=Math.max(0,-z-.5+cm);cps.push(cp);cms.push(cm)}
+    // 上、下兩個方向各自找第一次越過 h 的板並回推起點；以整批平均為基準時，後段上升會讓前段看起來「偏低」，起點在第 1 片的那一側不是變化點，改看另一側
+    const cand=[[1,cps],[-1,cms]].map(([dr,arr])=>{const fi=arr.findIndex(v=>v>5);if(fi<0)return null;let s=fi;while(s>0&&arr[s-1]>0)s--;
+      const af=w.slice(s),bf=w.slice(0,s);if(af.length<2||bf.length<3)return null;const tt=welch(af,bf),dd=mean(af)-mean(bf);if(!tt||tt.p>=.01||Math.abs(dd)<(spanOf(k)||0)*.03||Math.sign(dd)!==dr)return null;return{dir:dr,first:fi,s0:s,after:af,before:bf,t:tt,d:dd}}).filter(Boolean).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+    if(!cand.length)continue;const{dir,first,s0,after,before,t,d}=cand[0];
     add({lv:Math.abs(d)>=(spanOf(k)||1e9)*.08||(t&&t.p<.001)?"ng":"warn",cat:"趨勢漂移",sig:{t:"drift",k,dir,b:boards[s0]},title:`${lab(k)}自 ${boards[s0]} 起持續${dir>0?"上升":"下降"}`,ents:["drift:"+boards[s0]],score:3+Math.abs(d)/sB*.3,
       facts:[`${boards[s0]} 起 ${after.length} 片平均 ${f(mean(after),1)} ${u(k)}，之前 ${f(mean(before),1)}（差 ${sgn(d)}${f(d,1)}${t?`，p ${t.p<.001?"< 0.001":"= "+f(t.p,3)}`:""}）`,`CUSUM 於 ${boards[first]} 超過決策界限 h = 5σ（σ 取自板平均移動全距）`],
       cause:isOff(k)?"印刷機對位逐漸飄移或 PCB 批次漲縮差異":dir<0?"錫膏乾化或滾動量不足、刮刀壓力衰減、開孔逐漸堵塞；請對照加錫膏與擦拭時間點":"加入新錫膏後黏度改變、刮刀壓力上升或擦拭後殘錫",conf:"中",
@@ -1194,7 +1201,7 @@ function failureModes(st,F,c){const{R,boards,groups,MS,nb}=c,sg=t=>F.filter(x=>x
   // C3 堵孔：開孔緊（AR < 0.75）的群組，各板平均體積隨擦拭後片數下降（鋸齒）
   const N=Math.max(2,Math.round(st.wipe||5)),clog=[];
   if(nb>=2*N&&has("volume"))for(const g of tightAR){const bm=boards.map(b=>{const v=((c.idx[b]||{})[g]||[]).map(r=>r.volume).filter(v=>v!=null);return v.length?mean(v):NaN});if(bm.some(v=>!isFinite(v)))continue;
-    const w=wipeScan(detrend(winsor(bm),N),N);if(w&&w.slope<0&&w.p<.05/Math.max(1,tightAR.length))clog.push({g,p:w.p,sl:w.slope,b:boards[w.ph]})}
+    const w=wipeScan(detrend(winsor(bm),N),N);if(w&&w.slope<0&&-w.slope*(N-1)>=5&&w.p<.01/Math.max(1,tightAR.length))clog.push({g,p:w.p,sl:w.slope,b:boards[w.ph]})}
   // 支撐／密合：焊墊體積殘差（扣群組平均）若與「鄰近其他元件群組焊墊」的殘差相關，代表偏差跟著位置走（局部縫隙、支撐不足、鋼板變形），
   // 而不是同一封裝內的設計差異（那種差異只會在同群組內重複，不會傳到旁邊的其他元件）
   let persist=null;
@@ -1227,7 +1234,8 @@ function failureModes(st,F,c){const{R,boards,groups,MS,nb}=c,sg=t=>F.filter(x=>x
     M("開孔堵塞（Clogging）","細間距開孔孔壁殘錫累積，擦拭後逐片少錫",ev,!has("volume")?"缺體積欄位":null)}
   // 3 擦拭不足／底面污染
   {const ev=[],wa=W.filter(x=>(x.k==="area"||x.k==="volume")&&x.sl>0),wd=W.filter(x=>x.k==="area"&&x.sl<0);
-    if(wa.length)ev.push(E("時間",1,`擦拭後${wa.map(x=>METRICS[x.k].short).join("、")}逐片上升`,ids(wa)));if(wd.length)ev.push(E("時間",-1,"擦拭後面積逐片下降（與底面殘錫外擴相反）",ids(wd)));
+    if(wa.length)ev.push(E("時間",1,`擦拭後${wa.map(x=>METRICS[x.k].short).join("、")}逐片上升`,ids(wa)));
+    if(wa.some(x=>x.k==="area")&&!W.some(x=>x.k==="hpct"&&x.sl>0))ev.push(E("形狀",1,"面積隨擦拭後片數增加、高度未增加：錫膏在鋼板底面外擴，而非錫量增加"));if(wd.length)ev.push(E("時間",-1,"擦拭後面積逐片下降（與底面殘錫外擴相反）",ids(wd)));
     const brg=R.filter(r=>tg.area&&r.area!=null&&r.area>tg.area.usl).length/Math.max(1,R.filter(r=>r.area!=null).length);
     if(has("area")&&brg>.005)ev.push(E("形狀",1,`面積超上限（連錫風險）比例 ${f(brg*100,2)}%`));
     M("擦拭不足／鋼板底面污染","底面殘錫使錫膏外擴、連錫風險隨片數升高",ev,nb<2*N?`板數少於 2 個擦拭週期（${2*N} 片）`:null,"時間")}
@@ -1406,7 +1414,7 @@ function grrAnalyze(rows,m,tol){const R=rows.filter(r=>r[m]!=null),parts=[...new
 /* 匯出 CSV：文字以 = + - @ 或定位／換行字元開頭時前面加 '，避免在 Excel 開啟時被當成公式執行；純數值（含 -1.5、+3%）維持數值 */
 function toCSV(rows){return rows.map(r=>r.map(v=>{let s=v==null?"":String(v);if(typeof v==="string"&&/^[=+\-@\t\r]/.test(s)&&!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?%?$/i.test(s))s="'"+s;return/[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(",")).join("\n")}
 
-if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf};
+if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf};
 </script>
 <script>
 "use strict";
@@ -1597,8 +1605,8 @@ function renderIssues(){const F=S.F,c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]+
   const multi=F.filter(x=>x.corrob.length>=2).length;
   const Me=F.meta;
   $("#issSub").textContent=(F.length?`排序：嚴重度 → 佐證數 → 異常強度。${multi} 項有兩個以上其他發現互相佐證，建議優先處理。`:"十個面向皆在正常範圍；仍可至各頁籤檢視細節。")
-    +(Me&&Me.tests?` 單板異常共做 ${Me.tests.toLocaleString()} 次檢定（板 × 元件群組 × 量測項目），即使製程完全正常，依 |z| ≥ 3.5 門檻也預期約 ${f(Me.expFA,1)} 次誤報；另有效果量與不良數門檻，實際誤報更少。單一發現請搭配下方失效模式比對判讀。`:"");
-  renderFM();
+    +(Me&&Me.tests?` 單板異常共做 ${Me.tests.toLocaleString()} 次檢定（板 × 元件群組 × 量測項目），即使製程完全正常，依 |z| ≥ 3.5 門檻也預期約 ${f(Me.expFA,1)} 次誤報；另有效果量與不良數門檻，實際誤報更少。單一發現請搭配下一行的失效模式交叉比對判讀。`:"");
+  fmLine();
   renderPmap();
   const cats=[...new Set(F.map(x=>x.cat))];
   $("#issFilter").innerHTML=[["all","全部 "+F.length],["ng","嚴重 "+c.ng],["warn","警示 "+c.warn],["info","資訊 "+c.info]].map(([v,t])=>`<button class="chipbtn" data-lv="${v}" aria-pressed="${S.issLv===v}">${t}</button>`).join("")
@@ -1628,12 +1636,18 @@ function renderIssues(){const F=S.F,c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]+
   $$("#issList [data-go]").forEach(b=>b.onclick=()=>{const x=byId[+b.dataset.go];goto(x.go,x)});
   $$("#issList [data-jump]").forEach(b=>b.onclick=()=>flashIssue(+b.dataset.jump));
 }
+function fmLine(){const Me=S.F&&S.F.meta,el=$("#fmLine");if(!el)return;if(!Me||!Me.modes){el.innerHTML="";return}
+  const lk=Me.modes.filter(m=>m.verdict==="可能"),cf=Me.modes.filter(m=>m.verdict==="證據矛盾"||m.verdict==="待確認");
+  el.innerHTML=`<b>失效模式交叉比對：</b>${lk.length?`<span class="pill ng">可能</span> ${lk.map(m=>esc(m.name.split("（")[0])).join("、")}`:"沒有任何模式同時獲兩個以上獨立面向支持"}${cf.length?`；待確認／矛盾 ${cf.length} 項`:""} <button class="linkbtn" id="fmGo">查看證據 →</button>`;
+  $("#fmGo").onclick=()=>setTab("cross")}
 function renderFM(){const Me=S.F&&S.F.meta,box=$("#fmCard");if(!box)return;box.hidden=!(Me&&Me.modes&&Me.modes.length);if(box.hidden)return;
   const cls={"可能":"ng","證據矛盾":"warn","待確認":"warn","未見跡象":"ok","資料不足":"na"};
   const ev=(e,ok)=>`<li>${ok?"✓":"✗"} <b>${e.d}</b>：${esc(e.txt)}${e.ref&&e.ref.length?" "+e.ref.slice(0,4).map(i=>`<button class="linkbtn" data-fmjump="${i}">#${i}</button>`).join(" "):""}</li>`;
-  $("#fmTbl").innerHTML=`<thead><tr><th>候選失效模式</th><th>判讀</th><th>支持面向</th><th>證據（✓ 支持　✗ 矛盾）</th></tr></thead><tbody>`+Me.modes.map(m=>`<tr><td><b>${esc(m.name)}</b><br><span class="note">${esc(m.cause)}</span></td><td><span class="pill ${cls[m.verdict]}">${m.verdict}</span></td>
-    <td class="note">${m.dims.length?m.dims.join("、"):"—"}</td><td>${m.need?`<span class="note">${esc(m.need)}</span>`:""}${m.sup.length||m.con.length?`<ul style="margin:0;padding-left:1.1em">${m.sup.map(e=>ev(e,1)).join("")}${m.con.map(e=>ev(e,0)).join("")}</ul>`:m.need?"":'<span class="note">無相關證據</span>'}</td></tr>`).join("")+"</tbody>";
-  $$("#fmTbl [data-fmjump]").forEach(b=>b.onclick=()=>flashIssue(+b.dataset.fmjump))}
+  const act=Me.modes.filter(m=>m.verdict==="可能"||m.verdict==="證據矛盾"||m.verdict==="待確認"),rest=Me.modes.filter(m=>!act.includes(m));
+  $("#fmRest").innerHTML=rest.length?`未見跡象：${rest.filter(m=>m.verdict==="未見跡象").map(m=>esc(m.name.split("（")[0])).join("、")||"—"}${rest.some(m=>m.verdict==="資料不足")?`　｜　資料不足：${rest.filter(m=>m.verdict==="資料不足").map(m=>`${esc(m.name.split("（")[0])}（${esc(m.need)}）`).join("、")}`:""}`:"";
+  $("#fmTbl").innerHTML=!act.length?'<p class="note">沒有任何失效模式出現證據</p>':act.map(m=>`<details class="fm"><summary><span class="pill ${cls[m.verdict]}">${m.verdict}</span><b>${esc(m.name)}</b><span class="note">${m.dims.length?"支持面向："+m.dims.join("、"):""}${m.con.length?"　矛盾 "+m.con.length+" 項":""}</span></summary>
+    <div class="fm-body"><p class="note" style="margin:0 0 4px">可能原因：${esc(m.cause)}${m.key?`　｜　必要面向：${m.key}`:""}</p><ul>${m.sup.map(e=>ev(e,1)).join("")}${m.con.map(e=>ev(e,0)).join("")}</ul></div></details>`).join("");
+  $$("#fmTbl [data-fmjump]").forEach(b=>b.onclick=()=>{setTab("issues");setTimeout(()=>flashIssue(+b.dataset.fmjump),60)})}
 function issuesMd(){return`# SPI 問題偵測清單\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- 資料來源：${S.source}；鋼板 ${S.stencil} µm${S.step.on?"（階梯）":""}\n\n`+S.F.map(x=>`## #${x.id}［${LVL[x.lv]}］${x.title}\n\n- 面向：${x.cat}${x.corrob.length?`；佐證：${x.corrob.map(i=>"#"+i).join("、")}`:""}\n- 事實：\n${x.facts.map(t=>"  - "+t).join("\n")}\n- 推論（信心 ${x.conf}）：${x.cause}\n`).join("\n")+fmMd()}
 function fmMd(){const Me=S.F&&S.F.meta;if(!Me||!Me.modes)return"";
   return`\n## 失效模式交叉比對\n\n規則：至少兩個獨立面向支持、含必要面向且無矛盾，才判「可能」。單板異常共 ${Me.tests} 次檢定，全無異常時預期約 ${f(Me.expFA,1)} 次誤報。\n\n| 候選失效模式 | 判讀 | 支持面向 | 證據 |\n|---|---|---|---|\n`+Me.modes.map(m=>`| ${m.name} | ${m.verdict} | ${m.dims.join("、")||"—"} | ${[m.need||"",...m.sup.map(e=>"✓ "+e.d+"："+e.txt),...m.con.map(e=>"✗ "+e.d+"："+e.txt)].filter(Boolean).join("<br>").replace(/\|/g,"／")} |`).join("\n")+"\n"}
@@ -1733,12 +1747,12 @@ function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
     mk("cCtrl2",{type:"line",data:{labels:s.map(x=>x.lab),datasets:[{data:s.map(x=>x.v),borderColor:css("--series2"),borderWidth:1.4,pointRadius:s.map((x,i)=>x.v>uv[i]||x.v<lv[i]?5:2.5),pointBackgroundColor:s.map((x,i)=>x.v>uv[i]||x.v<lv[i]?ng:css("--series2")),pointBorderColor:"transparent"},
       {data:uv,borderColor:ng,borderDash:[6,4],borderWidth:1.2,pointRadius:0},{data:lv,borderColor:ng,borderDash:[6,4],borderWidth:1.2,pointRadius:0},{data:c==="imr"?s.map(()=>clv):s.map(x=>x.cl),borderColor:css("--accent"),borderWidth:1.2,pointRadius:0}]},options:baseOpts()})}
   const pts=A.series;
-  $("#nelsonTbl").innerHTML=`<thead><tr><th>規則</th><th>狀態</th><th>觸發點</th><th>錫膏印刷常見對應原因</th></tr></thead><tbody>`+A.nel.rules.map(r=>`<tr><td>${r.name}</td><td>${r.na?'<span class="pill">不適用</span>':r.idx.length?(r.id===7?'<span class="pill warn">觸發</span>':'<span class="pill ng">觸發</span>'):'<span class="pill ok">通過</span>'}</td><td class="mono" style="font-size:12px">${r.idx.length?r.idx.map(i=>pts[i].lab).join(" "):"—"}</td><td class="note">${r.na?"此管制圖不適用此規則（僅 X̄ / I-MR 使用全部 8 條；P' 圖用 1–4；EWMA / CUSUM 僅用 1）":r.hint}</td></tr>`).join("")+"</tbody>";
+  $("#nelsonTbl").innerHTML=`<thead><tr><th>規則</th><th>狀態</th><th>觸發點</th><th>錫膏印刷常見對應原因</th></tr></thead><tbody>`+A.nel.rules.map(r=>`<tr><td>${r.name}</td><td>${r.na?'<span class="pill na">不適用</span>':r.idx.length?(r.id===7?'<span class="pill warn">觸發</span>':'<span class="pill ng">觸發</span>'):'<span class="pill ok">通過</span>'}</td><td class="mono" style="font-size:12px">${r.idx.length?r.idx.map(i=>pts[i].lab).join(" "):"—"}</td><td class="note">${r.na?"此管制圖不適用此規則（僅 X̄ / I-MR 使用全部 8 條；P' 圖用 1–4；EWMA / CUSUM 僅用 1）":r.hint}</td></tr>`).join("")+"</tbody>";
 }
 
 /* ---------- 能力 ---------- */
 function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
-  const pre=cap?(A.stable?"":"製程未穩定，僅供參考 · ")+(cap.mixed?"最差群組 · ":""):"";
+  const pre=cap?(A.stable?"":"製程未穩定，僅供參考 · ")+(cap.mixed?`最差群組 ${cap.worst} · `:""):"";
   $("#capGrp").hidden=!(cap&&cap.mixed);
   if(cap&&cap.mixed)$("#capGrpTbl").innerHTML=`<thead><tr><th>元件群組</th><th>n</th><th>平均</th><th>Cp</th><th>Cpk</th><th>Cpk 95% 信賴區間</th><th>Ppk</th><th>預估 PPM</th><th>實測 PPM</th></tr></thead><tbody>`+cap.groups.map(g=>`<tr><td>${esc(g.g)}</td><td class="mono">${g.n}</td><td class="mono">${f(g.mu,1)}</td><td class="mono">${f(g.cp)}</td><td class="mono"><span class="pill ${capCls(g.cpk)}">${f(g.cpk)}</span></td><td class="mono">${f(g.ci[0])} – ${f(g.ci[1])}</td><td class="mono">${f(g.ppk)}</td><td class="mono">${fmtPpm(g.ppmExp)}</td><td class="mono">${fmtPpm(g.ppmObs)}</td></tr>`).join("")+"</tbody>";
   $("#capKpis").innerHTML=cap?kpi("CP",f(cap.cp),pre+"短期潛在能力",capCls(cap.cp))+kpi("CPK",f(cap.cpk),pre+`短期實際能力 · 95% 信賴區間 ${f(cap.ci[0])} – ${f(cap.ci[1])}`,capCls(cap.cpk))+kpi("PP",f(cap.pp),"長期潛在能力",capCls(cap.pp))+kpi("PPK",f(cap.ppk),"長期實際能力",capCls(cap.ppk))+kpi("預估 PPM",fmtPpm(cap.ppmExp),cap.mixed?"各群組常態預估加權":"常態假設下超規",cap.ppmExp>2700?"ng":cap.ppmExp>63?"warn":"ok")+kpi("實測 PPM",fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok")
@@ -1773,7 +1787,7 @@ function drawPareto(id){const P=Object.entries(S.A.pareto).sort((a,b)=>b[1]-a[1]
   if(!P.length){const c=document.getElementById(id);}}
 
 /* ---------- 交叉驗證 ---------- */
-function renderCross(){const A=S.A,lab={ok:"一致 / 正常",warn:"警示",ng:"異常",na:"無法判定"};
+function renderCross(){const A=S.A,lab={ok:"一致 / 正常",warn:"警示",ng:"異常",na:"無法判定"};renderFM();
   $("#xvTbl").innerHTML=`<thead><tr><th>驗證面向</th><th>證據來源</th><th>判定</th><th>依據（事實）</th></tr></thead><tbody>`+A.xv.rows.map(x=>`<tr><td>${x.k}</td><td class="note">${x.src}</td><td><span class="pill ${x.st}">${lab[x.st]}</span></td><td>${x.ev}</td></tr>`).join("")+"</tbody>";
   const hv=S.rows.filter(r=>(S.group==="ALL"||r.group===S.group)&&r.height!=null&&r.area!=null),step=Math.max(1,Math.floor(hv.length/1500));
   const ok=[],bad=[];hv.forEach((r,i)=>{if(i%step&&!classify(r,S.specs,S).length)return;(classify(r,S.specs,S).length?bad:ok).push({x:r.area,y:r.height,r})});
@@ -1852,7 +1866,7 @@ function renderAdv(){const A=S.A;V=advAnalyze(S,A);const ink=css("--muted"),grid
       options:baseOpts({indexAxis:"y",scales:{x:{...ax(METRICS[A.m].short+"（"+METRICS[A.m].unit+"）· 平均與 95% 信賴區間")},y:{ticks:{color:ink,font:{size:11}},grid:{display:false}}},plugins:{legend:{display:false},vlines:{},tooltip:{enabled:false}}})});
     $("#strokeTxt").innerHTML=`<span class="pill ${sk.p<.05?"warn":"ok"}">${sk.p<.05?"有顯著差異":"無顯著差異"}</span> 差值 <b class="mono">${f(sk.ma-sk.mb,2)}</b> ${METRICS[A.m].unit}，t = ${f(sk.t,2)}，df = ${f(sk.df,1)}，p = <b class="mono">${sk.p<.001?"< 0.001":f(sk.p,3)}</b>`}
   // 擦拭
-  const W=V.wipe;$("#inWipe").value=W.N;$("#wipeSub").textContent=`每 ${W.N} 片擦拭 · 推定擦拭後第 1 片為 ${W.first||"—"}（已掃描 ${W.N} 種起點，p 值已校正）`;
+  const W=V.wipe;$("#inWipe").value=W.N;$("#wipeSub").textContent=`每 ${W.N} 片擦拭 · `+(W.p<.05?`推定擦拭後第 1 片為 ${W.first}（已掃描 ${W.N} 種起點，p 值已校正）`:`未找到明顯週期（已掃描 ${W.N} 種起點）；下圖以最接近的起點 ${W.first||"—"} 分組`);
   mk("cWipe",{type:"bar",data:{labels:W.rows.map(w=>"第 "+w.k+" 片"),datasets:[{data:W.rows.map(w=>w.mean),backgroundColor:css("--series2")+"AA",yAxisID:"y",order:2},{type:"line",data:W.rows.map(w=>w.p*100),borderColor:css("--accent"),pointRadius:3,borderWidth:1.6,yAxisID:"y2",order:1}]},
     options:baseOpts({scales:{x:{ticks:{color:ink,font:{size:11}},grid:{display:false}},y:{...ax(METRICS[A.m].short+" 平均"),min:Math.min(...W.rows.map(w=>w.mean))-Math.max(1,A.overallSd*.3)},y2:{position:"right",min:0,ticks:{color:ink,callback:v=>v+"%",font:{family:"IBM Plex Mono",size:10}},grid:{display:false},title:{display:true,text:"不良率",color:ink,font:{size:11}}}},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>i.datasetIndex?"不良率 "+f(i.raw,2)+" %":"平均 "+f(i.raw,2)+" "+METRICS[A.m].unit}}}})});
