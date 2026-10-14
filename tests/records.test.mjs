@@ -114,8 +114,6 @@ test("限制：未登入、跨站、格式錯誤、檔案過大、解壓炸彈�
   assert.equal((await handleRecords(new Request(U), st)).status, 401, "沒有登入者");
   const cross = await handleRecords(new Request(U, { method: "POST", body: gzipSync("x"), headers: { "x-spi-user": "a", origin: "https://evil.example", "x-rec-meta": encodeURIComponent(JSON.stringify(spi())) } }), st);
   assert.equal(cross.status, 403);
-  const notGz = await handleRecords(new Request(U, { method: "POST", body: "plain text that is long enough", headers: { "x-spi-user": "a", "x-rec-meta": encodeURIComponent(JSON.stringify(spi())) } }), st);
-  assert.equal(notGz.status, 400);
   const badMeta = await handleRecords(new Request(U, { method: "POST", body: gzipSync("x"), headers: { "x-spi-user": "a", "x-rec-meta": "%E0%A4%A" } }), st);
   assert.equal(badMeta.status, 400);
   const big = await handleRecords(new Request(U, { method: "POST", body: new Uint8Array(MAX_GZ + 1), headers: { "x-spi-user": "a", "x-rec-meta": encodeURIComponent(JSON.stringify(spi())) } }), st);
@@ -125,4 +123,52 @@ test("限制：未登入、跨站、格式錯誤、檔案過大、解壓炸彈�
   assert.equal((await req(st, "?id=../index.json")).status, 400);
   assert.equal((await req(st, "?id=x", "DELETE")).status, 400);
   assert.equal(st.m.size, 0, "失敗的請求不留任何資料");
+});
+
+test("不支援壓縮的瀏覽器：可直接上傳原始檔、以 raw=1 取回原始檔，指紋相同", async () => {
+  const st = memStore();
+  const r = await handleRecords(new Request(U, { method: "POST", body: RAW, headers: { "x-spi-user": "a@x.tw", "content-type": "application/octet-stream", "x-rec-meta": encodeURIComponent(JSON.stringify(spi())) } }), st);
+  assert.equal(r.status, 201);
+  const { record } = await r.json();
+  assert.equal(record.sha256, createHash("sha256").update(RAW).digest("hex"));
+  const gz = await req(st, `?id=${record.id}`);
+  assert.equal(gunzipSync(Buffer.from(await gz.arrayBuffer())).toString(), RAW, "存檔仍為 gzip");
+  const raw = await req(st, `?id=${record.id}&raw=1`);
+  assert.equal(Buffer.from(await raw.arrayBuffer()).toString(), RAW);
+});
+
+test("重複判定包含面別、加工廠格式與座標檔：任一不同就另存，避免回合引用錯的設定", async () => {
+  const st = memStore();
+  assert.equal((await post(st, spi())).status, 201);
+  assert.equal((await post(st, spi({ side: "BOT" }))).status, 201, "改了面別");
+  assert.equal((await post(st, spi({ placeId: "A".repeat(22) }))).status, 201, "改了座標檔");
+  assert.equal((await post(st, spi({ vendor: "generic" }))).status, 201, "改了格式");
+  assert.equal((await post(st, spi({ side: "BOT" }))).status, 409, "全部相同才算重複");
+});
+
+test("同時上傳同一檔：後到者的 409 也帶既有紀錄代碼", async () => {
+  const st = memStore();
+  // 讓兩個請求都先通過第一次重複檢查：先讀索引，再一起寫
+  const [a, b] = await Promise.all([post(st, spi()), post(st, spi())]);
+  const codes = [a.status, b.status].sort();
+  assert.deepEqual(codes, [201, 409]);
+  const win = await (a.status === 201 ? a : b).json(), lose = await (a.status === 409 ? a : b).json();
+  assert.equal(lose.existing, win.record.id);
+  assert.equal((await (await req(st, "")).json()).records.length, 1);
+});
+
+test("稽核紀錄寫入失敗時：刪除不會發生（可重試），新增不會留下沒有稽核紀錄的資料", async () => {
+  const st = memStore();
+  const { record } = await (await post(st, spi())).json();
+  const orig = st.setJSON.bind(st); let fail = true;
+  st.setJSON = async (k, v, o) => { if (k.startsWith("log/") && fail) { fail = false; throw new Error("blob 暫時錯誤"); } return orig(k, v, o); };
+  assert.equal((await req(st, `?id=${record.id}`, "DELETE")).status, 503);
+  assert.equal((await (await req(st, "")).json()).records.length, 1, "稽核寫不進去就不刪");
+  assert.equal((await req(st, `?id=${record.id}`, "DELETE")).status, 200, "重試成功");
+  const { entries } = await (await req(st, "?audit=1")).json();
+  assert.deepEqual(entries.map((e) => e.action), ["delete", "create"]);
+  fail = true;
+  assert.equal((await post(st, spi({ lot: "L-NEW" }))).status, 503);
+  assert.equal((await (await req(st, "")).json()).records.length, 0, "新增時稽核失敗不留資料");
+  assert.equal([...st.m.keys()].filter((k) => k.startsWith("f/")).length, 0, "也不留檔案");
 });
