@@ -3,7 +3,7 @@
   publish = "."
   command = ""
 
-# 後端函式：/api/analyze（AI 分析，透過 Netlify AI Gateway 呼叫 Claude）、/api/share（分享連結，存於 Netlify Blobs，30 天失效）
+# 後端函式：/api/analyze（AI 分析，透過 Netlify AI Gateway 呼叫 Claude）、/api/share（分享連結，存於 Netlify Blobs，30 天失效）、/api/records（量測紀錄與座標檔資料庫，Netlify Blobs，永久保存）
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"

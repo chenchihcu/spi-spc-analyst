@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML } = require("./_load.js");
+const { HTML, withIdb } = require("./_load.js");
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function page() {
@@ -20,6 +20,7 @@ function page() {
     w.Chart = class { constructor() {} destroy() {} static register() {} };
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
     w.addEventListener("error", (e) => errs.push(e.message));
+    withIdb(w);
   } });
   return { dom, errs };
 }
@@ -27,7 +28,7 @@ async function pick(dom, sel, name, bytes) {
   const w = dom.window, inp = w.document.querySelector(sel);
   Object.defineProperty(inp, "files", { configurable: true, value: [new w.File([bytes], name)] });
   inp.dispatchEvent(new w.Event("change"));
-  for (let i = 0; i < 100; i++) { await tick(20); const d = w.document; if (sel === "#placeIn" ? /個元件|err/.test(d.querySelector("#placeState").innerHTML) && !/未載入/.test(d.querySelector("#placeState").textContent) : (!d.querySelector("#mapBox").hidden || d.querySelector("#parseErr").textContent)) break; }
+  for (let i = 0; i < 100; i++) { await tick(20); const d = w.document; if (sel === "#placeIn" ? /已存入資料庫|class="err"/.test(d.querySelector("#placeState").innerHTML) : (!d.querySelector("#mapBox").hidden || d.querySelector("#parseErr").textContent)) break; }
 }
 function setVendor(dom, v) { const s = dom.window.document.querySelector("#selVendor"); s.value = v; s.dispatchEvent(new dom.window.Event("change")); }
 
@@ -46,8 +47,9 @@ test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標�
   setVendor(dom, "lirong");
   assert.equal(d.querySelector("#sideField").hidden, false, "選立榮後顯示面別");
   assert.equal(d.querySelector("#placeRow").hidden, false, "選立榮後顯示座標檔");
+  d.querySelector("#placePart").value = "DEMO-01"; d.querySelector("#placeRev").value = "V5";
   await pick(dom, "#placeIn", "X3000_place.csv", Buffer.from(PLACE));
-  assert.match(d.querySelector("#placeState").textContent, /3 個元件（TOP 2、BOT 1），單位 mil（自動判斷）/);
+  assert.match(d.querySelector("#placeState").textContent, /料號 DEMO-01 版本 V5 · .*3 個元件（TOP 2、BOT 1），單位 mil（自動判斷） · 已存入資料庫/);
   await pick(dom, "#fileIn", "DEMO-01_TOP_spi.csv", Buffer.from(WIDE));
   assert.equal(d.querySelector("#parseErr").textContent, "");
   const prev = d.querySelector("#mapPrev").textContent;
@@ -57,6 +59,8 @@ test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標�
   assert.match(prev, /1 列的焊墊編號錯放/);
   assert.match(prev, /14 筆、3 片板、5 個焊墊位置/, "G9 第 1 片板未量測，共 5×3−1 筆");
   assert.equal(d.querySelector("#inRunName").value, "DEMO-01_TOP_spi");
+  assert.equal(d.querySelector("#inPart").value, "DEMO-01", "料號預填座標檔料號");
+  d.querySelector("#inLot").value = "LOT-A";
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
   const rows = JSON.parse(w.eval("JSON.stringify(S.rows)"));
@@ -83,6 +87,7 @@ test("立榮格式：面別依檔名判斷，座標檔面別不符時提醒；�
   await tick(60);
   const d = dom.window.document;
   setVendor(dom, "lirong");
+  d.querySelector("#placePart").value = "DEMO"; d.querySelector("#placeRev").value = "V1";
   await pick(dom, "#placeIn", "place.csv", Buffer.from(PLACE));
   await pick(dom, "#fileIn", "DEMO_BOT.csv", Buffer.from(WIDE));
   assert.match(d.querySelector("#mapPrev").textContent, /BOT 面/);
@@ -114,6 +119,7 @@ test("座標檔為 Big5 編碼（台灣廠商常見）也能讀", { skip: !JSDOM
   setVendor(dom, "lirong");
   // 標題「位號,X,Y,封裝」以 Big5 編碼
   const bytes = Buffer.concat([Buffer.from("a6ecb8b9", "hex"), Buffer.from(",X,Y,"), Buffer.from("abcab8cb", "hex"), Buffer.from("\nC1,10.5,20,C0402\nR2,30,5,R0603\n")]);
+  d.querySelector("#placePart").value = "B5"; d.querySelector("#placeRev").value = "A";
   await pick(dom, "#placeIn", "big5.csv", bytes);
   assert.match(d.querySelector("#placeState").textContent, /2 個元件.*單位 mm/);
 });

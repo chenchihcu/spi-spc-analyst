@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const { HTML } = require("./_load");
+const { HTML, withIdb } = require("./_load");
 
 let JSDOM, VirtualConsole;
 try { ({ JSDOM, VirtualConsole } = require("jsdom")); } catch { /* 未安裝 jsdom 時略過 */ }
@@ -23,6 +23,7 @@ test("所有頁籤與主要流程無執行錯誤", { skip: !JSDOM && "未安裝 
       w.scrollTo = () => {};
       w.Chart = class { constructor(_c, cfg) { if (!cfg || !cfg.data) throw new Error("圖表設定錯誤"); } destroy() {} static register() {} };
       w.claude = { use: async (n) => (n === "downloads" ? { save: async () => {} } : null) };
+      withIdb(w);
     },
   });
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
@@ -47,9 +48,9 @@ test("所有頁籤與主要流程無執行錯誤", { skip: !JSDOM && "未安裝 
   assert.equal(d.querySelectorAll("#issList details.iss-card[open]").length, 0, "全部收合");
   // 頂端不再重複規格輸入；資料與規格頁分為子分頁
   assert.equal(d.querySelector("#inLsl"), null, "規格輸入只保留在資料與規格頁");
-  assert.equal(d.querySelectorAll("#p-data .subtab").length, 3);
+  assert.equal(d.querySelectorAll("#p-data .subtab").length, 4);
   // 子分頁鍵盤：只有選取中的在 Tab 順序，左右鍵切換
-  assert.deepEqual([...d.querySelectorAll("#p-data .subtab")].map((b) => b.tabIndex), [0, -1, -1]);
+  assert.deepEqual([...d.querySelectorAll("#p-data .subtab")].map((b) => b.tabIndex), [0, -1, -1, -1]);
   d.querySelector("#p-data .subtabs").dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
   assert.equal(d.querySelector('#p-data .subtab[data-sub="runs"]').getAttribute("aria-selected"), "true", "右鍵切到回合管理");
   d.querySelector("#p-data .subtabs").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
@@ -84,11 +85,17 @@ test("匯入資料中的 HTML 不會被執行（XSS）", { skip: !JSDOM && "未�
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
     Object.defineProperty(w.HTMLElement.prototype, "offsetParent", { get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; } });
     w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
-    w.Chart = class { constructor() {} destroy() {} static register() {} }; } });
+    w.Chart = class { constructor() {} destroy() {} static register() {} }; withIdb(w); } });
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
   await new Promise((r) => setTimeout(r, 50));
   const csv = "Board,Pad,Component,Result,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `"B${Math.floor(i / 6) + 1}<img src=x onerror=1>",P${i % 6}<b>x</b>,U<svg onload=1>1,"NG<img src=y>",${i === 13 ? 40 : 100 + (i % 5)},120,${i === 13 ? 40 : 100}`).join("\n");
-  $("[data-tab=data]").click(); $("#pasteIn").value = csv; $("#btnRead").click(); $("#inRunName").value = "<img src=z onerror=1>"; $("#btnApply").click();
+  $("[data-tab=data]").click(); $("#pasteIn").value = csv; $("#btnRead").click(); $("#inRunName").value = "<img src=z onerror=1>";
+  $("#inLot").value = "L1<img src=q onerror=1>"; $("#inPart").value = "P<svg onload=1>"; $("#btnApply").click();
+  for (let i = 0; i < 100 && w.eval("S.runs.length") < 3; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(w.eval("S.runs.length"), 3, "存入資料庫後建立回合");
+  $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $('.subtab[data-sub="runs"]').click(); $('.subtab[data-sub="records"]').click();
+  await new Promise((r) => setTimeout(r, 200));
+  assert.match($("#recSpi").textContent, /L1/);
   for (const t of ["issues", "overview", "compare", "dfm", "control", "capability", "sim3d", "cross", "adv", "lab", "data"]) $(`[data-tab=${t}]`).click();
   assert.equal(d.querySelectorAll("img[onerror],svg[onload]").length, 0, "不應出現注入的 img／svg");
   assert.equal([...d.querySelectorAll("b")].filter((b) => b.textContent === "x").length, 0, "不應出現注入的 <b>");

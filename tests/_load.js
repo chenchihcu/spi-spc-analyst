@@ -27,4 +27,12 @@ function baseState(core, extra = {}) {
   };
 }
 
-module.exports = { loadCore, baseState, HTML };
+// jsdom 沒有 IndexedDB：每個測試頁面給一個獨立的記憶體版（資料庫功能在 claude.ai／本機檔案時存在瀏覽器）
+function withIdb(w) {
+  const { IDBFactory, IDBKeyRange } = require("fake-indexeddb");
+  w.indexedDB = new IDBFactory(); w.IDBKeyRange = IDBKeyRange;
+  if (!w.TextEncoder) w.TextEncoder = TextEncoder; // jsdom 沒有，瀏覽器都有
+  if (!w.TextDecoder) w.TextDecoder = TextDecoder;
+}
+
+module.exports = { loadCore, baseState, HTML, withIdb };
