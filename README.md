@@ -61,6 +61,14 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 - 分享連結：`/api/share` 把瀏覽器壓縮後的回合資料（上限 4 MB）存在 Netlify Blobs `spi-share`，30 天後失效；排程函式 `share-cleanup` 每日刪除過期資料。
 - 安全標頭（CSP、X-Frame-Options、HSTS、Permissions-Policy）設定在 `netlify.toml` 與登入頁。
 
+## 發版流程（每次改版必做）
+
+1. 更新版本號與更新時間（UTC+8，`YYYY-MM-DD HH:MM:SS`）：`spi-spc.html` 的 `#appVer`／`#appBuilt`、`lib/version.mjs`、`CHANGELOG.md` 最上方條目，三處相同。
+2. `npm test` 與 `npm run release-check` 皆通過（READY）。
+3. 合併到 `main`，Netlify 自動部署；確認部署狀態為 ready。
+4. **同步 claude.ai 成品**：用同一份 `spi-spc.html` 更新 claude.ai 成品「SPI·SPC 分析台」（同一個網址，附上 `vendor/` 函式庫與字型），讓成品與 Netlify 顯示**相同的版本號與更新時間**。
+5. 核對兩邊頁首的版本與更新時間一致後才算完成。
+
 ## 已知限制
 
 - 試產回合、鋼板設定與機台格式設定檔存在各自電腦的瀏覽器，不會跨電腦同步（要給別人看請用分享連結）；私密瀏覽模式下無法保存。
