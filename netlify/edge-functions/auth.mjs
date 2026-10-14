@@ -116,8 +116,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);
 .brand{background:var(--brand-bg);color:var(--brand-ink);padding:36px 32px;display:flex;flex-direction:column;justify-content:space-between;gap:28px}
 .brand h1{margin:0;font:600 40px/1 var(--f-display);letter-spacing:.02em;color:var(--brand-accent)}
 .brand .sub{margin:8px 0 0;color:var(--brand-muted);font-size:13px;letter-spacing:.06em}
-.art{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;max-width:300px}
-.pad{aspect-ratio:1.6;border-radius:2px;background:var(--paste)}
+.art{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:300px}
+.pad{aspect-ratio:1.6;min-width:0;border-radius:2px;background:var(--paste)}
 .pad.r{aspect-ratio:1;border-radius:50%}
 .pad:nth-child(7n+3){background:var(--paste-dim)}
 .pad.bad{background:var(--paste-bad);box-shadow:0 0 0 3px rgba(236,111,96,.25);animation:pulse 2.4s ease-in-out infinite}
