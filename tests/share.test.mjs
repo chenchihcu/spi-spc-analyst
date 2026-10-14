@@ -141,3 +141,13 @@ test("頁面：自訂網域也能偵測到登入後端（以 /__me 判斷），�
   assert.equal(d.querySelector("#logoutLink").hidden, false);
   assert.equal(d.querySelector("#btnShare").hidden, false);
 });
+
+test("分享資料每日清除：過期或缺少到期資訊者刪除，未過期者保留", async () => {
+  const { purgeExpired } = await import("../netlify/functions/share-cleanup.mjs");
+  const m = new Map([["a", { metadata: { exp: 100 } }], ["b", { metadata: { exp: 5000 } }], ["c", { metadata: {} }]]);
+  const st = { async list() { return { blobs: [...m.keys()].map((key) => ({ key })) }; }, async getMetadata(k) { return m.get(k) || null; }, async delete(k) { m.delete(k); } };
+  assert.equal(await purgeExpired(st, 1000), 2);
+  assert.deepEqual([...m.keys()], ["b"]);
+  const { config } = await import("../netlify/functions/share-cleanup.mjs");
+  assert.equal(config.schedule, "@daily");
+});

@@ -139,7 +139,8 @@ test("鎖定：同一帳號連續失敗 5 次即鎖定，鎖定中正確密碼�
   const locked = await tryLogin("bob-pass-22", t0 + 200, "10.9.9.9");
   assert.equal(locked.status, 429);
   assert.match(await locked.text(), /嘗試次數過多/);
-  assert.equal((await tryLogin("bob-pass-22", t0 + 100 + LOCK.lockMs + 10, "10.9.9.9")).status, 303, "鎖定期滿可登入");
+  assert.equal((await tryLogin("bob-pass-22", t0 + 200 + LOCK.lockMs - 10, "10.9.9.9")).status, 429, "鎖定中再嘗試會延長鎖定");
+  assert.equal((await tryLogin("bob-pass-22", t0 + 200 + 2 * LOCK.lockMs, "10.9.9.9")).status, 303, "最後一次嘗試後滿 15 分鐘可登入");
 });
 
 test("鎖定：同一 IP 對多個帳號亂試也會被鎖", async () => {
@@ -171,4 +172,26 @@ test("鎖定：同時大量失敗不會因互相覆蓋而少算（每次失敗�
   await Promise.all(Array.from({ length: 12 }, (_, i) => handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "alice@example.com", pass: "x" + i }) }), E2, ok, { store: st, ip: "5.5.5." + i, now: t0, noDelay: true })));
   const r = await handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "alice@example.com", pass: "alice-pass-1" }) }), E2, ok, { store: st, ip: "6.6.6.6", now: t0 + 10, noDelay: true });
   assert.equal(r.status, 429);
+});
+
+test("密碼紀錄：支援加鹽 PBKDF2（新）與 SHA-256（舊）；同一密碼每次產生的紀錄不同；改密碼後舊登入失效", async () => {
+  const { makeCred } = await import("../lib/auth-core.mjs");
+  const c1 = await makeCred("pbkdf-pass-9"), c2 = await makeCred("pbkdf-pass-9");
+  assert.match(c1, /^pbkdf2-sha256\$100000\$/);
+  assert.notEqual(c1, c2, "每個紀錄各自隨機加鹽");
+  const env = { AUTH_USERS: JSON.stringify({ "p@x.com": c1, "legacy@x.com": await sha256Hex("old-style-1") }), AUTH_SECRET: "z".repeat(40) };
+  assert.equal(await authenticate(env, "p@x.com", "pbkdf-pass-9"), "p@x.com");
+  assert.equal(await authenticate(env, "p@x.com", "pbkdf-pass-8"), null);
+  assert.equal(await authenticate(env, "legacy@x.com", "old-style-1"), "legacy@x.com");
+  const t = await issueToken(env, "p@x.com", 1_800_000_000);
+  assert.equal(await verifyToken(env, t, 1_800_000_100), "p@x.com");
+  const changed = { ...env, AUTH_USERS: JSON.stringify({ "p@x.com": c2 }) };
+  assert.equal(await verifyToken(changed, t, 1_800_000_100), null, "換新紀錄（新鹽）後舊登入失效");
+});
+
+test("鎖定：同時送出大量嘗試時，最多只有 5 次會進到密碼驗證（先登記再驗證）", async () => {
+  const st = memStore(), t0 = 1_900_000_000_000;
+  const rs = await Promise.all(Array.from({ length: 20 }, (_, i) => handle(new Request("https://s.example/__login", { method: "POST", body: form({ user: "bob@example.com", pass: "guess" + i }) }), E2, ok, { store: st, ip: "7.7.7." + i, now: t0, noDelay: true })));
+  const evaluated = rs.filter((r) => r.status !== 429).length;
+  assert.ok(evaluated <= LOCK.maxFails, `進到驗證的次數 ${evaluated}`);
 });
