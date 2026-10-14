@@ -87,7 +87,7 @@ test("規格來源：與機台判定一致時好壞以機台為準，規格窗�
   const m = c.machineSpecs(rows, st(rows), c.DEF_SPECS);
   const pass = rows.filter((r) => !r.mNG).map((r) => r.volume);
   assert.ok(m.specs.volume.lsl <= Math.min(...pass) && m.specs.volume.usl >= Math.max(...pass));
-  assert.equal(m.specs.volume.lsl % 5, 0);
+  assert.equal(m.specs.volume.lsl, Math.min(...pass), "不向外取整：規格窗就是 PASS 實際範圍（能力為下限）");
   const S = st(rows, { specSrc: "machine", specs: m.specs });
   assert.ok(rows.every((r) => (c.classify(r, S.specs, S).length > 0) === r.mNG), "判定與機台完全一致");
   assert.deepEqual([...c.classify({ ...rows[0], mNG: true, volume: 100, area: 100, height: 120, offx: 0, offy: 0 }, S.specs, S)], ["MNG"]);
@@ -167,4 +167,23 @@ test("失效模式：對位平移、旋轉、伸縮分別被辨識", () => {
   assert.deepEqual([...al.find((x) => x.sig.ty === "tr").sig.bs], ["B05"]);
   assert.notEqual(M["對位平移"].verdict, "未見跡象");
   assert.notEqual(M["旋轉／伸縮"].verdict, "未見跡象");
+});
+
+test("進階分析刮刀比較：資料有方向欄位時依欄位分組（與問題偵測一致）", () => {
+  const rows = c.sampleData(), S = st(rows), A = c.analyze(S), V = c.advAnalyze(S, A);
+  assert.equal(V.strokeFromField, true);
+  assert.deepEqual([...V.strokeLabel], ["方向 前", "方向 後"]);
+  const noField = rows.map(({ stroke, ...r }) => r), S2 = st(noField), V2 = c.advAnalyze(S2, c.analyze(S2));
+  assert.equal(V2.strokeFromField, false);
+});
+
+test("機台規格：群組某量測項目有效值不足 20 筆時沿用全板推估；試產比較整體 Ppk 取最差群組", () => {
+  const rows = synth({ nb: 8 }).map((r, i) => ({ ...r, result: "PASS", mNG: false, area: r.group === "FINE" && i % 50 ? null : r.area }));
+  const m = c.machineSpecs(rows, st(rows), c.DEF_SPECS);
+  assert.deepEqual({ ...m.groups.FINE.area }, { ...m.specs.area }, "FINE 面積有效值不足，沿用全板");
+  assert.notDeepEqual({ ...m.groups.FINE.volume }, { ...m.specs.volume }, "FINE 體積有足夠資料，用群組推估");
+  const S = st(rows, { specSrc: "machine", specs: m.specs, specsG: m.groups });
+  const out = c.compareRuns(S, S, "volume"), all = out.find((x) => x.g === "整體");
+  const worst = Math.min(...out.filter((x) => x.g !== "整體").map((x) => x.a.ppk));
+  assert.equal(all.a.ppk, worst);
 });
