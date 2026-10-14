@@ -71,3 +71,18 @@ test("核心：specOfGroup 只在機台模式且有該群組規格時使用群�
   assert.equal(c.specOfGroup({ specSrc: "machine", specsG: g, specs: base }, "B", "volume").lsl, base.volume.lsl);
   assert.equal(c.specOfGroup({ specSrc: "custom", specsG: g, specs: base }, "A", "volume").lsl, base.volume.lsl);
 });
+
+test("claude.ai 內的 AI 提示詞與伺服器端使用相同的證據規則", async () => {
+  const { SYSTEM_PROMPT } = await import("../lib/analyze-core.mjs");
+  const html = fs.readFileSync(HTML, "utf8"), m = html.match(/const AI_EVIDENCE_RULE="([^"]+)"/);
+  assert.ok(m, "頁面定義了證據規則");
+  assert.ok(SYSTEM_PROMPT.includes(m[1]), "伺服器提示詞含相同文字");
+  assert.match(html, /\$\{AI_EVIDENCE_RULE\}/, "頁面內提示詞有使用");
+});
+
+test("還原 v9.10.0 存下的機台模式回合：自動依原始資料重建群組規格", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom } = page(); const w = dom.window; await ready(w);
+  w.eval(`S.rows.forEach((r,i)=>{r.result=i%53===0?"FAIL":"PASS";r.mNG=i%53===0});const c=S.runs.find(r=>r.id===S.runId);c.cfg={...c.cfg,specSrc:"machine",specsCustom:JSON.parse(JSON.stringify(S.specs))};delete c.cfg.specsG;S.runId=-1;SPI_TEST_HOOK.switchRun(c.id)`);
+  assert.equal(w.eval("S.specSrc"), "machine");
+  assert.ok(Object.keys(JSON.parse(w.eval("JSON.stringify(S.specsG)"))).length >= 3, "群組規格已重建");
+});

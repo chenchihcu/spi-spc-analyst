@@ -187,3 +187,19 @@ test("機台規格：群組某量測項目有效值不足 20 筆時沿用全板�
   const worst = Math.min(...out.filter((x) => x.g !== "整體").map((x) => x.a.ppk));
   assert.equal(all.a.ppk, worst);
 });
+
+test("機台模式：沒有判定碼的焊墊與不良歸類用該群組的推估規格", () => {
+  const base = JSON.parse(JSON.stringify(c.DEF_SPECS)), G = { A: JSON.parse(JSON.stringify(base)) };
+  G.A.volume = { lsl: 95, usl: 105, tgt: 100 };
+  const S = { specSrc: "machine", specsG: G, specs: base, step: { on: false }, stencil: 120 };
+  const r = { group: "A", volume: 90, area: 100, height: 120, offx: 0, offy: 0 };
+  assert.deepEqual([...c.classify(r, base, S)], ["INS"], "群組規格 95–105 下 90 為少錫");
+  assert.deepEqual([...c.classify({ ...r, group: "B" }, base, S)], [], "其他群組沿用共用規格 70–130");
+});
+
+test("刮刀方向欄位不完整（只有一種方向）時不以奇偶推定、也不做方向比較", () => {
+  const rows = c.sampleData().map((r) => ({ ...r, stroke: "前" })), S = st(rows), A = c.analyze(S), V = c.advAnalyze(S, A);
+  assert.equal(V.stroke, null);
+  assert.match(V.strokeWhy, /同一方向/);
+  assert.equal(c.detectIssues(S).filter((x) => x.cat === "刮刀方向").length, 0);
+});
