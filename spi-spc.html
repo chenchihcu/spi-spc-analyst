@@ -275,7 +275,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.7.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 11:20:49</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.7.0</b> · 更新 <b class="num" id="appBuilt">2026-10-14 11:34:44</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -1849,7 +1849,7 @@ $("#chkGhost").onchange=e=>{S.ghost=e.target.checked;build3D()};
 
 /* ---------- 資料與規格 ---------- */
 function renderSpecTbl(){$("#specTbl").innerHTML=`<thead><tr><th>項目</th><th>LSL</th><th>目標</th><th>USL</th></tr></thead><tbody>`+Object.keys(METRICS).map(k=>`<tr><td>${METRICS[k].label} <span class="note">${METRICS[k].unit}</span></td>${["lsl","tgt","usl"].map(q=>`<td><input type="number" step="any" id="sp-${k}-${q}" value="${S.specs[k][q]}" data-k="${k}" data-q="${q}"></td>`).join("")}</tr>`).join("")+"</tbody>";
-  $$("#specTbl input").forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);if(!isFinite(v))return;if(i.dataset.k==="hpct"&&i.dataset.q!=="tgt"){applyStencil(NaN,i.dataset.q==="lsl"?v:NaN,i.dataset.q==="usl"?v:NaN);return}S.specs[i.dataset.k][i.dataset.q]=v;S.A=analyze(S);syncControls();saveRunsSoon()})}
+  $$("#specTbl input").forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);if(!isFinite(v))return;if(i.dataset.k==="hpct"&&i.dataset.q!=="tgt"){applyStencil(NaN,i.dataset.q==="lsl"?v:NaN,i.dataset.q==="usl"?v:NaN);return}S.specs[i.dataset.k][i.dataset.q]=v;syncControls();recompute()})} /* recompute 會重算問題偵測並保存回合設定 */
 /* ---------- 試產回合 ---------- */
 const esc=x=>String(x??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 const clone=o=>JSON.parse(JSON.stringify(o));
@@ -2072,7 +2072,8 @@ try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>ren
 const COLLAPSE_TABS=new Set(["overview","control","capability","sim3d","cross","adv","compare","dfm","lab"]);
 let COLLAPSED=new Set();try{COLLAPSED=new Set(JSON.parse(localStorage.getItem("spi-collapsed")||"[]"))}catch(e){}
 const saveCollapsed=()=>{try{localStorage.setItem("spi-collapsed",JSON.stringify([...COLLAPSED]))}catch(e){}};
-const cardTitle=c=>{const h=c.querySelector(":scope>h3");if(!h)return"";for(const n of h.childNodes){const t=(n.nodeType===3?n.textContent:"").trim();if(t)return t}return(h.textContent||"").trim().split(/\s{2,}/)[0]};
+const cardTitle=c=>{const h=c.querySelector(":scope>h3");if(!h)return"";for(const n of h.childNodes){const t=(n.nodeType===3?n.textContent:"").trim();if(t)return t}
+  /* 標題以元素開頭時：去掉收合按鈕與副標再取文字，鍵值不隨按鈕文字改變 */const k=h.cloneNode(true);k.querySelectorAll(".cbtn,small,select,input,button").forEach(x=>x.remove());return(k.textContent||"").trim().replace(/\s+/g," ").slice(0,40)};
 const topCards=pn=>[...pn.querySelectorAll(".card")].filter(c=>!c.parentElement.closest(".card")&&!c.closest("[hidden]")&&c.querySelector(":scope>h3"));
 function enhanceCards(pn){if(!COLLAPSE_TABS.has(S.tab))return;
   for(const c of topCards(pn)){const h=c.querySelector(":scope>h3"),key=S.tab+":"+cardTitle(c);c.classList.add("collapsible");
@@ -2090,8 +2091,10 @@ function limitTables(pn){for(const t of pn.querySelectorAll("table")){if(t.close
     if(wrap)wrap.classList.toggle("sticky-head",!!t.tHead&&t.scrollWidth<=wrap.clientWidth+1);
     if(body.length<=12){body.forEach(r=>r.classList.remove("more-row"));if(btn)btn.remove();continue}
     body.forEach((r,i)=>r.classList.toggle("more-row",i>=10));t.classList.toggle("show-all",SHOW_ALL.has(key));
-    if(!btn){btn=document.createElement("button");btn.type="button";btn.className="tbl-more linkbtn";t.after(btn);btn.onclick=()=>{if(SHOW_ALL.has(key))SHOW_ALL.delete(key);else SHOW_ALL.add(key);t.classList.toggle("show-all",SHOW_ALL.has(key));setMore();if(!SHOW_ALL.has(key))t.scrollIntoView({block:"nearest"})}}
-    const setMore=()=>{btn.textContent=SHOW_ALL.has(key)?"只顯示前 10 列 ▴":`顯示全部 ${body.length} 列 ▾`};setMore()}}
+    if(!btn){btn=document.createElement("button");btn.type="button";btn.className="tbl-more linkbtn";t.after(btn)}
+    /* 每次都以目前的列數重設（表格可能已被部分重畫） */
+    const setMore=()=>{btn.textContent=SHOW_ALL.has(key)?"只顯示前 10 列 ▴":`顯示全部 ${body.length} 列 ▾`};
+    btn.onclick=()=>{if(SHOW_ALL.has(key))SHOW_ALL.delete(key);else SHOW_ALL.add(key);t.classList.toggle("show-all",SHOW_ALL.has(key));setMore();if(!SHOW_ALL.has(key))t.scrollIntoView({block:"nearest"})};setMore()}}
 /* 本頁目錄：頁面超過約 1.6 個畫面高時，列出各卡片，點一下跳過去 */
 function stickyH(){const st=$(".sticky");if(!st)return 0;const r=st.getBoundingClientRect();return Math.max(0,r.bottom)}
 function buildToc(){const toc=$("#toc"),pn=$(".panel:not([hidden])");if(!toc||!pn)return;const cards=topCards(pn).filter(c=>cardTitle(c));
@@ -2103,7 +2106,10 @@ function buildToc(){const toc=$("#toc"),pn=$(".panel:not([hidden])");if(!toc||!p
     const st=$(".sticky");st.classList.add("compact");updateVars();HOLD=Date.now()+1200;
     const y=c.getBoundingClientRect().top+scrollY-(st.offsetHeight-railH())-10;scrollTo({top:Math.max(0,y),behavior:"smooth"})});
   toc.hidden=false;updateVars()}
-function enhancePanel(){const pn=$(".panel:not([hidden])");if(!pn)return;enhanceCards(pn);limitTables(pn);buildToc()}
+function enhancePanel(){const pn=$(".panel:not([hidden])");if(!pn)return;enhancing=true;try{enhanceCards(pn);limitTables(pn);buildToc()}finally{nextFrame(()=>{enhancing=false})}}
+/* 頁內控制項只重畫部分內容時（例如比較頁的選單、進階分析的板號），也重新套用長表格與卡片設定 */
+let enhancing=false,enhT=0;
+new MutationObserver(ms=>{if(enhancing)return;if(!ms.some(m=>m.type==="childList"&&m.target.closest&&m.target.closest(".panel:not([hidden])")))return;clearTimeout(enhT);enhT=setTimeout(enhancePanel,30)}).observe(document.querySelector(".wrap")||document.body,{childList:true,subtree:true});
 /* 黏性頂部：往下捲時收起設定列（只留頁籤與目錄），往上捲再出現 */
 const railH=()=>{const r=$(".rail");return r?r.offsetHeight:0};
 function updateVars(){const st=$(".sticky");if(!st)return;document.documentElement.style.setProperty("--railH",railH()+"px");document.documentElement.style.setProperty("--stickyH",(st.offsetHeight-(st.classList.contains("compact")?railH():0))+"px")}
