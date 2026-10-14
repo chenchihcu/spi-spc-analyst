@@ -216,3 +216,16 @@ test("兩個刪除同時進行且撤回失敗：以各筆實際結果標示，�
   assert.equal(dels.length, 2);
   assert.deepEqual(dels.map((e) => [e.at, e.ok]).sort(), [[5000, winAt === 5000], [6000, winAt === 6000]], "成功的那筆才是完成");
 });
+
+test("完成標記寫入暫時失敗會重試：同時刪除時仍以實際成功的那筆為完成", async () => {
+  const st = memStore();
+  const { record } = await (await post(st, spi())).json();
+  const del = st.delete.bind(st), setJ = st.setJSON.bind(st); let doneFails = 2;
+  st.delete = async (k) => { if (k.startsWith("log/")) throw new Error("撤回失敗"); return del(k); };
+  st.setJSON = async (k, v, o) => { if (k.startsWith("log/") && v.done && doneFails-- > 0) throw new Error("暫時失敗"); return setJ(k, v, o); };
+  const [a, b] = await Promise.all([req(st, `?id=${record.id}`, "DELETE", "a@x.tw", 5000), req(st, `?id=${record.id}`, "DELETE", "a@x.tw", 6000)]);
+  st.delete = del; st.setJSON = setJ;
+  const winAt = a.status === 200 ? 5000 : 6000;
+  const { entries } = await (await req(st, "?audit=1")).json();
+  assert.deepEqual(entries.filter((e) => e.action === "delete").map((e) => [e.at, e.ok]).sort(), [[5000, winAt === 5000], [6000, winAt === 6000]]);
+});
