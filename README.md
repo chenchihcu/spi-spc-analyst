@@ -56,7 +56,7 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 - 登入保護：`netlify/edge-functions/auth.mjs` 對全站（含 `/api/*`）要求帳號＋密碼。
   - 帳號：環境變數 `AUTH_USERS`（多帳號 JSON，`{"帳號":"密碼紀錄"}`；密碼紀錄建議用加鹽 PBKDF2 格式 `pbkdf2-sha256$…`，仍相容舊式 SHA-256），或舊設定 `AUTH_USER`＋`AUTH_PASS_SHA256`（兩者可並存）；另需 `AUTH_SECRET`（≥ 32 字元隨機字串）。沒有有效帳號或密鑰時網站回 503。Free 方案下環境變數不可設為「機密」（設定後邊緣函式讀不到），因此以一般變數存放；不存明文密碼。
   - 新增／變更帳號：執行 `node tools/hash-password.mjs '<現有 AUTH_USERS>'`，輸入帳號與兩次密碼，把輸出貼到 `AUTH_USERS`，重新部署後生效。改密碼或刪帳號後，該帳號的舊登入立即失效；更換 `AUTH_SECRET` 會讓所有人重新登入。
-  - 同一帳號或同一來源 IP 在 15 分鐘內登入失敗 5 次，鎖定 15 分鐘；鎖定中持續嘗試會延長（紀錄存在 Netlify Blobs `spi-auth-lock`，每次嘗試先登記再驗證，同時大量嘗試也無法繞過）。
+  - 同一帳號或同一來源 IP 在 15 分鐘內登入失敗 5 次，鎖定 15 分鐘（紀錄存在 Netlify Blobs `spi-auth-lock`，每次嘗試先登記再驗證，同時大量嘗試也無法繞過）。
   - `/__me` 回傳目前登入帳號；AI 分析與分享會記錄使用者（函式記錄檔）。
 - 分享連結：`/api/share` 把瀏覽器壓縮後的回合資料（上限 4 MB）存在 Netlify Blobs `spi-share`，30 天後失效；排程函式 `share-cleanup` 每日刪除過期資料。
 - 安全標頭（CSP、X-Frame-Options、HSTS、Permissions-Policy）設定在 `netlify.toml` 與登入頁。
