@@ -8,7 +8,7 @@ import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { sql, utf8Chunks } from './migration-sql.mjs';
+import { metadataMatches, sql, utf8Chunks } from './migration-sql.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WRANGLER = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
@@ -98,7 +98,7 @@ async function importSnapshot(dir, remote, apply) {
     const bytes = await readFile(join(dir, entry.filename));
     const existing = queryRow(entry.store, entry.key, remote);
     const importTag = `import:${entry.sha256}`;
-    const sameMetadata = (row) => JSON.stringify(JSON.parse(row.metadata || 'null')) === JSON.stringify(entry.metadata);
+    const sameMetadata = (row) => metadataMatches(row.metadata, entry.metadata, entry.store, entry.key);
     const resumable = entry.kind === 'json' && existing?.kind === 'pending' && existing.etag === importTag && sameMetadata(existing);
     if (existing && !resumable) {
       if (existing.kind !== entry.kind || !sameMetadata(existing)) die(`Destination collision: ${entry.store}/${entry.key}`);
