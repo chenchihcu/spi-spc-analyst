@@ -8,6 +8,7 @@ import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { sql, utf8Chunks } from './migration-sql.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WRANGLER = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
@@ -15,7 +16,6 @@ const STORES = ['spi-records', 'spi-share', 'spi-maint', 'spi-auth-lock'];
 const BUCKET = 'spi-spc-record';
 const DB = 'spi-spc';
 const sha = (data) => createHash('sha256').update(data).digest('hex');
-const sql = (value) => `CAST(X'${Buffer.from(String(value)).toString('hex')}' AS TEXT)`;
 const kindFor = (store, key) => {
   if (store === 'spi-share' || (store === 'spi-records' && key.startsWith('f/'))) return 'binary';
   if (store === 'spi-records' && (key === 'index.json' || key.startsWith('log/'))) return 'json';
@@ -29,7 +29,7 @@ const wrangler = (args) => {
   return r.stdout;
 };
 const queryRow = (store, key, remote) => {
-  const command = `SELECT kind,body,metadata FROM objects WHERE store=${sql(store)} AND key=${sql(key)}`;
+  const command = `SELECT kind,body,metadata,etag FROM objects WHERE store=${sql(store)} AND key=${sql(key)}`;
   const output = wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--json', '--command', command]);
   const parsed = JSON.parse(output.slice(output.indexOf('[')));
   return parsed?.[0]?.results?.[0] || null;
@@ -97,17 +97,38 @@ async function importSnapshot(dir, remote, apply) {
   for (const entry of manifest.entries) {
     const bytes = await readFile(join(dir, entry.filename));
     const existing = queryRow(entry.store, entry.key, remote);
-    if (existing) {
-      if (existing.kind !== entry.kind || JSON.stringify(JSON.parse(existing.metadata || 'null')) !== JSON.stringify(entry.metadata)) die(`Destination collision: ${entry.store}/${entry.key}`);
+    const importTag = `import:${entry.sha256}`;
+    const sameMetadata = (row) => JSON.stringify(JSON.parse(row.metadata || 'null')) === JSON.stringify(entry.metadata);
+    const resumable = entry.kind === 'json' && existing?.kind === 'pending' && existing.etag === importTag && sameMetadata(existing);
+    if (existing && !resumable) {
+      if (existing.kind !== entry.kind || !sameMetadata(existing)) die(`Destination collision: ${entry.store}/${entry.key}`);
       if (entry.kind === 'json' && existing.body !== bytes.toString('utf8')) die(`Destination body differs: ${entry.store}/${entry.key}`);
     } else {
-      if (entry.kind === 'binary') wrangler(['r2', 'object', 'put', `${BUCKET}/${entry.store}/${entry.key}`, remote ? '--remote' : '--local', '--file', join(dir, entry.filename)]);
-      const body = entry.kind === 'json' ? sql(bytes.toString('utf8')) : 'NULL';
-      const command = `INSERT OR IGNORE INTO objects(store,key,kind,body,metadata,etag) VALUES (${sql(entry.store)},${sql(entry.key)},${sql(entry.kind)},${body},${sql(JSON.stringify(entry.metadata))},${sql(randomUUID())})`;
-      wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', command]);
+      if (entry.kind === 'json') {
+        // Pending rows are hidden from the Worker. A repeated import restarts an
+        // interrupted write only when its source checksum still matches.
+        const identity = `store=${sql(entry.store)} AND key=${sql(entry.key)} AND kind='pending' AND etag=${sql(importTag)}`;
+        if (!resumable) {
+          const command = `INSERT OR IGNORE INTO objects(store,key,kind,body,metadata,etag) VALUES (${sql(entry.store)},${sql(entry.key)},'pending','',${sql(JSON.stringify(entry.metadata))},${sql(importTag)})`;
+          wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', command]);
+          const reserved = queryRow(entry.store, entry.key, remote);
+          if (reserved?.kind !== 'pending' || reserved.etag !== importTag || !sameMetadata(reserved)) die(`Destination collision: ${entry.store}/${entry.key}`);
+        }
+        wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', `UPDATE objects SET body='' WHERE ${identity}`]);
+        for (const chunk of utf8Chunks(bytes.toString('utf8'))) {
+          wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', `UPDATE objects SET body=body||${sql(chunk)} WHERE ${identity}`]);
+        }
+        const assembled = queryRow(entry.store, entry.key, remote);
+        if (assembled?.body !== bytes.toString('utf8')) die(`Destination body differs: ${entry.store}/${entry.key}`);
+        wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', `UPDATE objects SET kind='json',etag=${sql(randomUUID())} WHERE ${identity}`]);
+      } else {
+        wrangler(['r2', 'object', 'put', `${BUCKET}/${entry.store}/${entry.key}`, remote ? '--remote' : '--local', '--file', join(dir, entry.filename)]);
+        const command = `INSERT OR IGNORE INTO objects(store,key,kind,body,metadata,etag) VALUES (${sql(entry.store)},${sql(entry.key)},${sql(entry.kind)},NULL,${sql(JSON.stringify(entry.metadata))},${sql(randomUUID())})`;
+        wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', command]);
+      }
     }
     const row = queryRow(entry.store, entry.key, remote);
-    if (!row || row.kind !== entry.kind || JSON.stringify(JSON.parse(row.metadata || 'null')) !== JSON.stringify(entry.metadata) || (entry.kind === 'json' && row.body !== bytes.toString('utf8'))) die(`Destination D1 verify failed: ${entry.store}/${entry.key}`);
+    if (!row || row.kind !== entry.kind || !sameMetadata(row) || (entry.kind === 'json' && row.body !== bytes.toString('utf8'))) die(`Destination D1 verify failed: ${entry.store}/${entry.key}`);
     if (entry.kind === 'binary') {
       const verifyPath = join(dir, 'verified', entry.filename);
       await mkdir(dirname(verifyPath), { recursive: true });
