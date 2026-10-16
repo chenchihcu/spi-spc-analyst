@@ -78,8 +78,53 @@ async function applyImport(dom, expectedRows) {
 // 依規則 0.5: 依賴尚未完成項目的測試使用 test.todo 標示依賴項目
 test.todo('[D-10] no_coords: 空間分布與問題地圖顯示不適用，無空間問題卡');
 test.todo('[D-10] partial_spec: area 無規格時顯示無規格，不為 0 或 NaN');
-test.todo('[M-02] sigma_zero_constant: 能力與管制圖拒算並顯示原因');
-test.todo('[M-02] sample_lt_10: 樣本數不足 10 顯示原因不輸出數值');
+test('[M-02] sigma_zero_constant: 能力與管制圖拒算並顯示原因', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  const rows = [
+    'Board,RefDes,Pad,Volume,PartType',
+    'B1,R1,1,100,0402',
+    'B1,R2,1,100,0603',
+    'B2,R1,1,100,0402',
+    'B2,R2,1,100,0603',
+    'B3,R1,1,100,0402',
+    'B3,R2,1,100,0603',
+    'B4,R1,1,100,0402',
+    'B4,R2,1,100,0603',
+    'B5,R1,1,100,0603',
+    'B5,R2,1,100,0603'
+  ].join('\n');
+  await pick(dom, '#fileIn', 'sigma_zero.csv', Buffer.from(rows));
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.overallSd, 0, '整體變異應為 0');
+  assert.equal(A.cap.reason, '製程變異為零，Cp/Cpk 無法定義');
+  assert.ok(A.xs.rejected, 'X̄ 圖應拒絕繪製零寬界限');
+  assert.equal(A.xs.reason, '製程變異為零');
+  assert.ok(A.xs.pts.every(p => p.ucl === null || Number.isNaN(p.ucl)), 'UCL 不得為數值');
+  assert.ok(A.xs.pts.every(p => p.lcl === null || Number.isNaN(p.lcl)), 'LCL 不得為數值');
+  const issues = JSON.parse(w.eval('JSON.stringify(detectIssues(S))'));
+  assert.equal(issues.length, 0, 'TV-12: 全同值資料問題偵測不得產生誤報');
+});
+
+test('[M-02] sample_lt_10: 樣本數不足 10 顯示原因不輸出數值', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  await loadPlacement(dom, 'placement.csv');
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'normal_baseline.csv'));
+  await pick(dom, '#fileIn', 'normal_baseline.csv', csvBytes);
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.N, 10);
+  assert.ok(A.cap.groups.every(g => g.reason && g.reason.startsWith('樣本數不足（需 ≥10')));
+  assert.ok(A.cap.groups.every(g => g.cp === null || Number.isNaN(g.cp)));
+  assert.ok(A.cap.groups.every(g => g.cpk === null || Number.isNaN(g.cpk)));
+  assert.ok(A.cap.reason.includes('樣本數不足'));
+  assert.equal(A.xs.rejected, false, '5 板應可計算 X̄ 圖');
+  assert.equal(A.xs.subgroupWarning, '子群組少於 20，界限僅供參考');
+});
 
 test('normal_baseline: 5 板 × 2 焊墊，Volume 敘述統計與座標 join 10/0', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
   const { dom } = page();
@@ -103,6 +148,8 @@ test('normal_baseline: 5 板 × 2 焊墊，Volume 敘述統計與座標 join 10/
   assert.equal(A.boards.length, 5, '板數應為 5');
   assert.ok(Math.abs(A.gMean - 100.1) < 1e-6, `平均應為 100.1，實測 ${A.gMean}`);
   assert.ok(Math.abs(A.overallSd - 1.1005049346) < 1e-6, `整體標準差應為 1.1005049346，實測 ${A.overallSd}`);
+  assert.equal(A.xs.subgroupWarning, '子群組少於 20，界限僅供參考');
+  assert.ok(A.cap.reason.includes('樣本數不足'));
 });
 
 test('[D-42] duplicate_refdes_coords: 座標重複時取第一筆並列出忽略座標', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
