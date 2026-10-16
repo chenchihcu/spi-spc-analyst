@@ -1,4 +1,5 @@
 <title>SPI·SPC 分析台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
 /* 字型自帶（網站內 vendor/fonts）：英文標題與數字用 Barlow Condensed／IBM Plex Mono；中文使用系統字（微軟正黑體／蘋方），不需下載 */
 @font-face{font-family:"Barlow Condensed";font-weight:500;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-500-normal.woff2) format("woff2")}
@@ -27,7 +28,8 @@
   --ok:#55BE84;--ok-soft:#173726;--warn:#E3AE50;--warn-soft:#3A2D12;--ng:#EC6F60;--ng-soft:#41201B;
   --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;padding:0 16px 48px}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) calc(48px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .wrap{max-width:1280px;margin:0 auto}
 h1,h2,h3{text-wrap:balance;margin:0;font-weight:700}
 .num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
@@ -96,6 +98,7 @@ details[open].iss-card>summary{border-bottom:1px solid var(--line);border-radius
 .iss-detail{padding:12px 16px 14px;display:grid;gap:8px}
 .iss-tools{display:flex;gap:6px;margin-left:auto}
 @media (max-width:860px){.iss-spark{display:none}details.iss-card>summary{grid-template-columns:auto minmax(0,1fr) auto}}
+@media (max-width:480px){details.iss-card>summary{padding:8px 10px;gap:2px 8px}.iss-sum-l{min-width:auto;gap:4px}}
 /* 卡片收合（各分析頁） */
 .card.collapsible>h3{cursor:pointer;user-select:none}
 .card .cbtn{all:unset;cursor:pointer;color:var(--muted);font-size:12px;padding:2px 8px;border-radius:6px;margin-left:auto}
@@ -200,9 +203,10 @@ button:disabled{opacity:.5;cursor:default}
 .tabs.fr{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
 .tabs.fl{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
 .tabs.fl.fr{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent)}
-/* 平板（觸控）：放大可點範圍到約 44px，畫布拖曳不觸發頁面捲動 */
+/* 平板與手機（觸控）：放大可點範圍到約 44px，輸入欄位 16px 防止 iOS Safari 自動放大，畫布拖曳不觸發頁面捲動 */
 @media (pointer:coarse){
   button,select,input[type=number],input[type=text],textarea{min-height:44px}
+  select,input[type=number],input[type=text],textarea{font-size:16px!important}
   .tab{min-height:46px;padding:10px 16px}
   .chip.chipBtn,a.chip{min-height:36px;padding:6px 14px}
   .pmap-cells button{min-height:40px}
@@ -586,7 +590,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <div class="tbl" style="max-height:300px;overflow:auto"><table id="mapTbl"></table></div>
         <div id="mapPrev" class="note"></div>
         <div class="row recrow" id="recRow"><div class="field"><label for="inLot">批號（必填）</label><input type="text" id="inLot" maxlength="64" placeholder="例：L2410-01"></div><div class="field"><label for="inPart">產品料號（必填）</label><input type="text" id="inPart" maxlength="64" placeholder="例：301-000100124"></div><span class="note" id="recNote" style="align-self:center;max-width:52ch"></span></div>
-        <div class="row"><label class="row" style="font-size:13px"><input type="radio" name="impMode" value="new" checked> 新增為新回合</label><input type="text" id="inRunName" aria-label="新回合名稱" placeholder="回合名稱，例：試產 2 · 鋼板 V2" style="min-width:220px">
+        <div class="row"><label class="row" style="font-size:13px"><input type="radio" name="impMode" value="new" checked> 新增為新回合</label><input type="text" id="inRunName" aria-label="新回合名稱" placeholder="回合名稱，例：試產 2 · 鋼板 V2" style="min-width:min(100%,220px)">
           <label class="row" style="font-size:13px"><input type="radio" name="impMode" value="replace"> 取代目前回合</label><button class="primary" id="btnApply">套用匯入</button></div>
       </div>
     </div>
@@ -633,7 +637,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="card" data-sub="records" hidden id="recCard">
     <h3>量測紀錄與座標檔資料庫 <small id="recMode"></small></h3>
     <p class="note" style="margin:0 0 10px;max-width:80ch">每次匯入量測紀錄（填批號、產品料號）或上傳座標檔（填產品料號、版本）時，原始檔會自動存入這裡，並記錄上傳者、時間與檔案指紋（SHA-256）。原始檔不能修改；只有上傳者本人可以刪除，刪除後仍留下稽核紀錄。「驗證」會重新計算指紋，確認檔案與上傳時完全相同。</p>
-    <div class="row"><div class="field"><label for="recQ">搜尋批號、料號、檔名或上傳者</label><input type="text" id="recQ" placeholder="例：L2410 或 301-000100124" style="min-width:240px"></div><button id="recReload">重新整理</button><span class="note" id="recState" role="status"></span></div>
+    <div class="row"><div class="field"><label for="recQ">搜尋批號、料號、檔名或上傳者</label><input type="text" id="recQ" placeholder="例：L2410 或 301-000100124" style="min-width:min(100%,240px)"></div><button id="recReload">重新整理</button><span class="note" id="recState" role="status"></span></div>
     <h3 style="margin-top:14px">量測紀錄 <small id="recSpiSub"></small></h3>
     <div class="tbl"><table id="recSpi"></table></div>
     <h3 style="margin-top:16px">座標檔 <small id="recPlaceSub"></small></h3>
