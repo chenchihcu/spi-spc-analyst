@@ -6,6 +6,7 @@ import {
   buildShareInsertSql,
   buildAuditInsertSql,
   buildDeleteAuditSql,
+  buildDeleteRecordSql,
   isShareKey,
   MAX_BYTES_PER_STMT,
 } from '../tools/migration-sql.mjs';
@@ -137,6 +138,79 @@ test('D-2: 排除清單減少時的 parseImportPlan 行為', async () => {
         });
       },
       /缺少原始檔 f\/rec_cancel，無法取消排除，請改用完整匯出/
+    );
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('E-2: Netlify 端刪除比對與 D1 清空後行為', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const deleteRecordStmts = buildDeleteRecordSql(['rec_del1', 'rec_del2']);
+  assert.equal(deleteRecordStmts.length, 1);
+  assert.match(deleteRecordStmts[0], /DELETE FROM records WHERE id IN \('rec_del1', 'rec_del2'\);/);
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'e2-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    // 前次匯出有 rec1 與 rec2
+    const previousManifest = {
+      exportTime: 1690000000000,
+      entries: [
+        { store: 'spi-records', key: 'f/rec1' },
+        { store: 'spi-records', key: 'f/rec2' },
+      ],
+    };
+
+    // 本次匯出只有 rec1 (rec2 已在 Netlify 刪除)
+    const manifest = {
+      exportTime: 1700000000000,
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec1', filename: 'objects/rec1.bin' },
+      ],
+    };
+    const indexRecords = [{ id: 'rec1', lot: 'L1', part: 'P1' }];
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify(indexRecords));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'rec1.bin'), Buffer.from('data1'));
+
+    // 情境 1: D1 中仍有 rec2 -> 工具應計畫刪除 rec2 並寫 sync-del:rec2
+    const planWithD1 = await parseImportPlan(tmpDir, {
+      previousManifest,
+      existingRecordIds: ['rec1', 'rec2'],
+    });
+    assert.deepEqual(planWithD1.syncDelRecords, ['rec2']);
+    assert.equal(planWithD1.syncDelAudits.length, 1);
+    assert.equal(planWithD1.syncDelAudits[0].src_key, 'sync-del:rec2');
+
+    // 情境 2 (D-59 / E-2 驗收): D1 清空後 (existingRecordIds 為空) -> 不會誤產生 sync-del，也不會失敗
+    const planEmptyD1 = await parseImportPlan(tmpDir, {
+      previousManifest,
+      existingRecordIds: [],
+    });
+    assert.deepEqual(planEmptyD1.syncDelRecords, [], 'D1 沒有該紀錄時應略過，不寫 sync-del');
+    assert.equal(planEmptyD1.syncDelAudits.length, 0);
+
+    // 情境 3: plannedRecord 缺原始檔時，dry-run 必須拋出錯誤
+    const badManifest = {
+      exportTime: 1700000000000,
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(badManifest));
+    await assert.rejects(
+      async () => {
+        await parseImportPlan(tmpDir, {
+          existingRecordIds: [], // D1 尚未有此紀錄，需要匯入
+        });
+      },
+      /缺少原始檔 f\/rec1，無法匯入，請改用完整匯出/
     );
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });

@@ -69,3 +69,15 @@ export function buildDeleteAuditSql(srcKeys) {
   }
   return stmts;
 }
+
+export function buildDeleteRecordSql(ids) {
+  if (!ids || ids.length === 0) return [];
+  const stmts = [];
+  const batchSize = MAX_PARAMS_PER_STMT;
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const chunk = ids.slice(i, i + batchSize);
+    const inClause = chunk.map(id => sqlStr(id)).join(', ');
+    stmts.push(`DELETE FROM records WHERE id IN (${inClause});`);
+  }
+  return stmts;
+}

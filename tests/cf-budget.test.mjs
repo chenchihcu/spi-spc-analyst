@@ -201,5 +201,57 @@ test('D-4 / L-6: 查詢索引走查與 EXPLAIN QUERY PLAN 例外豁免', async (
   assert.ok(cronAttemptsPlan.length > 0, 'auth_attempts 清除查詢成功生成執行計畫');
   const cronStatsPlan = db.prepare("EXPLAIN QUERY PLAN SELECT COUNT(*), SUM(gz_bytes) FROM records").all();
   assert.ok(cronStatsPlan.length > 0, 'stats 每日統計查詢成功生成執行計畫');
+
+  // 3. E-4 規格豁免之查詢：
+  // shares all=1 (全表掃描 + 暫存排序)
+  const sharesAllPlan = db.prepare("EXPLAIN QUERY PLAN SELECT * FROM shares ORDER BY created DESC, id DESC LIMIT 51").all();
+  assert.ok(sharesAllPlan.length > 0, 'shares all=1 執行計畫');
+
+  // shares mine=1 (暫存排序)
+  const sharesMinePlan = db.prepare("EXPLAIN QUERY PLAN SELECT * FROM shares WHERE user = 'u' AND (created, id) < (1, 's') ORDER BY created DESC, id DESC LIMIT 51").all();
+  assert.ok(sharesMinePlan.length > 0, 'shares mine=1 執行計畫');
+
+  // 保存期限清除逐 kind 查詢 (走 r_k 索引)
+  const retentionPerKindPlan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind = 'meas' AND created < 1000 ORDER BY created LIMIT 40").all();
+  const retentionDetails = retentionPerKindPlan.map(p => p.detail).join('; ');
+  assert.ok(retentionDetails.includes('INDEX r_k'), `逐 kind 保存期限查詢應使用 r_k 索引: ${retentionDetails}`);
 });
+
+test('E-3: 分頁查詢讀取列數守衛 (首頁與第 2 頁 rows_read <= 52)', async () => {
+  const { getPlatformProxy } = await import('wrangler');
+  const proxy = await getPlatformProxy();
+  try {
+    const db = proxy.env.DB;
+    await db.exec('CREATE TABLE IF NOT EXISTS records_e3 (id TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT \'\', created INTEGER NOT NULL DEFAULT 0, sha256 TEXT NOT NULL DEFAULT \'\', name TEXT NOT NULL DEFAULT \'\');');
+    await db.exec('CREATE INDEX IF NOT EXISTS r_k_e3 ON records_e3(kind, created DESC, id DESC);');
+
+    // 寫入 120 筆測試紀錄
+    const stmts = [];
+    for (let i = 0; i < 120; i++) {
+      stmts.push(
+        db.prepare('INSERT OR IGNORE INTO records_e3 (id, kind, created, sha256, name) VALUES (?, ?, ?, ?, ?)')
+          .bind(`rec_${String(i).padStart(6, '0')}`, 'meas', 1000 + i, `sha_${i}`, `name_${i}`)
+      );
+    }
+    await db.batch(stmts);
+
+    // 第 1 頁查詢
+    const p1 = await db.prepare('SELECT id, created FROM records_e3 WHERE kind = ? ORDER BY created DESC, id DESC LIMIT 51')
+      .bind('meas')
+      .all();
+    assert.equal(p1.results.length, 51, '首頁應取得 51 筆 (含下一頁哨兵)');
+    assert.ok(p1.meta.rows_read <= 52, `首頁 rows_read (${p1.meta.rows_read}) 必須 <= 52`);
+
+    // 第 2 頁查詢 (帶上一頁最後一筆游標)
+    const cursor = p1.results[50];
+    const p2 = await db.prepare('SELECT id, created FROM records_e3 WHERE kind = ? AND (created, id) < (?, ?) ORDER BY created DESC, id DESC LIMIT 51')
+      .bind('meas', cursor.created, cursor.id)
+      .all();
+    assert.ok(p2.results.length > 0, '第 2 頁應有結果');
+    assert.ok(p2.meta.rows_read <= 52, `第 2 頁 rows_read (${p2.meta.rows_read}) 必須 <= 52`);
+  } finally {
+    await proxy.dispose();
+  }
+});
+
 
