@@ -1,0 +1,171 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { APP_VERSION, APP_BUILT } from '../lib/version.mjs';
+import { loginPage } from '../lib/auth-handler.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(__dirname, '..');
+const htmlSource = fs.readFileSync(path.join(ROOT, 'spi-spc.html'), 'utf8');
+
+let JSDOM, VirtualConsole;
+try {
+  ({ JSDOM, VirtualConsole } = (await import('jsdom')).default || (await import('jsdom')));
+} catch {}
+
+test('1. 版本與更新時間三方一致性 (version.mjs, CHANGELOG.md, spi-spc.html)', () => {
+  assert.equal(APP_VERSION, 'v9.11.0', 'APP_VERSION 應為 v9.11.0');
+  
+  const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+  const clMatch = changelog.match(/^##\s+(v[0-9.]+)\s+—\s+([0-9-]{10}(?:\s+[0-9:]{8})?)/m);
+  assert.ok(clMatch, 'CHANGELOG 應有最新版條目');
+  assert.equal(clMatch[1], APP_VERSION, 'CHANGELOG 最新版號應與 APP_VERSION 一致');
+  
+  const appVerMatch = htmlSource.match(/id="appVer">([^<]+)</);
+  const appBuiltMatch = htmlSource.match(/id="appBuilt">([^<]+)</);
+  assert.ok(appVerMatch, 'spi-spc.html 應有 #appVer');
+  assert.equal(appVerMatch[1], APP_VERSION, '#appVer 應與 APP_VERSION 一致');
+  assert.ok(appBuiltMatch, 'spi-spc.html 應有 #appBuilt');
+  assert.equal(appBuiltMatch[1], APP_BUILT, '#appBuilt 應與 APP_BUILT 一致');
+});
+
+test('2. 登入頁行動版規格 (lib/auth-handler.mjs loginPage)', () => {
+  const resp = loginPage('/?test=1');
+  assert.equal(resp.status, 200);
+  
+  // 檢查 HTML 內容
+  return resp.text().then(html => {
+    // a. color-scheme 與 theme-color
+    assert.match(html, /<meta\s+name="color-scheme"\s+content="light dark">/i, '需有 color-scheme meta');
+    assert.match(html, /<meta\s+name="theme-color"[^>]*content="#F2F4F0"/i, '需有淺色 theme-color');
+    assert.match(html, /<meta\s+name="theme-color"[^>]*content="#0F1311"/i, '需有深色 theme-color');
+
+    // b. viewport
+    assert.match(html, /viewport-fit=cover/i, 'viewport 需包含 viewport-fit=cover');
+    assert.doesNotMatch(html, /user-scalable\s*=\s*no/i, '不可包含 user-scalable=no');
+    assert.doesNotMatch(html, /maximum-scale/i, '不可包含 maximum-scale');
+
+    // c. 移除 autofocus 防止行動版鍵盤彈出遮擋
+    assert.doesNotMatch(html, /<input[^>]+id="user"[^>]+autofocus/i, '帳號欄位不可含 autofocus');
+
+    // d. CSS 規則：input 17px, label 15px, toggle min 44x44, brand max-height <= 160px
+    assert.match(html, /input\{[^}]*font-size:\s*17px/i, 'input 需設定 17px 字級防止 iOS Safari 放大');
+    assert.match(html, /label\{[^}]*font-size:\s*15px/i, 'label 需設定 15px 字級');
+    assert.match(html, /\.toggle\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/i, '.toggle 觸控區域至少 44×44');
+    assert.match(html, /@media\s*\(max-width:\s*720px\)[\s\S]*?\.brand\{[^}]*max-height:\s*160px/i, '手機寬度品牌區高度需限制在 160px 以內');
+  });
+});
+
+test('3. 主頁 Head Meta 與 CSS Tokens (spi-spc.html)', () => {
+  // a. Head meta
+  assert.match(htmlSource, /<meta\s+name="color-scheme"\s+content="light dark">/i, '需有 color-scheme');
+  assert.match(htmlSource, /<meta\s+name="theme-color"[^>]*content="#F2F4F0"/i, '需有淺色 theme-color');
+  assert.match(htmlSource, /<meta\s+name="theme-color"[^>]*content="#0F1311"/i, '需有深色 theme-color');
+  assert.match(htmlSource, /<meta\s+name="viewport"[^>]*content="[^"]*viewport-fit=cover[^"]*"/i, 'viewport 需包含 viewport-fit=cover');
+  assert.doesNotMatch(htmlSource, /user-scalable\s*=\s*no/i, '主頁不可包含 user-scalable=no');
+  assert.doesNotMatch(htmlSource, /maximum-scale\s*=\s*1/i, '主頁不可包含 maximum-scale=1');
+
+  // b. Tokens in :root
+  assert.match(htmlSource, /--tap-min:\s*44px;/i, '需定義 --tap-min');
+  assert.match(htmlSource, /--tabbar-h:\s*49px;/i, '需定義 --tabbar-h');
+  assert.match(htmlSource, /--navbar-h:\s*44px;/i, '需定義 --navbar-h');
+  assert.match(htmlSource, /--r-card:\s*16px;/i, '需定義 --r-card');
+  assert.match(htmlSource, /--r-sheet:\s*20px;/i, '需定義 --r-sheet');
+  assert.match(htmlSource, /--safe-t:\s*env\(safe-area-inset-top,\s*0px\);/i, '需定義 --safe-t');
+  assert.match(htmlSource, /--safe-b:\s*env\(safe-area-inset-bottom,\s*0px\);/i, '需定義 --safe-b');
+  assert.match(htmlSource, /--c-bar:/i, '需定義 --c-bar');
+
+  // c. 禁止以 overflow-x:hidden 掩蓋溢出
+  assert.doesNotMatch(htmlSource, /body\s*\{[^}]*overflow-x:\s*hidden/i, '不可在 body 使用 overflow-x:hidden');
+  assert.doesNotMatch(htmlSource, /html\s*\{[^}]*overflow-x:\s*hidden/i, '不可在 html 使用 overflow-x:hidden');
+});
+
+test('4. 行動版 DOM 結構與分頁控制 (JSDOM 驗證)', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const dom = new JSDOM(htmlSource.replace(/<script src=[^>]+><\/script>/g, ''), {
+    runScripts: 'dangerously',
+    url: 'https://example.test/',
+    beforeParse(w) {
+      w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
+      Object.defineProperty(w.HTMLElement.prototype, 'offsetParent', { get() { return w.document.body; } });
+      w.Element.prototype.scrollIntoView = () => {};
+      w.matchMedia = (query) => ({ matches: query.includes('max-width: 767px'), addEventListener() {} });
+      w.ResizeObserver = class { observe() {} };
+      w.scrollTo = () => {};
+      w.Chart = class { constructor() {} destroy() {} static register() {} static defaults = { font: {} }; };
+    },
+  });
+
+  const d = dom.window.document;
+  const $ = (s) => d.querySelector(s);
+  const $$ = (s) => [...d.querySelectorAll(s)];
+
+  // a. 底部分頁列 (<nav class="mtab">) 結構與項目
+  const mtab = $('nav.mtab');
+  assert.ok(mtab, '需存在 nav.mtab 底部分頁列');
+  assert.equal(mtab.getAttribute('aria-label'), '主要分頁', 'nav.mtab 需有 aria-label="主要分頁"');
+  
+  const mtabButtons = $$('nav.mtab button.mtab-btn');
+  assert.equal(mtabButtons.length, 5, '底部分頁列需恰好 5 個項目');
+  
+  const tabKeys = mtabButtons.map(b => b.dataset.tab || b.id);
+  assert.deepEqual(tabKeys, ['issues', 'overview', 'control', 'capability', 'mtabMore'], '底部分頁列 5 項定義需正確');
+
+  // b. 更多 Sheet (role="dialog" aria-modal="true")
+  const moreSheet = $('#moreSheet');
+  assert.ok(moreSheet, '需存在 #moreSheet');
+  assert.equal(moreSheet.getAttribute('role'), 'dialog', 'moreSheet 需有 role="dialog"');
+  assert.equal(moreSheet.getAttribute('aria-modal'), 'true', 'moreSheet 需有 aria-modal="true"');
+  assert.ok($('#moreBackdrop'), '需有 #moreBackdrop 遮罩');
+  assert.ok($('#moreSheetClose'), '需有 #moreSheetClose 關閉鈕');
+  assert.ok(moreSheet.querySelector('.sheet-handle'), '需有拖曳把手 .sheet-handle');
+
+  // c. 更多 Sheet 內涵蓋全部 8 個次要分頁（共 4+8=12 個分頁）
+  const subTabs = $$('#moreSheet [data-mtab]').map(b => b.dataset.mtab);
+  assert.deepEqual(subTabs, ['sim3d', 'cross', 'adv', 'compare', 'dfm', 'lab', 'ai', 'data'], '需涵蓋其餘 8 個分頁');
+
+  // d. 更多 Sheet 內涵蓋操作與帳號
+  assert.ok($('#mBtnPrint'), '需有行動版列印鈕');
+  assert.ok($('#mBtnShare'), '需有行動版分享鈕');
+  assert.ok($('#mBtnMyShares'), '需有行動版我的分享鈕');
+  assert.ok($('#mLogoutLink'), '需有行動版登出連結');
+
+  // e. 頂部 Sticky Chip 摘要列 (#btnRailChip & #railSheet)
+  const chip = $('#btnRailChip');
+  assert.ok(chip, '需存在 #btnRailChip 摘要晶片');
+  assert.equal(chip.getAttribute('aria-haspopup'), 'dialog', 'chip 需有 aria-haspopup="dialog"');
+  assert.ok($('#railSheet'), '需存在 #railSheet');
+
+  // f. 點擊測試：點擊底欄項目應切換分頁
+  const btnOverview = $('nav.mtab [data-tab="overview"]');
+  btnOverview.click();
+  assert.equal(btnOverview.getAttribute('aria-selected'), 'true', '切換至 overview 時 aria-selected 應為 true');
+  assert.equal($('nav.mtab [data-tab="issues"]').getAttribute('aria-selected'), 'false', '原 issues aria-selected 應為 false');
+
+  // g. 點擊更多 sheet 內的次要分頁（例如 dfm）
+  const btnDfm = $('#moreSheet [data-mtab="dfm"]');
+  btnDfm.click();
+  // 當前分頁不在前四項時，mtabMore 應標記為 selected
+  const mtabMore = $('#mtabMore');
+  assert.equal(mtabMore.getAttribute('aria-selected'), 'true', '在次級分頁時更多按鈕需顯示 active/selected');
+});
+
+test('5. 觸控修正與無障礙樣式規範 (CSS 規則檢驗)', () => {
+  // a. .card .cbtn, .toc button, .how summary min-height >= 44px
+  assert.match(htmlSource, /\.how summary\{[^}]*min-height:\s*44px/i, '.how summary 需有 min-height: 44px');
+  assert.match(htmlSource, /\.card \.cbtn[^}]*\{[^}]*min-height:\s*44px/i, '.card .cbtn 需有 min-height: 44px');
+  assert.match(htmlSource, /\.toc button[^}]*\{[^}]*min-height:\s*44px/i, '.toc button 需有 min-height: 44px');
+
+  // b. .subtab segmented 樣式 (44px)
+  assert.match(htmlSource, /\.subtab\{[^}]*min-height:\s*44px/i, '.subtab 需有 min-height: 44px');
+
+  // c. .pmap-cells 每格 min-width: 28px, min-height: 44px
+  assert.match(htmlSource, /\.pmap-cells\s+button\{[^}]*min-width:\s*28px[^}]*min-height:\s*44px/i, '問題地圖格子需符合 28×44 規格');
+
+  // d. 表格與浮動元件避讓
+  assert.match(htmlSource, /#toTop,#toast\{[^}]*bottom:\s*calc\(var\(--tabbar-h\)\s*\+\s*var\(--safe-b\)\s*\+\s*12px\)/i, '#toTop 與 #toast 需避讓底欄');
+
+  // e. Sticky 表頭在手機下頂部避讓 44px + safe-top
+  assert.match(htmlSource, /\.tbl\.sticky-head\s+thead\s+th\{[^}]*top:\s*calc\(44px\s*\+\s*env\(safe-area-inset-top,\s*0px\)\)/i, '表格 sticky 表頭需配合 44px 頂欄避讓');
+});
