@@ -175,28 +175,8 @@ export default {
       await env.DB.prepare(`DELETE FROM shares WHERE id IN (${placeholders})`).bind(...ids).run();
     }
 
-    // 清除 30 分鐘前登入嘗試紀錄並累計刪除計數 (D-59, L-7)
+    // 清除 30 分鐘前登入嘗試紀錄 (9.5 定案設計)
     const thirtyMinsAgo = now - 30 * 60_000;
-    const oldAttempts = await env.DB.prepare(`SELECT COUNT(*) as count FROM auth_attempts WHERE at < ?`).bind(thirtyMinsAgo).first();
-    const delCount = oldAttempts?.count || 0;
-    if (delCount > 0) {
-      await env.DB.prepare(`DELETE FROM auth_attempts WHERE at < ?`).bind(thirtyMinsAgo).run();
-      const todayStr = new Date(now).toISOString().slice(0, 10);
-      const statKey = `auth_del_${todayStr}`;
-      await env.DB.prepare(`
-        INSERT INTO stats (key, value, updated) VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = value + excluded.value, updated = excluded.updated
-      `).bind(statKey, delCount, now).run();
-
-      // 檢查是否超過 20000 列進入節流模式
-      const totalDel = await env.DB.prepare(`SELECT value FROM stats WHERE key = ?`).bind(statKey).first();
-      const currentRows = await env.DB.prepare(`SELECT COUNT(*) as count FROM auth_attempts`).first();
-      const estimatedWritten = ((totalDel?.value || 0) + (currentRows?.count || 0)) * 4;
-      const authMode = estimatedWritten >= 20000 ? 1 : 0;
-      await env.DB.prepare(`
-        INSERT INTO stats (key, value, updated) VALUES ('auth_mode', ?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated
-      `).bind(authMode, now).run();
-    }
+    await env.DB.prepare(`DELETE FROM auth_attempts WHERE at < ?`).bind(thirtyMinsAgo).run();
   },
 };
