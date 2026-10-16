@@ -93,3 +93,8 @@ export function buildDeleteShareSql(ids) {
   }
   return stmts;
 }
+
+export function buildUpdateDoneSql(srcKey) {
+  return `UPDATE audit_log SET detail = json_set(detail, '$.done', json('true')) WHERE src_key = ${sqlStr(srcKey)};`;
+}
+
