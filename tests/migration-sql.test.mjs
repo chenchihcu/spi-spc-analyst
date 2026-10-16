@@ -795,3 +795,206 @@ test('I-4: 分批跨 UTC 日守衛：log/* 未全數入庫時延後簿記列與 
   }
 });
 
+test('J-1: B4 演練清理後須做一次新的完整匯出再匯入（不得重跑舊 B4 匯出目錄）', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const tmpOldB4 = await fs.mkdtemp(path.join(os.tmpdir(), 'j1-oldb4-'));
+  const tmpNewB4 = await fs.mkdtemp(path.join(os.tmpdir(), 'j1-newb4-'));
+  try {
+    await fs.mkdir(path.join(tmpOldB4, 'objects'), { recursive: true });
+    await fs.mkdir(path.join(tmpNewB4, 'objects'), { recursive: true });
+
+    // 舊 B4 匯出目錄：含 DRILL-演練 與正常紀錄 rec_1，以及分享 S_VALID, S_REVOKED
+    const oldManifest = {
+      exportedAt: new Date(1700000000000).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec_1', filename: 'objects/rec_1.bin' },
+        { store: 'spi-records', key: 'f/rec_drill', filename: 'objects/rec_drill.bin' },
+        { store: 'spi-share', key: 'share_valid_123456', filename: 'objects/s1.bin', sha256: 'aaa' },
+        { store: 'spi-share', key: 'share_revoked_1234', filename: 'objects/s2.bin', sha256: 'bbb' },
+      ],
+    };
+    const oldRecords = [
+      { id: 'rec_1', lot: 'LOT-001', part: 'P1' },
+      { id: 'rec_drill', lot: 'DRILL-演練', part: 'P2' },
+    ];
+    const oldShares = [
+      { id: 'share_valid_123456', created: 1699000000000, exp: 1705000000000, user: 'u', bytes: 10 },
+      { id: 'share_revoked_1234', created: 1699000000000, exp: 1705000000000, user: 'u', bytes: 10 },
+    ];
+    await fs.writeFile(path.join(tmpOldB4, 'manifest.json'), JSON.stringify(oldManifest));
+    await fs.writeFile(path.join(tmpOldB4, 'objects', 'index.json'), JSON.stringify(oldRecords));
+    await fs.writeFile(path.join(tmpOldB4, 'objects', 'rec_1.bin'), Buffer.from('1'));
+    await fs.writeFile(path.join(tmpOldB4, 'objects', 'rec_drill.bin'), Buffer.from('d'));
+    await fs.writeFile(path.join(tmpOldB4, 'objects', 's1.bin'), Buffer.from('s1'));
+    await fs.writeFile(path.join(tmpOldB4, 'objects', 's2.bin'), Buffer.from('s2'));
+    await fs.writeFile(path.join(tmpOldB4, 'shares.json'), JSON.stringify(oldShares));
+
+    // 新完整匯出目錄（模擬 B4 已刪除 DRILL-演練 並在來源站同步後的新完整匯出，另有一筆來源端真刪除 rec_src_del）
+    const prevManifestWithSrcDel = {
+      exportedAt: new Date(1699500000000).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'f/rec_1', filename: 'objects/rec_1.bin' },
+        { store: 'spi-records', key: 'f/rec_src_del', filename: 'objects/rec_src_del.bin' },
+      ],
+    };
+    const newManifest = {
+      exportedAt: new Date(1700000100000).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec_1', filename: 'objects/rec_1.bin' },
+        { store: 'spi-share', key: 'share_valid_123456', filename: 'objects/s1.bin', sha256: 'aaa' },
+      ],
+    };
+    const newRecords = [{ id: 'rec_1', lot: 'LOT-001', part: 'P1' }];
+    const newShares = [
+      { id: 'share_valid_123456', created: 1699000000000, exp: 1705000000000, user: 'u', bytes: 10 },
+    ];
+    await fs.writeFile(path.join(tmpNewB4, 'manifest.json'), JSON.stringify(newManifest));
+    await fs.writeFile(path.join(tmpNewB4, 'objects', 'index.json'), JSON.stringify(newRecords));
+    await fs.writeFile(path.join(tmpNewB4, 'objects', 'rec_1.bin'), Buffer.from('1'));
+    await fs.writeFile(path.join(tmpNewB4, 'objects', 's1.bin'), Buffer.from('s1'));
+    await fs.writeFile(path.join(tmpNewB4, 'shares.json'), JSON.stringify(newShares));
+
+    // 以新完整匯出目錄執行匯入計畫：DRILL-演練 不再被寫回，sync-del 只針對真正來源端刪除且仍在 D1 的 rec_src_del
+    const newPlan = await parseImportPlan(tmpNewB4, {
+      previousManifest: prevManifestWithSrcDel,
+      existingRecordIds: ['rec_1', 'rec_src_del'], // DRILL-演練 已在 B4 刪除，不在 D1
+      existingShareIds: [], // 清空分享後重匯
+      now: 1700000200000,
+    });
+
+    assert.equal(newPlan.plannedRecords.some((r) => r.lot === 'DRILL-演練'), false, '新完整匯出不應寫回 DRILL-演練');
+    assert.deepEqual(newPlan.syncDelRecords, ['rec_src_del'], 'sync-del 應只針對來源端真刪除且仍在 D1 的紀錄');
+    assert.equal(newPlan.plannedShares.length, 1);
+    assert.equal(newPlan.plannedShares[0].id, 'share_valid_123456');
+  } finally {
+    await fs.rm(tmpOldB4, { recursive: true, force: true });
+    await fs.rm(tmpNewB4, { recursive: true, force: true });
+  }
+});
+
+test('J-2: C3 ① 子集合核對、來源端已撤回分類與 done:false 重算限於 K', async () => {
+  const { verifyC3AuditLogs, calculateDoneUpdates } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  // 情境：
+  // B4 匯入時有：
+  // 1) log/01-retracted-create (target_id: rec_retracted, action: create, done: false) -> C3 時來源端已撤回，不在 K
+  // 2) log/02-loser-delete (target_id: rec_conc, action: delete, done: true) -> B4 時較新故 done:true，後因無 CAS 覆寫在來源端撤回，不在 K
+  // 3) log/03-winner-delete (target_id: rec_conc, action: delete, done: false) -> B4 時排在 02 後故 done:false，C3 時仍在 K 中且為 K 中唯一 delete
+  // 4) log/04-normal-create (target_id: rec_ok, action: create, done: true) -> 在 K 中
+  const manifestLogKeys = ['log/03-winner-delete', 'log/04-normal-create'];
+
+  const d1AuditRows = [
+    { src_key: 'log/01-retracted-create', action: 'create', target_id: 'rec_retracted', at: 1000, detail: { done: false } },
+    { src_key: 'log/02-loser-delete', action: 'delete', target_id: 'rec_conc', at: 2000, detail: { done: true } },
+    { src_key: 'log/03-winner-delete', action: 'delete', target_id: 'rec_conc', at: 1500, detail: { done: false } },
+    { src_key: 'log/04-normal-create', action: 'create', target_id: 'rec_ok', at: 3000, detail: { done: true } },
+  ];
+
+  // 1. J-2 ③: 重算 done:false 時只用 K 中的鍵（不含 02-loser-delete），因此 03-winner-delete 能正確重算為 done:true
+  const indexRecords = [{ id: 'rec_ok' }]; // rec_conc 已刪除不在 index.json
+  const updates = calculateDoneUpdates(d1AuditRows, indexRecords, manifestLogKeys);
+  assert.equal(updates.length, 1, '只應重算 K 內的 03-winner-delete 為 true，不重算 01-retracted-create');
+  assert.equal(updates[0].src_key, 'log/03-winner-delete');
+
+  // 2. J-2 ①②: C3 ① 子集合核對
+  const checkPass = verifyC3AuditLogs(d1AuditRows, manifestLogKeys);
+  assert.equal(checkPass.ok, true, 'K 皆在 D1 且多出列皆符合撤回規則，核對應通過');
+  assert.equal(checkPass.retractedOnSource.length, 1);
+  assert.equal(checkPass.retractedOnSource[0].src_key, 'log/01-retracted-create');
+  assert.equal(checkPass.retractedOnSource[0].label, '來源端已撤回');
+  assert.equal(checkPass.retractedConcurrentDeletes.length, 1);
+  assert.equal(checkPass.retractedConcurrentDeletes[0].src_key, 'log/02-loser-delete');
+  assert.equal(checkPass.retractedConcurrentDeletes[0].label, '來源端已撤回（同時刪除）');
+
+  // 3. 若 D1 多出一筆 done:true 的 create（不在 K） -> 核對失敗
+  const d1WithUnexpectedDone = [
+    ...d1AuditRows,
+    { src_key: 'log/05-unexpected-done', action: 'create', target_id: 'rec_bad', at: 4000, detail: { done: true } },
+  ];
+  const checkFailDone = verifyC3AuditLogs(d1WithUnexpectedDone, manifestLogKeys);
+  assert.equal(checkFailDone.ok, false, '多出 done:true 的非同時刪除列應判定失敗');
+  assert.equal(checkFailDone.unexpectedDoneRetracted.length, 1);
+
+  // 4. 若 K 中有鍵缺漏於 D1 -> 核對失敗
+  const checkFailMissing = verifyC3AuditLogs(d1AuditRows, [...manifestLogKeys, 'log/06-missing-in-d1']);
+  assert.equal(checkFailMissing.ok, false, 'K 中有鍵不在 D1 應判定失敗');
+  assert.deepEqual(checkFailMissing.missingKeys, ['log/06-missing-in-d1']);
+});
+
+test('J-3: applied_at 只在首次 --apply 寫入（重跑不覆寫）且 D_app 限定 target_type=record', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { importSnapshot, parseImportPlan } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'j3-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const manifest = {
+      exportedAt: new Date(1700000000000).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec_a', filename: 'objects/rec_a.bin' },
+        { store: 'spi-records', key: 'f/rec_b', filename: 'objects/rec_b.bin' },
+      ],
+    };
+    const records = [
+      { id: 'rec_a', lot: 'L1', part: 'P1' },
+      { id: 'rec_b', lot: 'L2', part: 'P2' },
+    ];
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify(records));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'rec_a.bin'), Buffer.from('a'));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'rec_b.bin'), Buffer.from('b'));
+
+    const executedSqls = [];
+    const mockD1Exec = async (sql) => { executedSqls.push(sql); };
+
+    // 第一次 --apply (t = 1700000010000)
+    await importSnapshot(tmpDir, {
+      apply: true,
+      now: 1700000010000,
+      d1Exec: mockD1Exec,
+    });
+
+    const optsAfterFirst = JSON.parse(await fs.readFile(path.join(tmpDir, 'import-options.json'), 'utf8'));
+    assert.equal(optsAfterFirst.applied_at, 1700000010000, '首次 --apply 應寫入 applied_at');
+
+    // 在兩次 --apply 之間 (t = 1700000020000)，App 刪除了 rec_b (target_type='record')，且有一筆 target_type='share' 的同 id 紀錄於 rec_a
+    const existingAuditLogs = [
+      { src_key: null, action: 'delete', target_type: 'record', target_id: 'rec_b', at: 1700000020000 },
+      { src_key: null, action: 'delete', target_type: 'share', target_id: 'rec_a', at: 1700000025000 },
+    ];
+
+    // 第二次對同一目錄執行 --apply (t = 1700000030000)
+    await importSnapshot(tmpDir, {
+      apply: true,
+      now: 1700000030000,
+      existingAuditLogs,
+      d1Exec: mockD1Exec,
+    });
+
+    const optsAfterSecond = JSON.parse(await fs.readFile(path.join(tmpDir, 'import-options.json'), 'utf8'));
+    assert.equal(optsAfterSecond.applied_at, 1700000010000, '第二次 --apply 不得覆寫首次的 applied_at');
+
+    // 後續 C5 核對：rec_b 仍在 D_app 中被扣除；而 target_type='share' 的 rec_a 不會誤入 D_app
+    const c5Plan = await parseImportPlan(tmpDir, {
+      sameOptions: true,
+      existingAuditLogs,
+    });
+    assert.equal(c5Plan.dAppRecords.length, 1, 'D_app 應只包含 target_type=record 的 rec_b');
+    assert.equal(c5Plan.dAppRecords[0].id, 'rec_b');
+    assert.equal(c5Plan.plannedRecords.length, 1);
+    assert.equal(c5Plan.plannedRecords[0].id, 'rec_a');
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+

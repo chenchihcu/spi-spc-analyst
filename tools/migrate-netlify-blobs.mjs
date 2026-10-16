@@ -122,13 +122,18 @@ export async function exportSnapshot(dir, sinceTime = null) {
   console.log(JSON.stringify({ phase: 'export', records: records.length, shares: sharesMetadata.length, directory: dir }));
 }
 
-// I-2: 每次 import（C3 必做）在本次的全部 log/* 都已在 D1 之後重算 done:false 的遷移列
-export function calculateDoneUpdates(auditLogs, indexRecords) {
+// I-2, J-2 ③: 每次 import（C3 必做）在本次的全部 log/* 都已在 D1 之後重算 done:false 的遷移列（只用 K 中的鍵）
+export function calculateDoneUpdates(auditLogs, indexRecords, allowedKeys = null) {
+  const kSet = allowedKeys
+    ? new Set([...allowedKeys].map((k) => (k.startsWith('log/') ? k : `log/${k}`)))
+    : null;
   const candidates = [];
   const logsByTargetId = new Map();
 
   for (const row of auditLogs) {
     if (!row.src_key || !row.src_key.startsWith('log/')) continue;
+    // J-2 ③: 要重算的列與同 target_id 的全部 log/* 列都限於 K；來源端已撤回的列不重算、不參與推定
+    if (kSet && !kSet.has(row.src_key)) continue;
     const detail = typeof row.detail === 'string' ? JSON.parse(row.detail) : (row.detail || {});
     const isDone = detail.done === true || detail.done === 1;
     if (!isDone) {
@@ -176,6 +181,63 @@ export function calculateDoneUpdates(auditLogs, indexRecords) {
   }
 
   return updates;
+}
+
+// J-2 ①②: C3 ① 子集合核對與「來源端已撤回」分類
+export function verifyC3AuditLogs(d1AuditRows, manifestLogKeys) {
+  const kSet = new Set(
+    (manifestLogKeys || []).map((k) => (k.startsWith('log/') ? k : `log/${k}`))
+  );
+  const d1Logs = (d1AuditRows || []).filter((r) => r.src_key && r.src_key.startsWith('log/'));
+  const d1KeyMap = new Map(d1Logs.map((r) => [r.src_key, r]));
+
+  const missingKeys = [];
+  for (const k of kSet) {
+    if (!d1KeyMap.has(k)) {
+      missingKeys.push(k);
+    }
+  }
+
+  // K 中含有 delete 動作的 target_id 集合（供同時刪除例外判定）
+  const kDeleteTargetIds = new Set();
+  for (const r of d1Logs) {
+    if (kSet.has(r.src_key) && r.action === 'delete') {
+      kDeleteTargetIds.add(r.target_id);
+    }
+  }
+
+  const retractedOnSource = [];
+  const retractedConcurrentDeletes = [];
+  const unexpectedDoneRetracted = [];
+
+  for (const r of d1Logs) {
+    if (kSet.has(r.src_key)) continue;
+    const detail = typeof r.detail === 'string' ? JSON.parse(r.detail) : (r.detail || {});
+    const isDone = r.done != null ? Boolean(r.done) : (detail.done === true || detail.done === 1);
+    const item = {
+      src_key: r.src_key,
+      action: r.action || '',
+      target_id: r.target_id || '',
+      at: r.at || 0,
+    };
+
+    if (!isDone) {
+      retractedOnSource.push({ ...item, label: '來源端已撤回' });
+    } else if (r.action === 'delete' && kDeleteTargetIds.has(r.target_id)) {
+      // 唯一例外：action='delete' 且 K 中有同一 target_id 的另一筆 delete
+      retractedConcurrentDeletes.push({ ...item, label: '來源端已撤回（同時刪除）' });
+    } else {
+      unexpectedDoneRetracted.push(item);
+    }
+  }
+
+  return {
+    ok: missingKeys.length === 0 && unexpectedDoneRetracted.length === 0,
+    missingKeys,
+    retractedOnSource,
+    retractedConcurrentDeletes,
+    unexpectedDoneRetracted,
+  };
 }
 
 // I-1 ③: C5 的紀錄核對＝records 中 id 屬於 R 的列數＝|R| − |D_app|
@@ -276,7 +338,8 @@ export async function parseImportPlan(dir, options = {}) {
   if (appliedAt != null && Array.isArray(options.existingAuditLogs)) {
     const rIdMap = new Map(plannedRecords.map((r) => [r.id, r]));
     for (const a of options.existingAuditLogs) {
-      if (a.src_key == null && a.action === 'delete' && (a.target_type === 'record' || !a.target_type) && a.at > appliedAt) {
+      // J-3 ②: D_app 的查詢加 target_type='record'
+      if (a.src_key == null && a.action === 'delete' && a.target_type === 'record' && a.at > appliedAt) {
         if (rIdMap.has(a.target_id)) {
           dAppSet.add(a.target_id);
           dAppRecords.push(rIdMap.get(a.target_id));
@@ -335,7 +398,8 @@ export async function parseImportPlan(dir, options = {}) {
   const rawLogs = [];
   for (const l of logEntries) {
     const raw = JSON.parse(await readFile(join(dir, l.filename), 'utf8'));
-    rawLogs.push({ ...raw, filename: l.filename, key: l.key, src_key: `log/${l.key}` });
+    const srcKey = l.key.startsWith('log/') ? l.key : `log/${l.key}`;
+    rawLogs.push({ ...raw, filename: l.filename, key: l.key, src_key: srcKey });
   }
   rawLogs.sort((a, b) => (b.key || '').localeCompare(a.key || ''));
   const evaluatedLogs = auditStatus(rawLogs.map(r => ({ ...r, id: r.target_id || r.id })), records);
@@ -353,7 +417,7 @@ export async function parseImportPlan(dir, options = {}) {
       by: r.by || 'system',
       action: r.action || '',
       target_type: r.target_type || 'record',
-      target_id: r.target_id || '',
+      target_id: r.target_id || r.id || '',
       detail: detailObj,
       src_key: r.src_key,
     });
@@ -466,15 +530,20 @@ export async function parseImportPlan(dir, options = {}) {
   // I-4: 檢查本次匯出的全部 log/* 是否都已在 D1（含本批）
   const manifestLogKeys = manifest.entries
     .filter((e) => e.store === 'spi-records' && e.key.startsWith('log/'))
-    .map((e) => `log/${e.key}`);
+    .map((e) => (e.key.startsWith('log/') ? e.key : `log/${e.key}`));
+
+  const normalizeSrcKey = (k) => {
+    if (!k) return k;
+    return k.startsWith('log/log/') ? k.slice(4) : k;
+  };
 
   const existingLogKeySet = new Set(
     (options.existingAuditLogs || [])
       .filter((a) => a.src_key && a.src_key.startsWith('log/'))
-      .map((a) => a.src_key)
+      .map((a) => normalizeSrcKey(a.src_key))
   );
   for (const a of auditLogs) {
-    existingLogKeySet.add(a.src_key);
+    existingLogKeySet.add(normalizeSrcKey(a.src_key));
   }
 
   let allLogsInD1 = true;
@@ -482,12 +551,29 @@ export async function parseImportPlan(dir, options = {}) {
     allLogsInD1 = manifestLogKeys.every((k) => existingLogKeySet.has(k));
   }
 
-  // I-2: done:false 重算 UPDATE
+  // 建立代表 D1 INSERT ON CONFLICT DO NOTHING 後現況的 combinedAuditLogs（既有 D1 列優先）
+  const seenSrcKeys = new Set();
+  const combinedAuditLogs = [];
+  for (const a of (options.existingAuditLogs || [])) {
+    const nk = normalizeSrcKey(a.src_key);
+    if (nk) seenSrcKeys.add(nk);
+    combinedAuditLogs.push(nk ? { ...a, src_key: nk } : a);
+  }
+  for (const a of auditLogs) {
+    const nk = normalizeSrcKey(a.src_key);
+    if (nk && seenSrcKeys.has(nk)) continue;
+    if (nk) seenSrcKeys.add(nk);
+    combinedAuditLogs.push(nk ? { ...a, src_key: nk } : a);
+  }
+
+  // I-2, J-2 ③: done:false 重算 UPDATE（只用 K 中的鍵）
   let pendingDoneUpdates = [];
   if (allLogsInD1) {
-    const combinedAuditLogs = [...(options.existingAuditLogs || []), ...auditLogs];
-    pendingDoneUpdates = calculateDoneUpdates(combinedAuditLogs, records);
+    pendingDoneUpdates = calculateDoneUpdates(combinedAuditLogs, records, manifestLogKeys);
   }
+
+  // J-2 ①②: C3 ① 子集合核對
+  const c3AuditCheck = verifyC3AuditLogs(combinedAuditLogs, manifestLogKeys);
 
   const postponedBookkeeping = !allLogsInD1;
 
@@ -555,6 +641,7 @@ export async function parseImportPlan(dir, options = {}) {
     allLogsInD1,
     postponedBookkeeping,
     pendingDoneUpdates,
+    c3AuditCheck,
     expectedShareSet: [...expectedShareSet],
     staleLiveShares,
     selfCreatedShares,
@@ -689,7 +776,11 @@ export async function importSnapshot(dir, options = {}) {
 
   for (let i = 0; i < allSqls.length; i++) {
     const s = allSqls[i];
-    wrangler(['d1', 'execute', DB, targetFlag, '--command', s]);
+    if (typeof options.d1Exec === 'function') {
+      await options.d1Exec(s);
+    } else {
+      wrangler(['d1', 'execute', DB, targetFlag, '--command', s]);
+    }
   }
 
   // H-4 ②: 刪除 R2 物件，失敗殘留 key 逐筆列出
@@ -710,18 +801,18 @@ export async function importSnapshot(dir, options = {}) {
     }
   }
 
-  // H-3 ③, I-1 ③, J-3: --apply 成功後寫入 import-options.json
+  // H-3 ③, I-1 ③, J-3 ①: --apply 成功後寫入 import-options.json
   // applied_at 只在該匯出目錄第一次成功 --apply 時寫入，已有則不覆寫
-  let appliedAt = plan.appliedAt;
-  if (!appliedAt) {
-    try {
-      const existingOpts = JSON.parse(await readFile(join(dir, 'import-options.json'), 'utf8'));
-      appliedAt = existingOpts.applied_at || null;
-    } catch {}
-  }
-  if (!appliedAt) {
-    appliedAt = options.now || Date.now();
-  }
+  let existingAppliedAt = null;
+  try {
+    const existingOpts = JSON.parse(await readFile(join(dir, 'import-options.json'), 'utf8'));
+    if (existingOpts && existingOpts.applied_at != null) {
+      existingAppliedAt = existingOpts.applied_at;
+    }
+  } catch {}
+  const appliedAt = existingAppliedAt != null
+    ? existingAppliedAt
+    : (plan.appliedAt != null ? plan.appliedAt : (options.now || Date.now()));
   const savedOptions = {
     excludeLots: options.excludeLots || [],
     excludeLotPrefixes: options.excludeLotPrefixes || [],
