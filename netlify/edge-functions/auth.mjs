@@ -100,6 +100,9 @@ function padArt() {
 
 function loginPage(nextPath, error = "", user = "", status = 200) {
   const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F2F4F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1311" media="(prefers-color-scheme: dark)">
 <title>SPI·SPC 分析台 · 登入</title><meta name="robots" content="noindex">
 <style>
 @font-face{font-family:"Barlow Condensed";font-weight:600;font-display:swap;src:url(/vendor/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
@@ -128,19 +131,19 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);
 form{padding:40px 36px;display:grid;gap:16px;align-content:center}
 form h2{margin:0;font-size:22px;font-weight:700}
 form .hint{margin:-8px 0 4px;color:var(--muted);font-size:13px}
-label{display:grid;gap:6px;font-size:13px;color:var(--muted)}
+label{display:grid;gap:6px;font-size:15px;color:var(--muted)}
 .field{position:relative;display:flex}
-input{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px}
+input{width:100%;font:inherit;font-size:17px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px}
 input[type=password],input.pw{padding-right:72px;font-family:var(--f-mono);letter-spacing:.08em}
 input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);font:inherit;font-size:12px;color:var(--muted);background:none;border:1px solid transparent;border-radius:6px;padding:4px 8px;cursor:pointer}
+.toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);font:inherit;font-size:13px;color:var(--muted);background:none;border:1px solid transparent;border-radius:6px;padding:6px 10px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .toggle:hover{border-color:var(--line);color:var(--ink)}
 .caps{font-size:12px;color:var(--warn);margin:-2px 0 0}
 .err{display:flex;gap:8px;align-items:flex-start;background:var(--ng-soft);color:var(--ng);border-radius:8px;padding:10px 12px;font-size:13px}
 .submit{font:inherit;font-weight:500;cursor:pointer;border:none;border-radius:8px;min-height:46px;background:var(--accent);color:var(--on-accent);margin-top:4px}
 .submit[aria-busy=true]{opacity:.75;cursor:progress}
 .foot{font-size:12px;color:var(--muted);margin:0}
-@media (max-width:720px){.shell{grid-template-columns:1fr}.brand{padding:24px;gap:18px}.brand h1{font-size:32px}.art{max-width:220px;gap:6px}form{padding:28px 24px}}
+@media (max-width:720px){.shell{grid-template-columns:1fr}.brand{padding:16px 20px;gap:10px;max-height:160px;overflow:hidden}.brand h1{font-size:22px}.brand .sub{display:none}.art{max-width:180px;gap:4px}.legend{display:none}.ver{font-size:11px}form{padding:24px 20px;gap:14px}}
 @media (prefers-reduced-motion:reduce){.pad.bad{animation:none}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style></head><body>
@@ -155,7 +158,7 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
     <div><h2>登入</h2></div>
     <p class="hint">請使用授權帳號登入，登入後 12 小時內免重新輸入。</p>
     ${error ? `<div class="err" role="alert" id="err">${esc(error)}</div>` : ""}
-    <label for="user">帳號<input id="user" name="user" type="email" inputmode="email" autocomplete="username" required placeholder="name@company.com" value="${esc(user)}"${error ? "" : " autofocus"}></label>
+    <label for="user">帳號<input id="user" name="user" type="email" inputmode="email" autocomplete="username" required placeholder="name@company.com" value="${esc(user)}"></label>
     <label for="pass">密碼
       <span class="field"><input id="pass" name="pass" type="password" class="pw" autocomplete="current-password" required${error ? " autofocus" : ""}>
       <button type="button" class="toggle" id="tg" aria-controls="pass" aria-pressed="false">顯示</button></span>
