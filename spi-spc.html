@@ -227,13 +227,16 @@ button:disabled{opacity:.5;cursor:default}
   .tab{min-height:46px;padding:10px 16px}
   .chip.chipBtn,a.chip{min-height:44px;padding:6px 14px}
   .card .cbtn, .toc button, .how summary{min-height:44px;display:inline-flex;align-items:center;padding:0 12px}
+  .how summary::before{content:"▸";margin-right:6px;font-size:12px}
+  details[open].how>summary::before{content:"▾"}
   .pmap-cells button{min-height:44px}
   .seg button{min-height:44px}
-  input[type=checkbox],input[type=radio]{width:24px;height:24px}
+  input[type=checkbox],input[type=radio]{width:44px;height:44px;min-width:44px;min-height:44px;margin:0}
   input[type=range]{min-height:44px}
   #zoneMap{touch-action:none}
   .linkbtn{min-height:44px}
   .rec-act button{min-height:44px}
+  .sr{min-width:0!important;min-height:0!important;width:1px!important;height:1px!important;padding:0!important}
 }
 .panel{padding-top:18px;display:grid;gap:16px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
@@ -294,9 +297,9 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 .mtab{display:none}
 .sheet-modal{display:none}
 .rail-chip{display:none}
-.rail-sheet-modal{display:contents}
-.rail-sheet-modal .sheet-backdrop,.rail-sheet-modal .sheet-handle,.rail-sheet-modal .sheet-head{display:none}
-.rail-fields{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
+.rail-sheet-modal,.rail-sheet-modal[hidden],.rail-sheet-modal .sheet-panel{display:contents!important}
+.rail-sheet-modal .sheet-backdrop,.rail-sheet-modal .sheet-handle,.rail-sheet-modal .sheet-head{display:none!important}
+.rail-fields{display:contents}
 
 @media (max-width:767px){
   html,body{-webkit-text-size-adjust:100%}
@@ -308,9 +311,6 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   .toprow .chip{display:none!important}
 
   header.top{
-    position:sticky;
-    top:0;
-    z-index:20;
     height:calc(var(--navbar-h) + var(--safe-t));
     padding:var(--safe-t) 16px 0;
     margin:0 -16px;
@@ -325,7 +325,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   .brand{justify-content:center;width:100%}
   .brand h1{font-size:17px!important;font-weight:600!important;line-height:44px;margin:0;text-align:center}
 
-  .sticky{position:sticky!important;top:calc(var(--navbar-h) + var(--safe-t))!important;z-index:15;background:var(--bg)}
+  .sticky{position:sticky!important;top:env(safe-area-inset-top,0px)!important;z-index:15;background:var(--bg)}
   .rail{padding:8px 0;border-bottom:0.5px solid var(--line);display:block}
   .rail-chip{
     display:flex!important;
@@ -344,10 +344,13 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     box-shadow:0 1px 3px rgba(0,0,0,0.06);
     cursor:pointer;
   }
-  .rail-sheet-modal:not(.open){display:none!important}
+  .rail-sheet-modal:not(.open),.rail-sheet-modal[hidden]:not(.open){display:none!important}
   .rail-sheet-modal.open{display:flex!important;position:fixed;inset:0;z-index:70;flex-direction:column;justify-content:flex-end}
-  .rail-sheet-modal .sheet-backdrop,.rail-sheet-modal .sheet-handle,.rail-sheet-modal .sheet-head{display:flex}
-  .rail-fields{display:flex;flex-direction:column;gap:14px}
+  .rail-sheet-modal.open .sheet-panel{display:flex!important}
+  .rail-sheet-modal .sheet-backdrop{display:block!important}
+  .rail-sheet-modal .sheet-handle{display:block!important}
+  .rail-sheet-modal .sheet-head{display:flex!important}
+  .rail-fields{display:flex!important;flex-direction:column;gap:14px}
   .rail-fields select{width:100%;min-height:44px;font-size:16px!important}
   .rail-fields .specbtn{width:100%;min-height:44px;justify-content:center;border:1px solid var(--line);border-radius:var(--r);background:var(--surface2)}
 
@@ -429,11 +432,15 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   .sheet-ver-info p{margin:2px 0}
 
   .field label{font-size:13px!important}
-  .lbl,.tabgrp,.ver,.click-hint,.ev-cap,.how,.kpi .k,.kpi .s,.pill,th,.fact,.pmap-lab,.note,small,#aiPayloadPre{font-size:12px!important}
+  .lbl,.tabgrp,.ver,.click-hint,.ev-cap,.how,.kpi .k,.kpi .s,.pill,th,.fact,.pmap-lab,.note,small,#aiPayloadPre,.ev text,svg text{font-size:12px!important}
 
-  button,select,input,textarea,summary,[role="button"]{min-height:44px}
+  button,select,input:not(.sr),textarea,summary,[role="button"]{min-height:44px;min-width:44px}
+  input[type=checkbox]:not(.sr),input[type=radio]:not(.sr){width:44px;height:44px;min-width:44px;min-height:44px;margin:0}
+  .sr{min-width:0!important;min-height:0!important;width:1px!important;height:1px!important;padding:0!important}
   select,input[type=number],input[type=text],textarea{font-size:16px!important}
   .card .cbtn,.toc button,.how summary{min-height:44px!important;display:inline-flex!important;align-items:center!important;padding:0 12px!important}
+  .how summary::before{content:"▸";margin-right:6px;font-size:12px}
+  details[open].how>summary::before{content:"▾"}
   .chipbtn,.chip.chipBtn,a.chip,.seg button,.linkbtn,.rec-act button{min-height:44px!important;min-width:44px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 
   .subtabs{
@@ -513,7 +520,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 <div class="sticky">
 <div class="rail" role="region" aria-label="分析設定">
   <button type="button" class="rail-chip" id="btnRailChip" aria-haspopup="dialog" aria-expanded="false" aria-controls="railSheet" aria-label="開啟分析設定與篩選"><span id="railChipSummary">範例資料 · 體積 · 全部元件 ▾</span></button>
-  <div class="rail-sheet-modal" id="railSheet" role="dialog" aria-modal="true" aria-label="分析設定" hidden>
+  <div class="rail-sheet-modal" id="railSheet" role="dialog" aria-modal="true" aria-label="分析設定">
     <div class="sheet-backdrop" id="railBackdrop"></div>
     <div class="sheet-panel">
       <div class="sheet-handle" aria-hidden="true"></div>
@@ -2155,9 +2162,10 @@ function syncControls(){
   const hasRes=S.rows.some(r=>r.result!=null);$("#selSpecSrc").querySelector("option[value=machine]").disabled=!hasRes;
   $("#specSrcNote").textContent=S.specSrc==="machine"?"好壞判定直接採用機台判定碼；下表為全板共用的推估規格窗；製程能力另依各元件群組自己的 PASS 範圍推估（見「製程能力 → 逐元件群組」），不可編輯。推估範圍是 PASS 焊墊實際出現過的值，機台真正的規格只會更寬，所以能力指標是下限；要得到正確的能力值，請向加工廠取得各封裝的 SPI 規格後改用「自訂規格」。要自行設定請切到「自訂規格」。":hasRes?"使用自訂規格判定好壞；機台判定碼仍會在「機台判定比對」中對照。":"此回合沒有機台判定碼欄位，只能使用自訂規格。";
   renderSpecTbl();
+  if(typeof updateRailSummary==="function")updateRailSummary();
 }
 /* 鋼板與規格只在「資料與規格 → 匯入與規格」修改（只保留一處，避免兩邊不一致）；頂端按鈕直接帶過去 */
-$("#railSpecBtn").onclick=()=>{setTab("data");setSub("import");const el=$("#inStencil2");if(el){el.closest(".card").scrollIntoView({block:"start"});scrollBy(0,-stickyH()-8);el.focus({preventScroll:true})}};
+$("#railSpecBtn").onclick=()=>{if(typeof railSheetCtrl!=="undefined"&&railSheetCtrl)railSheetCtrl.close();setTab("data");setSub("import");const el=$("#inStencil2");if(el){el.closest(".card").scrollIntoView({block:"start"});scrollBy(0,-stickyH()-8);el.focus({preventScroll:true})}};
 /* ---------- 階梯鋼板區域 ---------- */
 const ZCOL=["#3D6E8F","#B5652B","#7A5BA6","#2C7A4C","#B5487A","#8A7A2C"];
 function persist(){saveRunsSoon();try{localStorage.setItem("spi-stencil",JSON.stringify({t:S.stencil,lo:S.htol.lo,hi:S.htol.hi,step:S.step,aperture:S.aperture}))}catch(e){}}
@@ -3739,6 +3747,26 @@ window.addEventListener("popstate",e=>{
   const target=e.state?.tab||(location.hash||"").slice(1);
   if(target&&ALL_TABS.includes(target))setTab(target,true);
 });
+function updateRailSummary(){
+  const chip=$("#railChipSummary");if(!chip)return;
+  const runOpt=$("#selRun");
+  const runText=(runOpt&&runOpt.selectedIndex>=0&&runOpt.options[runOpt.selectedIndex])?runOpt.options[runOpt.selectedIndex].text:(S.runs?.find(r=>String(r.id)===String(S.runId))?.name||"範例資料");
+  const metricText=(METRICS&&METRICS[S.metric])?(METRICS[S.metric].short||METRICS[S.metric].label):"體積";
+  const grpText=S.group==="ALL"?"全部元件":(S.group||"全部元件");
+  chip.textContent=`${runText} · ${metricText} · ${grpText} ▾`;
+}
+function applyMobileChartFont(){
+  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:767px)").matches){
+    if(window.Chart&&window.Chart.defaults){
+      if(!window.Chart.defaults.font)window.Chart.defaults.font={};
+      window.Chart.defaults.font.size=12;
+    }
+  }
+}
+applyMobileChartFont();
+if(typeof window!=="undefined"&&window.matchMedia){
+  try{window.matchMedia("(max-width:767px)").addEventListener("change",applyMobileChartFont)}catch(e){}
+}
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
 try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t){S.stencil=sv.t;S.htol={lo:sv.lo||75,hi:sv.hi||125};S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}
@@ -3761,14 +3789,6 @@ try {
   window.matchMedia(PHONE_MQ).addEventListener("change", updateLayout);
   window.matchMedia(TABLET_MQ).addEventListener("change", updateLayout);
 } catch(e) {}
-function updateRailSummary(){
-  const chip=$("#railChipSummary");if(!chip)return;
-  const runOpt=$("#selRun");
-  const runText=(runOpt&&runOpt.selectedIndex>=0&&runOpt.options[runOpt.selectedIndex])?runOpt.options[runOpt.selectedIndex].text:(S.runs?.find(r=>String(r.id)===String(S.runId))?.name||"範例資料");
-  const metricText=(METRICS&&METRICS[S.metric])?(METRICS[S.metric].short||METRICS[S.metric].label):"體積";
-  const grpText=S.group==="ALL"?"全部元件":(S.group||"全部元件");
-  chip.textContent=`${runText} · ${metricText} · ${grpText} ▾`;
-}
 function setupModalSheet(sheetId,triggerId,closeId,backdropId){
   const sheet=$(sheetId),trig=$(triggerId),cls=$(closeId),bd=$(backdropId);
   if(!sheet||!trig)return null;
@@ -3811,18 +3831,6 @@ if($("#mBtnMyShares")) $("#mBtnMyShares").onclick=()=>{if(moreSheetCtrl)moreShee
 $$(".mtab [data-tab]").forEach(b=>{
   b.onclick=()=>setTab(b.dataset.tab);
 });
-function applyMobileChartFont(){
-  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:767px)").matches){
-    if(window.Chart&&window.Chart.defaults){
-      if(!window.Chart.defaults.font)window.Chart.defaults.font={};
-      window.Chart.defaults.font.size=12;
-    }
-  }
-}
-applyMobileChartFont();
-if(typeof window!=="undefined"&&window.matchMedia){
-  try{window.matchMedia("(max-width:767px)").addEventListener("change",applyMobileChartFont)}catch(e){}
-}
 $("#selRun").addEventListener("change",updateRailSummary);
 $("#selMetric").addEventListener("change",updateRailSummary);
 $("#selGroup").addEventListener("change",updateRailSummary);

@@ -50,11 +50,13 @@ test('2. 登入頁行動版規格 (lib/auth-handler.mjs loginPage)', () => {
     // c. 移除 autofocus 防止行動版鍵盤彈出遮擋
     assert.doesNotMatch(html, /<input[^>]+id="user"[^>]+autofocus/i, '帳號欄位不可含 autofocus');
 
-    // d. CSS 規則：input 17px, label 15px, toggle min 44x44, brand max-height <= 160px
+    // d. CSS 規則：input 17px, label 15px, toggle min 44x44, brand max-height <= 160px, foot & ver >= 12px
     assert.match(html, /input\{[^}]*font-size:\s*17px/i, 'input 需設定 17px 字級防止 iOS Safari 放大');
     assert.match(html, /label\{[^}]*font-size:\s*15px/i, 'label 需設定 15px 字級');
     assert.match(html, /\.toggle\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/i, '.toggle 觸控區域至少 44×44');
+    assert.match(html, /\.foot\{[^}]*font-size:\s*12px/i, '.foot 需維持 12px 字級');
     assert.match(html, /@media\s*\(max-width:\s*720px\)[\s\S]*?\.brand\{[^}]*max-height:\s*160px/i, '手機寬度品牌區高度需限制在 160px 以內');
+    assert.match(html, /@media\s*\(max-width:\s*720px\)[\s\S]*?\.ver\{font-size:\s*12px\}/i, '手機寬度 .ver 需維持 ≥12px');
   });
 });
 
@@ -168,4 +170,7 @@ test('5. 觸控修正與無障礙樣式規範 (CSS 規則檢驗)', () => {
 
   // e. Sticky 表頭在手機下頂部避讓 44px + safe-top
   assert.match(htmlSource, /\.tbl\.sticky-head\s+thead\s+th\{[^}]*top:\s*calc\(44px\s*\+\s*env\(safe-area-inset-top,\s*0px\)\)/i, '表格 sticky 表頭需配合 44px 頂欄避讓');
+
+  // f. 桌機版 .rail-sheet-modal 維持 display:contents 確保篩選列顯示
+  assert.match(htmlSource, /\.rail-sheet-modal[^{]*\{display:contents!important\}/i, '桌機版 .rail-sheet-modal 需維持 display:contents!important');
 });
