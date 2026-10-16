@@ -57,3 +57,15 @@ export function buildAuditInsertSql(rows) {
   }
   return stmts;
 }
+
+export function buildDeleteAuditSql(srcKeys) {
+  if (!srcKeys || srcKeys.length === 0) return [];
+  const stmts = [];
+  const batchSize = MAX_PARAMS_PER_STMT;
+  for (let i = 0; i < srcKeys.length; i += batchSize) {
+    const chunk = srcKeys.slice(i, i + batchSize);
+    const inClause = chunk.map(k => sqlStr(k)).join(', ');
+    stmts.push(`DELETE FROM audit_log WHERE src_key IN (${inClause});`);
+  }
+  return stmts;
+}

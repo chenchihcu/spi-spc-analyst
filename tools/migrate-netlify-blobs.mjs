@@ -13,6 +13,7 @@ import {
   buildRecordInsertSql,
   buildShareInsertSql,
   buildAuditInsertSql,
+  buildDeleteAuditSql,
 } from './migration-sql.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -221,15 +222,50 @@ export async function parseImportPlan(dir, options = {}) {
     });
   }
 
+  // D-2: 排除清單減少 (取消排除)
+  const existingExcludes = Array.isArray(options.existingExcludes) ? options.existingExcludes : [];
+  const deletedExcludeKeys = [];
+
+  for (const srcKey of existingExcludes) {
+    if (srcKey.startsWith('exclude:record:')) {
+      const recId = srcKey.replace('exclude:record:', '');
+      const isStillExcluded = excludedRecords.some((e) => e.record.id === recId);
+      if (!isStillExcluded) {
+        // 取消排除：核對原始檔是否存在
+        const binEntry = manifest.entries.find((e) => e.store === 'spi-records' && e.key === `f/${recId}`);
+        if (!binEntry) {
+          throw new Error(`缺少原始檔 f/${recId}，無法取消排除，請改用完整匯出`);
+        }
+        deletedExcludeKeys.push(srcKey);
+      }
+    } else if (srcKey.startsWith('exclude:share:')) {
+      const shareId = srcKey.replace('exclude:share:', '');
+      const isStillExcluded = excludedShares.some((e) => e.share.id === shareId);
+      if (!isStillExcluded) {
+        const isExpired = expiredShares.some((s) => s.id === shareId);
+        if (isExpired) {
+          // ② 被排除的目標已過期或已刪除 -> 保留該列，不刪除簿記列
+          continue;
+        }
+        const binEntry = manifest.entries.find((e) => e.store === 'spi-share' && e.key === shareId);
+        if (!binEntry) {
+          throw new Error(`缺少原始檔 ${shareId}，無法取消排除，請改用完整匯出`);
+        }
+        deletedExcludeKeys.push(srcKey);
+      }
+    }
+  }
+
   // 計算估算列數 (F-1 雙估算指標)
-  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1
+  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1 (E-1, D-2)
   const localRowsWritten =
     plannedRecords.length * 5 +
     plannedShares.length * 4 +
-    (auditLogs.length + excludeAudits.length) * 4;
+    (auditLogs.length + excludeAudits.length) * 4 +
+    deletedExcludeKeys.length * 1;
 
   // 額度估算 (DELETE 也按 INSERT 算)
-  const quotaRowsWritten = localRowsWritten;
+  const quotaRowsWritten = localRowsWritten + deletedExcludeKeys.length * 3;
 
   return {
     plannedRecords,
@@ -239,6 +275,7 @@ export async function parseImportPlan(dir, options = {}) {
     expiredShares,
     auditLogs,
     excludeAudits,
+    deletedExcludeKeys,
     localRowsWritten,
     quotaRowsWritten,
   };
@@ -255,6 +292,7 @@ export async function importSnapshot(dir, options = {}) {
     plannedShares: plan.plannedShares.length,
     excludedShares: plan.excludedShares.length,
     auditLogs: plan.auditLogs.length + plan.excludeAudits.length,
+    deletedExcludeKeys: plan.deletedExcludeKeys.length,
     localRowsWritten: plan.localRowsWritten,
     quotaRowsWritten: plan.quotaRowsWritten,
   }, null, 2));
@@ -266,12 +304,13 @@ export async function importSnapshot(dir, options = {}) {
   if (!options.apply) return plan;
 
   // 執行 --apply: 生成 SQL 語句並分批執行
+  const deleteExcludeSqls = buildDeleteAuditSql(plan.deletedExcludeKeys);
   const allAudits = [...plan.auditLogs, ...plan.excludeAudits];
   const recordSqls = buildRecordInsertSql(plan.plannedRecords);
   const shareSqls = buildShareInsertSql(plan.plannedShares);
   const auditSqls = buildAuditInsertSql(allAudits);
 
-  const allSqls = [...recordSqls, ...shareSqls, ...auditSqls];
+  const allSqls = [...deleteExcludeSqls, ...recordSqls, ...shareSqls, ...auditSqls];
   const targetFlag = options.remote ? '--remote' : '--local';
 
   for (let i = 0; i < allSqls.length; i++) {

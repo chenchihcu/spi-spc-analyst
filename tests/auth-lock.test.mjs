@@ -372,23 +372,44 @@ test("AL-9: LOGIN_LIMIT 限制優先於 D1 (超過門檻 0 查詢)", async () =>
 test("AL-10: 預設封閉 (503 login_limiter_missing, login_limiter_error, login_db_unavailable)", async () => {
   const db = createD1Mock();
 
-  // 1. 缺少 limiter
+  // 1. 缺少 limiter: POST 503、GET 200 行內警告、既有會話仍可用
   const envNoLimiter = makeEnv(db, { limiter: null });
+  db.resetStats();
   const rNo = await doLogin(envNoLimiter, { user: "alice@example.com", d: alice.d });
   assert.equal(rNo.status, 503);
   assert.equal((await rNo.json()).error, "login_limiter_missing");
+  assert.equal(rNo.headers.get("Set-Cookie"), null, "不可發出 Set-Cookie");
+  assert.equal(db.getStats().queryCount, 0, "D1 查詢數必須為 0");
 
-  // 2. limiter 拋出例外
+  const repo = new Repo(db, {});
+  const reqGetLoginNo = new Request("http://localhost/__login");
+  const resGetLoginNo = await handleAuth(reqGetLoginNo, envNoLimiter, () => new Response("OK"), { repo });
+  assert.equal(resGetLoginNo.status, 200);
+  const htmlNo = await resGetLoginNo.text();
+  assert.match(htmlNo, /登入暫停：伺服器缺少登入限流設定/);
+  assert.match(htmlNo, /disabled/);
+
+  // 2. limiter 拋出例外: POST 503、GET 不得呼叫 limit() (0 次)
+  let limiterCalls = 0;
   const envErrLimiter = makeEnv(db, {
     limiter: {
-      async limit() { throw new Error("Limiter network crash"); },
+      async limit() { limiterCalls++; throw new Error("Limiter network crash"); },
     },
   });
+  db.resetStats();
   const rErr = await doLogin(envErrLimiter, { user: "alice@example.com", d: alice.d });
   assert.equal(rErr.status, 503);
   assert.equal((await rErr.json()).error, "login_limiter_error");
+  assert.equal(rErr.headers.get("Set-Cookie"), null);
+  assert.equal(db.getStats().queryCount, 0);
 
-  // 3. D1 查詢拋出例外
+  limiterCalls = 0;
+  const reqGetLoginErr = new Request("http://localhost/__login");
+  const resGetLoginErr = await handleAuth(reqGetLoginErr, envErrLimiter, () => new Response("OK"), { repo });
+  assert.equal(resGetLoginErr.status, 200);
+  assert.equal(limiterCalls, 0, "GET /__login 不得呼叫 limit()");
+
+  // 3. D1 查詢拋出例外: POST 503、密碼不驗證、不發 cookie
   const brokenDb = {
     prepare() {
       return {
@@ -406,6 +427,7 @@ test("AL-10: 預設封閉 (503 login_limiter_missing, login_limiter_error, login
   const rDbErr = await doLogin(envBrokenDb, { user: "alice@example.com", d: alice.d });
   assert.equal(rDbErr.status, 503);
   assert.equal((await rDbErr.json()).error, "login_db_unavailable");
+  assert.equal(rDbErr.headers.get("Set-Cookie"), null);
 });
 
 test("AL-11: 單次登入語句數預算 <= 4", async () => {
@@ -444,6 +466,56 @@ test("AL-12: cron 30 分鐘邊界清理", async () => {
   assert.equal(totalAfter, 300, "應保留 at >= now - 30 分鐘的 300 列");
   assert.equal(res.meta.changes, 200, "刪除筆數應為 200");
   assert.ok(db.getStats().rowsWritten <= 600, "rowsWritten 應 <= 600");
+
+  // 無過期列時再次執行 cron
+  db.resetStats();
+  const resEmpty = await repo.purgeOldAuthAttempts(now);
+  assert.equal(resEmpty.meta.changes, 0);
+  assert.equal(db.getStats().rowsWritten, 0, "無過期列時 rowsWritten 應為 0");
+});
+
+test("AL-12 獨立情境：鎖定中在 cron 後仍鎖定", async () => {
+  const db = createD1Mock();
+  const repo = new Repo(db, {});
+  const env = makeEnv(db);
+  const now = 2_000_000_000_000;
+
+  // 另一把鍵在 now - 2 分 ~ now - 1 分有 5 次失敗 (鎖定中)
+  for (let i = 0; i < 5; i++) {
+    await doLogin(env, { user: "alice@example.com", d: "wrong", ip: "1.2.3.4", now: now - 2 * 60_000 + i * 10_000 });
+  }
+  // 檢查當前為鎖定
+  const rBefore = await doLogin(env, { user: "alice@example.com", d: "wrong", ip: "1.2.3.4", now });
+  assert.equal(rBefore.status, 429);
+  const unlockAtBefore = (await rBefore.json()).unlockAt;
+
+  // 跑 cron
+  await repo.purgeOldAuthAttempts(now);
+
+  // 檢查 cron 後仍為 429 locked 且 unlockAt 相同
+  const rAfter = await doLogin(env, { user: "alice@example.com", d: "wrong", ip: "1.2.3.4", now });
+  assert.equal(rAfter.status, 429);
+  const unlockAtAfter = (await rAfter.json()).unlockAt;
+  assert.equal(unlockAtAfter, unlockAtBefore, "unlockAt 在 cron 後必須不變");
+});
+
+test("AL-12 獨立情境：已解鎖在 cron 後可正常登入", async () => {
+  const db = createD1Mock();
+  const repo = new Repo(db, {});
+  const env = makeEnv(db);
+  const now = 2_000_000_000_000;
+
+  // 5 次失敗在 now - 20 分 ~ now - 16 分 (已解鎖)
+  for (let i = 0; i < 5; i++) {
+    await doLogin(env, { user: "bob@example.com", d: "wrong", ip: "5.6.7.8", now: now - 20 * 60_000 + i * 60_000 });
+  }
+
+  // 跑 cron (此時 records 都在 30 分內，未被刪除，但 15 分鐘窗口已過)
+  await repo.purgeOldAuthAttempts(now);
+
+  // 正確密碼可登入
+  const rLogin = await doLogin(env, { user: "bob@example.com", d: bob.d, ip: "5.6.7.8", now });
+  assert.equal(rLogin.status, 200, "已解鎖帳號在 cron 後以正確密碼登入應為 200");
 });
 
 test("AL-14: 與基準 lockUntil 在 500 組序列等價", () => {

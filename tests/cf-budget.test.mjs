@@ -106,3 +106,100 @@ test('CF Free Plan 預算守衛：D1 查詢數每請求 <= 40', async () => {
   await repo.insertAuthAttemptAtomic('h1', 'ip1');
   assert.ok(d1.queryCount <= 40, `登入防禦查詢數 ${d1.queryCount} 必須 <= 40`);
 });
+
+test('D-4 / L-6: 查詢索引走查與 EXPLAIN QUERY PLAN 例外豁免', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  
+  // 建立完整 D1 schema
+  db.exec(`
+    CREATE TABLE records (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      part TEXT NOT NULL,
+      rev TEXT NOT NULL DEFAULT '',
+      lot TEXT NOT NULL,
+      side TEXT NOT NULL DEFAULT '',
+      vendor TEXT NOT NULL DEFAULT '',
+      place_id TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL,
+      user TEXT NOT NULL,
+      created INTEGER NOT NULL,
+      bytes INTEGER NOT NULL,
+      gz_bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL,
+      meta TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE UNIQUE INDEX r_u ON records(kind, part, rev, lot, side, vendor, place_id, sha256);
+    CREATE INDEX r_k ON records(kind, created DESC, id DESC);
+    CREATE INDEX r_sha ON records(sha256);
+
+    CREATE TABLE shares (
+      id TEXT PRIMARY KEY,
+      user TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL DEFAULT '',
+      created INTEGER NOT NULL DEFAULT 0,
+      exp INTEGER NOT NULL DEFAULT 0,
+      bytes INTEGER NOT NULL DEFAULT 0,
+      revoked_at INTEGER,
+      revoked_by TEXT
+    );
+    CREATE INDEX idx_shares_user ON shares(user, created DESC);
+    CREATE INDEX idx_shares_exp ON shares(exp);
+
+    CREATE TABLE audit_log (
+      seq INTEGER PRIMARY KEY,
+      at INTEGER NOT NULL,
+      by TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL DEFAULT '',
+      target_type TEXT NOT NULL DEFAULT '',
+      target_id TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      src_key TEXT
+    );
+    CREATE INDEX idx_audit_at ON audit_log(at DESC, seq DESC);
+    CREATE UNIQUE INDEX audit_log_src ON audit_log(src_key) WHERE src_key IS NOT NULL;
+
+    CREATE TABLE auth_attempts (
+      id INTEGER PRIMARY KEY,
+      key_u TEXT NOT NULL,
+      key_ip TEXT NOT NULL,
+      at INTEGER NOT NULL
+    );
+    CREATE INDEX idx_auth_u ON auth_attempts(key_u, at);
+    CREATE INDEX idx_auth_ip ON auth_attempts(key_ip, at);
+  `);
+
+  // 常規查詢必須走索引 (不含 SCAN TABLE)
+  const appQueries = [
+    { name: 'records list', sql: "SELECT id FROM records WHERE kind = 'meas' ORDER BY created DESC, id DESC LIMIT 51" },
+    { name: 'records single', sql: "SELECT * FROM records WHERE id = 'rec1'" },
+    { name: 'records dedupe', sql: "SELECT id FROM records WHERE kind = 'meas' AND part = 'p' AND rev = 'r' AND lot = 'l' AND side = 's' AND vendor = 'v' AND place_id = 'pl' AND sha256 = 'h'" },
+    { name: 'auth_attempts u', sql: "SELECT at FROM auth_attempts WHERE key_u = 'u1' AND at > 1000 ORDER BY at DESC LIMIT 5" },
+    { name: 'auth_attempts ip', sql: "SELECT at FROM auth_attempts WHERE key_ip = 'ip1' AND at > 1000 ORDER BY at DESC LIMIT 5" },
+    { name: 'shares get', sql: "SELECT * FROM shares WHERE id = 's1' LIMIT 1" },
+    { name: 'shares mine', sql: "SELECT * FROM shares WHERE user = 'u1' ORDER BY created DESC LIMIT 50" },
+    { name: 'audit list', sql: "SELECT * FROM audit_log ORDER BY at DESC, seq DESC LIMIT 100" },
+  ];
+
+  for (const q of appQueries) {
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${q.sql}`).all();
+    const details = plan.map(p => p.detail).join('; ');
+    assert.ok(
+      !details.includes('SCAN TABLE') || details.includes('USING INDEX') || details.includes('USING COVERING INDEX'),
+      `常規查詢 [${q.name}] 必須走索引，實際執行計畫: ${details}`
+    );
+  }
+
+  // D-4 規格豁免的兩類查詢：
+  // 1. ?q= 關鍵字搜尋 (允許 SCAN)
+  const searchPlan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM records WHERE (lot LIKE '%X%' OR name LIKE '%X%') ORDER BY created DESC LIMIT 50").all();
+  assert.ok(searchPlan.length > 0, '搜尋查詢成功生成執行計畫');
+
+  // 2. cron 固定掃描 (允許 SCAN)
+  const cronAttemptsPlan = db.prepare("EXPLAIN QUERY PLAN DELETE FROM auth_attempts WHERE at < 1000").all();
+  assert.ok(cronAttemptsPlan.length > 0, 'auth_attempts 清除查詢成功生成執行計畫');
+  const cronStatsPlan = db.prepare("EXPLAIN QUERY PLAN SELECT COUNT(*), SUM(gz_bytes) FROM records").all();
+  assert.ok(cronStatsPlan.length > 0, 'stats 每日統計查詢成功生成執行計畫');
+});
+
