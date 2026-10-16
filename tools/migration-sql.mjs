@@ -1,31 +1,59 @@
-// Keep each Wrangler --command below both D1's SQL limit and Windows' command-line limit.
-export const SQL_CHUNK_BYTES = 8 * 1024;
+// tools/migration-sql.mjs: D1 遷移 SQL 生成與分批工具
+// 實作規範：D-59, 9.2 B3, 9.4 L-2, L-6
+import { Buffer } from 'node:buffer';
 
-export const sql = (value) => `CAST(X'${Buffer.from(String(value)).toString('hex')}' AS TEXT)`;
+export const ID_RE = /^[A-Za-z0-9_-]{22}$/;
+export const MAX_PARAMS_PER_STMT = 90;
+export const MAX_BYTES_PER_STMT = 80 * 1024; // < 100 KB limit
 
-export function metadataMatches(stored, source, store, key) {
-  const destination = JSON.parse(stored || 'null');
-  if (store === 'spi-maint' && key === 'share-cleanup') {
-    // Netlify returns {} for this housekeeping blob; Cloudflare's scheduler writes NULL.
-    const empty = (value) => value == null ||
-      (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
-    if (empty(destination) && empty(source)) return true;
-  }
-  return JSON.stringify(destination) === JSON.stringify(source);
+export function sqlStr(val) {
+  if (val == null) return "''";
+  return `'${String(val).replace(/'/g, "''")}'`;
 }
 
-export function* utf8Chunks(text, maxBytes = SQL_CHUNK_BYTES) {
-  let chunk = '';
-  let size = 0;
-  for (const character of text) {
-    const bytes = Buffer.byteLength(character);
-    if (size + bytes > maxBytes && chunk) {
-      yield chunk;
-      chunk = '';
-      size = 0;
-    }
-    chunk += character;
-    size += bytes;
+export function isShareKey(key) {
+  return typeof key === 'string' && ID_RE.test(key);
+}
+
+export function buildRecordInsertSql(rows) {
+  if (!rows || rows.length === 0) return [];
+  const stmts = [];
+  // records columns: id, kind, part, rev, lot, side, vendor, place_id, name, user, created, bytes, gz_bytes, sha256, meta (15 cols)
+  // 6 rows * 15 cols = 90 params limit
+  const batchSize = Math.floor(MAX_PARAMS_PER_STMT / 15);
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    const valueClauses = chunk.map(r => `(${sqlStr(r.id)}, ${sqlStr(r.kind || '')}, ${sqlStr(r.part || '')}, ${sqlStr(r.rev || '')}, ${sqlStr(r.lot || '')}, ${sqlStr(r.side || '')}, ${sqlStr(r.vendor || '')}, ${sqlStr(r.place_id || r.placeId || '')}, ${sqlStr(r.name || '')}, ${sqlStr(r.user || '')}, ${Number(r.created) || 0}, ${Number(r.bytes) || 0}, ${Number(r.gz_bytes) || 0}, ${sqlStr(r.sha256 || '')}, ${sqlStr(typeof r.meta === 'string' ? r.meta : JSON.stringify(r.meta || {}))})`).join(', ');
+    const stmt = `INSERT INTO records (id, kind, part, rev, lot, side, vendor, place_id, name, user, created, bytes, gz_bytes, sha256, meta) VALUES ${valueClauses} ON CONFLICT(id) DO NOTHING;`;
+    stmts.push(stmt);
   }
-  if (chunk) yield chunk;
+  return stmts;
+}
+
+export function buildShareInsertSql(rows) {
+  if (!rows || rows.length === 0) return [];
+  const stmts = [];
+  // shares columns: id, user, name, created, exp, bytes (6 cols)
+  const batchSize = Math.floor(MAX_PARAMS_PER_STMT / 6);
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    const valueClauses = chunk.map(s => `(${sqlStr(s.id)}, ${sqlStr(s.user || '')}, ${sqlStr(s.name || '')}, ${Number(s.created) || 0}, ${Number(s.exp) || 0}, ${Number(s.bytes) || 0})`).join(', ');
+    const stmt = `INSERT INTO shares (id, user, name, created, exp, bytes) VALUES ${valueClauses} ON CONFLICT(id) DO NOTHING;`;
+    stmts.push(stmt);
+  }
+  return stmts;
+}
+
+export function buildAuditInsertSql(rows) {
+  if (!rows || rows.length === 0) return [];
+  const stmts = [];
+  // audit_log columns: at, by, action, target_type, target_id, detail, src_key (7 cols)
+  const batchSize = Math.floor(MAX_PARAMS_PER_STMT / 7);
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize);
+    const valueClauses = chunk.map(a => `(${Number(a.at) || 0}, ${sqlStr(a.by || '')}, ${sqlStr(a.action || '')}, ${sqlStr(a.target_type || '')}, ${sqlStr(a.target_id || '')}, ${sqlStr(typeof a.detail === 'string' ? a.detail : JSON.stringify(a.detail || {}))}, ${sqlStr(a.src_key || null)})`).join(', ');
+    const stmt = `INSERT INTO audit_log (at, by, action, target_type, target_id, detail, src_key) VALUES ${valueClauses} ON CONFLICT(src_key) WHERE src_key IS NOT NULL DO NOTHING;`;
+    stmts.push(stmt);
+  }
+  return stmts;
 }

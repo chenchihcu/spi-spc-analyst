@@ -1,0 +1,12 @@
+(1) import rows_written: records 25000 (5/row), audit_log 24000 (4/row), shares 800 (4/row), total 49800
+(1) clear (DELETE all) measured rows_written: records 5000, audit_log 6000, shares 200, total 11200; changes 11200
+(1) quota estimate (DELETE at INSERT per-row counts 5/4/4): clear 49800; clear+import 99600 (> 80,000 -> must choose (ii): true)
+(1) local-count estimate (DELETE 1/row): clear+import 61000 (would wrongly allow (i): true)
+(2) mixed targets: audit page 1: rows_read 90 (cap 104), returned 50, plan ["SCAN a","SEARCH r USING COVERING INDEX sqlite_autoindex_records_1 (id=?) LEFT-JOIN"]
+(2) mixed targets: audit page 2: rows_read 92 (cap 104), returned 50, plan ["SEARCH a USING INTEGER PRIMARY KEY (rowid<?)","SEARCH r USING COVERING INDEX sqlite_autoindex_records_1 (id=?) LEFT-JOIN"]
+(2) mixed targets: audit page 12: rows_read 88 (cap 104), returned 50, plan ["SEARCH a USING INTEGER PRIMARY KEY (rowid<?)","SEARCH r USING COVERING INDEX sqlite_autoindex_records_1 (id=?) LEFT-JOIN"]
+(2) mixed targets: pages 12, worst rows_read 92, all <= 104: true
+(3) all targets live: audit page 1: rows_read 102 (cap 104), returned 50, plan ["SCAN a","SEARCH r USING COVERING INDEX sqlite_autoindex_records_1 (id=?) LEFT-JOIN"]
+(3) all targets live: audit page 2: rows_read 102 (cap 104), returned 50, plan ["SEARCH a USING INTEGER PRIMARY KEY (rowid<?)","SEARCH r USING COVERING INDEX sqlite_autoindex_records_1 (id=?) LEFT-JOIN"]
+(3) all targets live: audit page 12: rows_read 100 (cap 104), returned 50, plan ["SEARCH a USING INTEGER PRIMARY KEY (rowid<?)","SEARCH r USING COVERING INDEX sqlite_autoindex_records_1 (id=?) LEFT-JOIN"]
+(3) all targets live: pages 12, worst rows_read 102, all <= 104: true

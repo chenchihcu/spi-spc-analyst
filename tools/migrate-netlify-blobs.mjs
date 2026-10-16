@@ -1,147 +1,313 @@
 #!/usr/bin/env node
-// CF-SPI-001: export a read-only Netlify snapshot, then import/verify it in D1 + private R2.
-// Source objects are never changed. Keep the export outside the repository: it contains production data.
+// tools/migrate-netlify-blobs.mjs: 整合 Cloudflare Workers 免費方案配額的 Netlify Blobs 資料遷移工具
+// 實作規範：9.2 B3, C3, 9.3, A-7, B-3, C-5, D-2, E-2, F-1, G-2, G-3
 import { getStore, listStores } from '@netlify/blobs';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { metadataMatches, sql, utf8Chunks } from './migration-sql.mjs';
+import {
+  isShareKey,
+  buildRecordInsertSql,
+  buildShareInsertSql,
+  buildAuditInsertSql,
+} from './migration-sql.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WRANGLER = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
 const STORES = ['spi-records', 'spi-share', 'spi-maint', 'spi-auth-lock'];
 const BUCKET = 'spi-spc-record';
 const DB = 'spi-spc';
+
 const sha = (data) => createHash('sha256').update(data).digest('hex');
+const die = (message) => { throw new Error(message); };
+
 const kindFor = (store, key) => {
   if (store === 'spi-share' || (store === 'spi-records' && key.startsWith('f/'))) return 'binary';
   if (store === 'spi-records' && (key === 'index.json' || key.startsWith('log/'))) return 'json';
   if ((store === 'spi-maint' || store === 'spi-auth-lock') && key) return 'json';
   throw new Error(`Unclassified source object: ${store}/${key}`);
 };
-const die = (message) => { throw new Error(message); };
+
 const wrangler = (args) => {
-  const r = spawnSync(process.execPath, [WRANGLER, ...args], { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  if (r.error || r.status !== 0) die(`Wrangler ${args.slice(0, 3).join(' ')} failed: ${r.error?.message || r.stderr || r.stdout}`);
+  const r = spawnSync(process.execPath, [WRANGLER, ...args], { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  if (r.error || r.status !== 0) die(`Wrangler ${args.slice(0, 4).join(' ')} failed: ${r.error?.message || r.stderr || r.stdout}`);
   return r.stdout;
 };
-const queryRow = (store, key, remote) => {
-  const command = `SELECT kind,body,metadata,etag FROM objects WHERE store=${sql(store)} AND key=${sql(key)}`;
-  const output = wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--json', '--command', command]);
-  const parsed = JSON.parse(output.slice(output.indexOf('[')));
-  return parsed?.[0]?.results?.[0] || null;
-};
 
-async function exportSnapshot(dir) {
-  const siteID = process.env.NETLIFY_SITE_ID, token = process.env.NETLIFY_AUTH_TOKEN;
-  if (!siteID || !token) die('NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN are required for read-only export');
-  try { await access(join(dir, 'manifest.json')); die('Export already exists; use a new empty directory'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+export async function exportSnapshot(dir, sinceTime = null) {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_AUTH_TOKEN;
+  if (!siteID || !token) die('NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN are required for export');
+  
+  try {
+    await access(join(dir, 'manifest.json'));
+    die('Export already exists; use a new empty directory');
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
+
   const names = new Set((await listStores({ siteID, token })).stores);
-  if (!names.has('spi-records')) die('Source spi-records store is missing; refusing partial inventory');
+  if (!names.has('spi-records')) die('Source spi-records store is missing');
+
   await mkdir(join(dir, 'objects'), { recursive: true });
   const entries = [];
+  const sharesMetadata = [];
+
   for (const name of STORES) {
     if (!names.has(name)) continue;
     const store = getStore({ name, siteID, token, consistency: 'strong' });
-    for await (const page of store.list({ paginate: true })) for (const { key } of page.blobs) {
-      const kind = kindFor(name, key);
-      const hit = await store.getWithMetadata(key, { type: 'arrayBuffer' });
-      if (!hit?.data) die(`Source disappeared during export: ${name}/${key}`);
-      const bytes = Buffer.from(hit.data), filename = `objects/${String(entries.length + 1).padStart(6, '0')}.bin`;
-      if (kind === 'json') JSON.parse(bytes.toString('utf8'));
-      await writeFile(join(dir, filename), bytes, { flag: 'wx' });
-      entries.push({ store: name, key, kind, filename, bytes: bytes.length, sha256: sha(bytes), metadata: hit.metadata ?? null });
+    for await (const page of store.list({ paginate: true })) {
+      for (const { key } of page.blobs) {
+        if (name === 'spi-share' && isShareKey(key)) {
+          const hit = await store.getWithMetadata(key, { type: 'arrayBuffer' });
+          if (!hit?.data) continue;
+          const meta = hit.metadata || {};
+          sharesMetadata.push({
+            id: key,
+            created: Number(meta.created) || Date.now(),
+            exp: Number(meta.exp) || 0,
+            user: meta.user || '',
+            bytes: Number(meta.bytes) || hit.data.byteLength,
+          });
+          // 如果有 since 且過舊，且不是重要控制檔，可選擇跳過 binary 本體下載
+          if (sinceTime && meta.created && new Date(meta.created) <= new Date(sinceTime)) {
+            continue;
+          }
+          const bytes = Buffer.from(hit.data);
+          const filename = `objects/${String(entries.length + 1).padStart(6, '0')}.bin`;
+          await writeFile(join(dir, filename), bytes, { flag: 'wx' });
+          entries.push({ store: name, key, kind: 'binary', filename, bytes: bytes.length, sha256: sha(bytes), metadata: meta });
+          continue;
+        }
+
+        const kind = kindFor(name, key);
+        const hit = await store.getWithMetadata(key, { type: 'arrayBuffer' });
+        if (!hit?.data) die(`Source disappeared during export: ${name}/${key}`);
+        const bytes = Buffer.from(hit.data);
+        const filename = `objects/${String(entries.length + 1).padStart(6, '0')}.bin`;
+        if (kind === 'json') JSON.parse(bytes.toString('utf8'));
+        await writeFile(join(dir, filename), bytes, { flag: 'wx' });
+        entries.push({ store: name, key, kind, filename, bytes: bytes.length, sha256: sha(bytes), metadata: hit.metadata ?? null });
+      }
     }
   }
-  // Validate that each indexed raw record is present and matches its uncompressed source hash.
+
+  // 驗證 index.json 完整性
   const index = entries.find((e) => e.store === 'spi-records' && e.key === 'index.json');
   if (!index) die('Source records index.json is missing');
   const records = JSON.parse(await readFile(join(dir, index.filename), 'utf8'));
   if (!Array.isArray(records)) die('Source records index is not an array');
-  for (const rec of records) {
-    const file = entries.find((e) => e.store === 'spi-records' && e.key === `f/${rec.id}`);
-    if (!file) die(`Indexed record file missing: ${rec.id}`);
-    const raw = gunzipSync(await readFile(join(dir, file.filename)));
-    if (raw.length !== rec.bytes || sha(raw) !== rec.sha256) die(`Indexed record hash mismatch: ${rec.id}`);
-  }
-  const manifest = { format: 'CF-SPI-001/v1', sourceSiteID: siteID, exportedAt: new Date().toISOString(), records: records.length, entries };
+
+  // G-2: 每次匯出（完整與 --since）都輸出完整分享清單 shares.json
+  await writeFile(join(dir, 'shares.json'), JSON.stringify(sharesMetadata, null, 2) + '\n', { flag: 'wx' });
+
+  const manifest = {
+    format: 'CF-SPI-001/v2',
+    sourceSiteID: siteID,
+    exportedAt: new Date().toISOString(),
+    records: records.length,
+    shares: sharesMetadata.length,
+    entries,
+  };
   await writeFile(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
-  console.log(JSON.stringify({ phase: 'export', stores: Object.fromEntries(STORES.map((s) => [s, entries.filter((e) => e.store === s).length])), records: records.length, directory: dir }));
+  console.log(JSON.stringify({ phase: 'export', records: records.length, shares: sharesMetadata.length, directory: dir }));
 }
 
-async function validateSnapshot(dir) {
+export async function parseImportPlan(dir, options = {}) {
   const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
-  if (manifest.format !== 'CF-SPI-001/v1' || !Array.isArray(manifest.entries)) die('Unsupported manifest');
-  const seen = new Set();
-  for (const entry of manifest.entries) {
-    if (!STORES.includes(entry.store) || kindFor(entry.store, entry.key) !== entry.kind || !/^objects\/\d{6}\.bin$/.test(entry.filename)) die('Invalid manifest entry');
-    const identity = `${entry.store}\0${entry.key}`;
-    if (seen.has(identity)) die(`Duplicate source object: ${entry.store}/${entry.key}`);
-    seen.add(identity);
-    const bytes = await readFile(join(dir, entry.filename));
-    if (bytes.length !== entry.bytes || sha(bytes) !== entry.sha256) die(`Snapshot checksum mismatch: ${entry.store}/${entry.key}`);
-    if (entry.kind === 'json') JSON.parse(bytes.toString('utf8'));
-  }
-  return manifest;
-}
+  const exportTime = new Date(manifest.exportedAt).getTime();
+  const indexEntry = manifest.entries.find((e) => e.store === 'spi-records' && e.key === 'index.json');
+  const records = JSON.parse(await readFile(join(dir, indexEntry.filename), 'utf8'));
 
-async function importSnapshot(dir, remote, apply) {
-  const manifest = await validateSnapshot(dir);
-  if (!apply) {
-    console.log(JSON.stringify({ phase: 'plan', target: remote ? 'remote' : 'local', objects: manifest.entries.length, records: manifest.records, bytes: manifest.entries.reduce((n, e) => n + e.bytes, 0) }));
-    return;
-  }
-  for (const entry of manifest.entries) {
-    const bytes = await readFile(join(dir, entry.filename));
-    const existing = queryRow(entry.store, entry.key, remote);
-    const importTag = `import:${entry.sha256}`;
-    const sameMetadata = (row) => metadataMatches(row.metadata, entry.metadata, entry.store, entry.key);
-    const resumable = entry.kind === 'json' && existing?.kind === 'pending' && existing.etag === importTag && sameMetadata(existing);
-    if (existing && !resumable) {
-      if (existing.kind !== entry.kind || !sameMetadata(existing)) die(`Destination collision: ${entry.store}/${entry.key}`);
-      if (entry.kind === 'json' && existing.body !== bytes.toString('utf8')) die(`Destination body differs: ${entry.store}/${entry.key}`);
+  let sharesList = [];
+  try {
+    sharesList = JSON.parse(await readFile(join(dir, 'shares.json'), 'utf8'));
+  } catch {}
+
+  const excludeLots = new Set(options.excludeLots || []);
+  const excludeLotPrefixes = options.excludeLotPrefixes || [];
+  const excludeIds = new Set(options.excludeIds || []);
+  const excludeShares = options.excludeShares || [];
+
+  const plannedRecords = [];
+  const excludedRecords = [];
+
+  for (const rec of records) {
+    let excluded = false;
+    let reason = '';
+    if (excludeLots.has(rec.lot)) {
+      excluded = true;
+      reason = `--exclude-lot ${rec.lot}`;
+    } else if (excludeLotPrefixes.some((pfx) => rec.lot && rec.lot.startsWith(pfx))) {
+      excluded = true;
+      reason = `--exclude-lot-prefix`;
+    } else if (excludeIds.has(rec.id)) {
+      excluded = true;
+      reason = `--exclude-id ${rec.id}`;
+    }
+
+    if (excluded) {
+      excludedRecords.push({ record: rec, reason });
     } else {
-      if (entry.kind === 'json') {
-        // Pending rows are hidden from the Worker. A repeated import restarts an
-        // interrupted write only when its source checksum still matches.
-        const identity = `store=${sql(entry.store)} AND key=${sql(entry.key)} AND kind='pending' AND etag=${sql(importTag)}`;
-        if (!resumable) {
-          const command = `INSERT OR IGNORE INTO objects(store,key,kind,body,metadata,etag) VALUES (${sql(entry.store)},${sql(entry.key)},'pending','',${sql(JSON.stringify(entry.metadata))},${sql(importTag)})`;
-          wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', command]);
-          const reserved = queryRow(entry.store, entry.key, remote);
-          if (reserved?.kind !== 'pending' || reserved.etag !== importTag || !sameMetadata(reserved)) die(`Destination collision: ${entry.store}/${entry.key}`);
-        }
-        wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', `UPDATE objects SET body='' WHERE ${identity}`]);
-        for (const chunk of utf8Chunks(bytes.toString('utf8'))) {
-          wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', `UPDATE objects SET body=body||${sql(chunk)} WHERE ${identity}`]);
-        }
-        const assembled = queryRow(entry.store, entry.key, remote);
-        if (assembled?.body !== bytes.toString('utf8')) die(`Destination body differs: ${entry.store}/${entry.key}`);
-        wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', `UPDATE objects SET kind='json',etag=${sql(randomUUID())} WHERE ${identity}`]);
-      } else {
-        wrangler(['r2', 'object', 'put', `${BUCKET}/${entry.store}/${entry.key}`, remote ? '--remote' : '--local', '--file', join(dir, entry.filename)]);
-        const command = `INSERT OR IGNORE INTO objects(store,key,kind,body,metadata,etag) VALUES (${sql(entry.store)},${sql(entry.key)},${sql(entry.kind)},NULL,${sql(JSON.stringify(entry.metadata))},${sql(randomUUID())})`;
-        wrangler(['d1', 'execute', DB, remote ? '--remote' : '--local', '--command', command]);
-      }
+      plannedRecords.push(rec);
     }
-    const row = queryRow(entry.store, entry.key, remote);
-    if (!row || row.kind !== entry.kind || !sameMetadata(row) || (entry.kind === 'json' && row.body !== bytes.toString('utf8'))) die(`Destination D1 verify failed: ${entry.store}/${entry.key}`);
-    if (entry.kind === 'binary') {
-      const verifyPath = join(dir, 'verified', entry.filename);
-      await mkdir(dirname(verifyPath), { recursive: true });
-      wrangler(['r2', 'object', 'get', `${BUCKET}/${entry.store}/${entry.key}`, remote ? '--remote' : '--local', '--file', verifyPath]);
-      if (sha(await readFile(verifyPath)) !== entry.sha256) die(`Destination R2 hash mismatch: ${entry.store}/${entry.key}`);
-    }
-    console.log(`verified ${entry.store}/${entry.key} sha256=${entry.sha256}`);
   }
-  console.log(JSON.stringify({ phase: 'import-and-verify', target: remote ? 'remote' : 'local', verifiedObjects: manifest.entries.length, verifiedRecords: manifest.records }));
+
+  const plannedShares = [];
+  const excludedShares = [];
+  const expiredShares = [];
+
+  for (const s of sharesList) {
+    if (s.exp && s.exp <= exportTime) {
+      expiredShares.push(s);
+      continue;
+    }
+    const isExcluded = excludeShares.some((prefix) => s.id.startsWith(prefix));
+    if (isExcluded) {
+      excludedShares.push({ share: s, reason: `--exclude-share` });
+    } else {
+      plannedShares.push(s);
+    }
+  }
+
+  // 稽核紀錄 log/* 準備
+  const logEntries = manifest.entries.filter((e) => e.store === 'spi-records' && e.key.startsWith('log/'));
+  // 依時間排序 (at 由舊到新)
+  const auditLogs = [];
+  for (const l of logEntries) {
+    const raw = JSON.parse(await readFile(join(dir, l.filename), 'utf8'));
+    // G-1: detail 帶 done (布林值)
+    const detailObj = { ...(raw.detail || {}) };
+    if (detailObj.done === undefined) {
+      detailObj.done = true;
+    }
+    auditLogs.push({
+      at: raw.at || 0,
+      by: raw.by || 'system',
+      action: raw.action || '',
+      target_type: raw.target_type || 'record',
+      target_id: raw.target_id || '',
+      detail: detailObj,
+      src_key: `log/${l.key}`,
+    });
+  }
+  auditLogs.sort((a, b) => a.at - b.at);
+
+  // 排除標記稽核列 (migrate_exclude)
+  const excludeAudits = [];
+  for (const { record, reason } of excludedRecords) {
+    excludeAudits.push({
+      at: exportTime,
+      by: 'migration',
+      action: 'migrate_exclude',
+      target_type: 'record',
+      target_id: record.id,
+      detail: { reason, lot: record.lot || '', name: record.name || '' },
+      src_key: `exclude:record:${record.id}`,
+    });
+  }
+  for (const { share, reason } of excludedShares) {
+    excludeAudits.push({
+      at: exportTime,
+      by: 'migration',
+      action: 'migrate_exclude',
+      target_type: 'share',
+      target_id: share.id,
+      detail: { reason },
+      src_key: `exclude:share:${share.id}`,
+    });
+  }
+
+  // 計算估算列數 (F-1 雙估算指標)
+  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1
+  const localRowsWritten =
+    plannedRecords.length * 5 +
+    plannedShares.length * 4 +
+    (auditLogs.length + excludeAudits.length) * 4;
+
+  // 額度估算 (DELETE 也按 INSERT 算)
+  const quotaRowsWritten = localRowsWritten;
+
+  return {
+    plannedRecords,
+    excludedRecords,
+    plannedShares,
+    excludedShares,
+    expiredShares,
+    auditLogs,
+    excludeAudits,
+    localRowsWritten,
+    quotaRowsWritten,
+  };
 }
 
-const [phase, folder, ...flags] = process.argv.slice(2);
-if (!['export', 'import'].includes(phase) || !folder) die('Usage: node tools/migrate-netlify-blobs.mjs export|import ABSOLUTE_DIRECTORY [--remote|--local] [--apply]');
-const dir = resolve(folder);
-if (phase === 'export') await exportSnapshot(dir);
-else await importSnapshot(dir, flags.includes('--remote'), flags.includes('--apply'));
+export async function importSnapshot(dir, options = {}) {
+  const plan = await parseImportPlan(dir, options);
+
+  console.log(JSON.stringify({
+    phase: options.apply ? 'apply' : 'dry-run',
+    target: options.remote ? 'remote' : 'local',
+    plannedRecords: plan.plannedRecords.length,
+    excludedRecords: plan.excludedRecords.length,
+    plannedShares: plan.plannedShares.length,
+    excludedShares: plan.excludedShares.length,
+    auditLogs: plan.auditLogs.length + plan.excludeAudits.length,
+    localRowsWritten: plan.localRowsWritten,
+    quotaRowsWritten: plan.quotaRowsWritten,
+  }, null, 2));
+
+  if (plan.quotaRowsWritten > 80000) {
+    console.warn(`[WARNING] Quota rows written estimate (${plan.quotaRowsWritten}) exceeds 80,000 limit. Batching required across UTC days.`);
+  }
+
+  if (!options.apply) return plan;
+
+  // 執行 --apply: 生成 SQL 語句並分批執行
+  const allAudits = [...plan.auditLogs, ...plan.excludeAudits];
+  const recordSqls = buildRecordInsertSql(plan.plannedRecords);
+  const shareSqls = buildShareInsertSql(plan.plannedShares);
+  const auditSqls = buildAuditInsertSql(allAudits);
+
+  const allSqls = [...recordSqls, ...shareSqls, ...auditSqls];
+  const targetFlag = options.remote ? '--remote' : '--local';
+
+  for (let i = 0; i < allSqls.length; i++) {
+    const s = allSqls[i];
+    wrangler(['d1', 'execute', DB, targetFlag, '--command', s]);
+  }
+
+  console.log(JSON.stringify({ phase: 'apply-complete', statementsExecuted: allSqls.length }));
+  return plan;
+}
+
+// CLI entry point
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  const args = process.argv.slice(2);
+  const cmd = args[0];
+
+  if (cmd === 'export') {
+    const dir = args[1] || die('Directory required');
+    exportSnapshot(dir).catch((err) => { console.error(err); process.exit(1); });
+  } else if (cmd === 'import') {
+    const dir = args[1] || die('Directory required');
+    const remote = args.includes('--remote');
+    const apply = args.includes('--apply');
+    const excludeLots = [];
+    const excludeLotPrefixes = [];
+    const excludeIds = [];
+    const excludeShares = [];
+
+    for (let i = 2; i < args.length; i++) {
+      if (args[i] === '--exclude-lot' && args[i + 1]) excludeLots.push(args[++i]);
+      else if (args[i] === '--exclude-lot-prefix' && args[i + 1]) excludeLotPrefixes.push(args[++i]);
+      else if (args[i] === '--exclude-id' && args[i + 1]) excludeIds.push(args[++i]);
+      else if (args[i] === '--exclude-share' && args[i + 1]) excludeShares.push(args[++i]);
+    }
+
+    importSnapshot(dir, { remote, apply, excludeLots, excludeLotPrefixes, excludeIds, excludeShares })
+      .catch((err) => { console.error(err); process.exit(1); });
+  }
+}

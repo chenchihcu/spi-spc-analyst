@@ -1,0 +1,9 @@
+(1) audit rows 1020, pages 21, worst rows_read 102 (cap 104), all <= cap: true, extra queries: 0
+(1) status tally (single row only): {"ok":340,"excluded-at-migration":30,"target-gone (neutral)":330,"incomplete":20,"deleted":300}
+(1) page of 'create' rows of later-deleted records: rows_read 51, statuses ["target-gone (neutral)"]
+(2) E from --since objects only: {S3} ; E from shares.json: {S1,S2,S3}
+(3) exclude-after-import batch rows_written (local count): 5 (DELETE shares 1 + audit_log migration row 4; quota estimate 4 + 4 = 8)
+(3) shares rows: A1=pass (in E); C1=Cloudflare self-created; T1=stale live -> owner revokes; X present: false
+(3) C5 gate stale live shares before owner revoke: 1 (gate query rows_read 4)
+(3) C5 gate after owner revokes T1: 0
+(3) with 6-char target_id the gate would report 1 stale (self-created misclassified)
