@@ -2957,7 +2957,7 @@ async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPaylo
   aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;out.innerHTML="";
   st.textContent=`分析中…（送出統計摘要 ${f(new Blob([body]).size/1024,1)} KB，不含原始 SPI 資料）`;let text="";
   try{const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body,signal:aiAbort.signal});
-    if(!res.ok){let msg=res.status===404?"此網站沒有 AI 分析服務（需部署在 Netlify，或在 claude.ai 內開啟）":`伺服器回應 ${res.status}`;try{const j=await res.json();if(j.error)msg=j.error}catch(e){}st.textContent="AI 分析無法使用："+msg;return}
+    if(!res.ok){let msg=res.status===404?"此網站沒有啟用 AI 分析服務（請洽管理員，或在 claude.ai 內開啟）":`伺服器回應 ${res.status}`;try{const j=await res.json();if(j.error)msg=j.error}catch(e){}st.textContent="AI 分析無法使用："+msg;return}
     const rd=res.body.getReader(),dec=new TextDecoder();
     for(;;){const{done,value}=await rd.read();if(done)break;text+=dec.decode(value,{stream:true});out.innerHTML=mdLite(deAnonymizeText(text))}
     S.ai=deAnonymizeText(text);st.textContent=`完成 · 模型 ${res.headers.get("X-AI-Model")||""} · 可至「資料與規格」匯出含 AI 段落的報告`}
