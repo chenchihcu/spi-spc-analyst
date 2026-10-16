@@ -2598,9 +2598,35 @@ function sha256js(d){const K=[],H=[];let n=2,c=0;const fr=x=>(x-Math.floor(x))*4
     H[0]=H[0]+A|0;H[1]=H[1]+B|0;H[2]=H[2]+C|0;H[3]=H[3]+D|0;H[4]=H[4]+E|0;H[5]=H[5]+F|0;H[6]=H[6]+G|0;H[7]=H[7]+J|0}
   return H.map(x=>(x>>>0).toString(16).padStart(8,"0")).join("")}
 async function gzipBytes(u8){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
-async function gunzipBytes(buf,max=100*1048576){const rd=new Response(buf).body.pipeThrough(new DecompressionStream("gzip")).getReader(),parts=[];let n=0;
-  for(;;){const{done,value}=await rd.read();if(done)break;n+=value.length;if(n>max){rd.cancel();throw new Error("檔案解壓後超過 100 MB")}parts.push(value)}
-  const all=new Uint8Array(n);let o=0;for(const x of parts){all.set(x,o);o+=x.length}return all}
+async function gunzipBytes(buf,max=100*1048576,expectedBytes=0){
+  const isCoarse = window.matchMedia && window.matchMedia("(pointer:coarse)").matches && window.innerWidth <= 1180;
+  if(isCoarse && expectedBytes > 50*1048576) throw new Error("此檔案過大（超過 50 MB），請用桌機開啟");
+  const rd=new Response(buf).body.pipeThrough(new DecompressionStream("gzip")).getReader();
+  const limit = Math.min(max, expectedBytes ? expectedBytes : max);
+  let all = expectedBytes && expectedBytes <= max ? new Uint8Array(expectedBytes) : null;
+  let parts = all ? null : [];
+  let n = 0;
+  for(;;){
+    const{done,value}=await rd.read();
+    if(done)break;
+    if(n + value.length > limit){
+      try{await rd.cancel();}catch(e){}
+      throw new Error("檔案解壓後超過上限，可能已損毀");
+    }
+    if(all){
+      all.set(value, n);
+    }else{
+      parts.push(value);
+    }
+    n += value.length;
+  }
+  if(!all){
+    all = new Uint8Array(n);
+    let o = 0;
+    for(const x of parts){ all.set(x, o); o += x.length; }
+  }
+  return all;
+}
 /* 上傳欄位檢查（與後端規則相同） */
 function recCheck(m){const c=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\u007f]/g,"").trim().slice(0,n);const o={...m,part:c(m.part,64),name:c(m.name,200)};
   if(!o.part)return{error:"請填寫產品料號"};if(m.kind==="spi"){o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"}}else{o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"}}return{meta:o}}
@@ -2624,16 +2650,33 @@ const LocalRec={db:null,
 function newRecId(){const b=crypto.getRandomValues(new Uint8Array(16));return btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
 const RecDB={mode:"local",me:"本機",cache:null,ready:null,
   async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));e.existing=j.existing;e.status=r.status;throw e}return j},
-  async list(){await this.ready;let l;if(this.mode==="cloud"){const j=await this.jfetch("/api/records");this.me=j.me||this.me;l=j.records||[]}else l=(await LocalRec.index()).sort((a,b)=>b.created-a.created);return this.cache=l.map(r=>deepClean(r))},
+  async list(){await this.ready;let l;if(this.mode==="cloud"){const j=await this.jfetch("/api/records?limit=100");this.me=j.me||this.me;l=j.records||[]}else l=(await LocalRec.index()).sort((a,b)=>b.created-a.created);return this.cache=l.map(r=>deepClean(r))},
   async create(meta,bytes){await this.ready;const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
-    if(this.mode==="cloud"){/* 支援壓縮的瀏覽器先壓縮；不支援時直接送原始檔（由伺服器壓縮），不擋分析 */const cz=!!window.CompressionStream,body=cz?await gzipBytes(u8):u8;
-      if(body.length>4*1048576)throw new Error(`檔案${cz?"壓縮後":""} ${(body.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
-      return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{"Content-Type":cz?"application/gzip":"application/octet-stream","X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta))},body})).record)}
+    if(this.mode==="cloud"){
+      if(!window.CompressionStream)throw new Error("此瀏覽器不支援 CompressionStream，請更新瀏覽器");
+      const clientSha=await sha256Hex(u8);
+      const gzBody=await gzipBytes(u8);
+      if(gzBody.length>4*1048576)throw new Error(`檔案壓縮後 ${(gzBody.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
+      return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{
+        "Content-Type":"application/gzip",
+        "X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta)),
+        "X-Raw-Bytes":String(u8.length),
+        "X-Raw-SHA256":clientSha
+      },body:gzBody})).record);
+    }
     return LocalRec.create(chk.meta,u8,this.me)},
   /* 取回原始檔並重新計算指紋；ok＝與上傳時記錄的指紋相同 */
   async get(rec){await this.ready;let u8;
-    if(this.mode==="cloud"){const dz=!!window.DecompressionStream,r=await fetch("/api/records?id="+encodeURIComponent(rec.id)+(dz?"":"&raw=1"),{cache:"no-store"});if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}const buf=await r.arrayBuffer();u8=dz?await gunzipBytes(buf):new Uint8Array(buf)}
-    else{u8=await LocalRec.get(rec.id);if(!u8)throw new Error("找不到這筆紀錄的原始檔")}
+    if(this.mode==="cloud"){
+      if(!window.DecompressionStream)throw new Error("此瀏覽器不支援 DecompressionStream，請更新瀏覽器");
+      const r=await fetch("/api/records?id="+encodeURIComponent(rec.id),{cache:"no-store"});
+      if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}
+      const buf=await r.arrayBuffer();
+      u8=await gunzipBytes(buf,100*1048576,rec.bytes);
+    }else{
+      u8=await LocalRec.get(rec.id);
+      if(!u8)throw new Error("找不到這筆紀錄的原始檔");
+    }
     const sha=await sha256Hex(u8);return{bytes:u8,sha,ok:sha===rec.sha256}},
   async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});return LocalRec.del(id,this.me)},
   async audit(){await this.ready;if(this.mode==="cloud")return((await this.jfetch("/api/records?audit=1")).entries||[]).map(x=>deepClean(x));return(await LocalRec.audit()).map(x=>deepClean(x))}};
@@ -2663,7 +2706,15 @@ async function renderRecords(force){if(!$("#recSpi"))return;await RecDB.ready;$(
     <td><div class="rec-act">${PLACE&&PLACE.recId===r.id?'<span class="pill ok">目前使用</span>':`<button data-ract="use" data-id="${esc(r.id)}">設為目前座標檔</button>`}<button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`).join("")+"</tbody>":`<tbody><tr><td class="note">${q?"沒有符合的座標檔":"尚無座標檔。在「匯入與規格」選立榮格式，填寫產品料號與版本後上傳座標檔，就會存到這裡。"}</td></tr></tbody>`;
   if($("#recAuditBox").open)renderAudit()}
 async function renderAudit(){const box=$("#recAudit");try{const es=await RecDB.audit();box.innerHTML=es.length?`<table><thead><tr><th>時間</th><th>動作</th><th>類型</th><th>批號</th><th>產品料號</th><th>版本</th><th>原始檔</th><th>執行者</th><th>檔案指紋</th></tr></thead><tbody>`+es.map(e=>`<tr><td class="mono" style="white-space:nowrap">${esc(fmtTime(e.at))}</td><td>${e.action==="delete"?'<span class="pill ng">刪除</span>':'<span class="pill ok">新增</span>'}${e.ok===false?' <span class="pill warn" title="動作前已記錄，但未完成（已撤回）">未完成</span>':""}</td><td>${e.kind==="place"?"座標檔":"量測紀錄"}</td><td>${esc(e.lot||"—")}</td><td>${esc(e.part)}</td><td>${esc(e.rev||"—")}</td><td>${esc(e.name)}</td><td>${esc(e.by)}</td><td class="mono" title="${esc(e.sha256)}">${esc(String(e.sha256).slice(0,10))}…</td></tr>`).join("")+"</tbody></table>":'<p class="note">尚無紀錄</p>'}catch(e){box.innerHTML=`<p class="err">無法讀取稽核紀錄：${esc(e.message)}</p>`}}
-async function recFind(id,fresh){return((!fresh&&RecDB.cache)||await RecDB.list()).find(r=>r.id===id)}
+async function recFind(id,fresh){
+  if(RecDB.mode==="cloud"){
+    try{
+      const j=await RecDB.jfetch("/api/records?id="+encodeURIComponent(id)+"&meta=1");
+      if(j&&j.record)return deepClean(j.record);
+    }catch(e){}
+  }
+  return((!fresh&&RecDB.cache)||await RecDB.list()).find(r=>r.id===id);
+}
 /* 從資料庫載入座標檔（不重新存檔） */
 async function usePlaceRec(rec){const g=await RecDB.get(rec);if(!g.ok)throw new Error("座標檔指紋與上傳時不同，已停止使用");
   const tab=/\.xlsx$/i.test(rec.name)?(await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length))).tab:csvTable(decodeBytes(g.bytes));
