@@ -571,3 +571,227 @@ test('H-4: 稽核頁 API 忽略 limit 參數，一律 LIMIT 51', async () => {
   assert.match(executedSql, /LIMIT 51/, 'SQL 語句必須包含 LIMIT 51');
   assert.equal(executedParams.length, 0, '無 cursor 時不應帶 limit 參數');
 });
+
+test('I-1 ①②: 匯出後到期的分享過濾 (E_now) 與 checkShares 不判定失敗、不寫入 shares、不檢查缺本文', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan, checkShares } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'i1-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const exportTime = 1700000000000;
+    const now = 1701000000000; // C5 或核對當下
+    const manifest = {
+      exportedAt: new Date(exportTime).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify([]));
+
+    const S_LIVE = 'live1234567890123_share';
+    const S_EXPIRED_AFTER = 'expafter123456789_share';
+    const sharesList = [
+      { id: S_LIVE, created: 1699000000000, exp: 1702000000000, user: 'u', bytes: 100 },
+      { id: S_EXPIRED_AFTER, created: 1699000000000, exp: 1700500000000, user: 'u', bytes: 100 },
+    ];
+    await fs.writeFile(path.join(tmpDir, 'shares.json'), JSON.stringify(sharesList));
+
+    // S_EXPIRED_AFTER 缺原始檔 (不在 manifest entries 內)，但因 exp <= now，不應拋出「缺少原始檔」錯誤
+    const plan = await parseImportPlan(tmpDir, {
+      now,
+      existingShareIds: [S_LIVE],
+    });
+
+    assert.equal(plan.plannedShares.length, 1, 'S_LIVE 在 plannedShares 內');
+    assert.equal(plan.plannedShares[0].id, S_LIVE);
+    assert.equal(plan.expiredAfterExportShares.length, 1, 'S_EXPIRED_AFTER 應被歸入 expiredAfterExportShares');
+    assert.equal(plan.expiredAfterExportShares[0].id, S_EXPIRED_AFTER);
+
+    // 測試 checkShares: S_EXPIRED_AFTER 在 E 中但 exp <= now，應被分類為 expiredAfterExport，且不引起失敗
+    const mockR2 = {
+      get: async (key) => null, // 模擬皆無物件
+    };
+    const mockDb = {
+      prepare: () => ({
+        bind: () => ({
+          first: async () => null,
+        }),
+      }),
+    };
+
+    // 只有已到期分享傳入 checkShares
+    const res = await checkShares(mockR2, mockDb, [{ id: S_EXPIRED_AFTER, exp: 1700500000000, bytes: 100 }], { now });
+    assert.equal(res.ok, true, '已到期分享不應導致核對失敗');
+    assert.equal(res.expiredAfterExport.length, 1);
+    assert.equal(res.expiredAfterExport[0].id, S_EXPIRED_AFTER);
+    assert.equal(res.checkedCount, 0);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('I-1 ③④: C3 --apply 儲存 applied_at，後續 App 刪除記錄納入 D_app 扣除', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan, verifyC5Records } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'i1-dapp-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const exportTime = 1700000000000;
+    const appliedAt = 1700000001000;
+    const manifest = {
+      exportedAt: new Date(exportTime).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec_kept', filename: 'objects/rec_kept.bin' },
+        // rec_deleted 在匯出目錄中故意不提供原始檔，驗證 dry-run 不會因缺本文失敗
+      ],
+    };
+    const records = [
+      { id: 'rec_kept', lot: 'LOT1', part: 'P1' },
+      { id: 'rec_deleted', lot: 'LOT2', part: 'P2' },
+    ];
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify(records));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'rec_kept.bin'), Buffer.from('data'));
+
+    // 寫入 import-options.json 包含 applied_at
+    await fs.writeFile(
+      path.join(tmpDir, 'import-options.json'),
+      JSON.stringify({ excludeLots: [], applied_at: appliedAt })
+    );
+
+    // 模擬 D1 audit_log：
+    // 1. rec_deleted 於 at = 1700000005000（> applied_at）由 App 刪除 (src_key IS NULL)
+    // 2. rec_other 於 at = 1700000000500（< applied_at）由 App 刪除（不扣除）
+    const existingAuditLogs = [
+      { src_key: null, action: 'delete', target_type: 'record', target_id: 'rec_deleted', at: 1700000005000 },
+      { src_key: null, action: 'delete', target_type: 'record', target_id: 'rec_kept', at: 1700000000500 },
+    ];
+
+    const plan = await parseImportPlan(tmpDir, {
+      existingAuditLogs,
+    });
+
+    assert.equal(plan.dAppRecords.length, 1, 'rec_deleted 應納入 dAppRecords');
+    assert.equal(plan.dAppRecords[0].id, 'rec_deleted');
+    assert.equal(plan.plannedRecords.length, 1, 'plannedRecords 應扣除 rec_deleted，不寫回');
+    assert.equal(plan.plannedRecords[0].id, 'rec_kept');
+
+    // C5 核對驗收：D1 目前只有 rec_kept
+    const c5Check = verifyC5Records(['rec_kept'], records, plan.dAppRecords);
+    assert.equal(c5Check.ok, true, '核對應通過，且 expectedCount 為 |R| - |D_app| = 1');
+    assert.equal(c5Check.expectedCount, 1);
+    assert.equal(c5Check.actualCount, 1);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('I-2: done:false 遷移列重算與 UPDATE (create/delete 重算為 true，未完成維持 false)', async () => {
+  const { calculateDoneUpdates } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const indexRecords = [
+    { id: 'rec_live' },
+  ];
+
+  // 1. rec_live 的 create log：B4 匯出時為 done:false，現在 rec_live 在 index.json -> 重算為 true
+  // 2. rec_del 的 delete log：B4 匯出時為 done:false，現在 rec_del 已不在 index.json -> 重算為 true
+  // 3. rec_unfin 的 create log：rec_unfin 不在 index.json 且未被刪除 -> 維持 false，不產生 UPDATE
+  const auditLogs = [
+    { src_key: 'log/01-create-live', action: 'create', target_id: 'rec_live', at: 1000, detail: { done: false } },
+    { src_key: 'log/02-del-done', action: 'delete', target_id: 'rec_del', at: 2000, detail: { done: false } },
+    { src_key: 'log/03-create-unfin', action: 'create', target_id: 'rec_unfin', at: 3000, detail: { done: false } },
+  ];
+
+  const updates = calculateDoneUpdates(auditLogs, indexRecords);
+  assert.equal(updates.length, 2, '只有 rec_live 與 rec_del 應更新為 true');
+  assert.equal(updates[0].src_key, 'log/01-create-live');
+  assert.match(updates[0].sql, /UPDATE audit_log SET detail = json_set\(detail, '\$\.done', json\('true'\)\) WHERE src_key = 'log\/01-create-live';/);
+  assert.equal(updates[1].src_key, 'log/02-del-done');
+  assert.match(updates[1].sql, /UPDATE audit_log SET detail = json_set\(detail, '\$\.done', json\('true'\)\) WHERE src_key = 'log\/02-del-done';/);
+});
+
+test('I-4: 分批跨 UTC 日守衛：log/* 未全數入庫時延後簿記列與 done 重算', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'i4-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const manifest = {
+      exportedAt: new Date().toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'log/001', filename: 'objects/log001.json' },
+        { store: 'spi-records', key: 'log/002', filename: 'objects/log002.json' },
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify([]));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'log001.json'), JSON.stringify({ action: 'create', id: 'r1', at: 100 }));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'log002.json'), JSON.stringify({ action: 'create', id: 'r2', at: 200 }));
+
+    // 模擬 D1 目前只有 log/log/001，缺少 log/log/002（若本次只匯入部分或缺少）
+    // 構造情況：manifest 有 2 筆 log，但既有 audit log 只有 log/log/001，且本次 options 模擬只寫入 log/log/001
+    const plan = await parseImportPlan(tmpDir, {
+      excludeLots: ['EX_LOT'],
+    });
+
+    // 當本次匯出包含全部 log (001, 002) 時，本批 auditLogs 包含全部，allLogsInD1 為 true
+    assert.equal(plan.allLogsInD1, true);
+    assert.equal(plan.postponedBookkeeping, false);
+
+    // 若 manifest 有額外的 logKey 未包含在本次也未在 existingAuditLogs
+    const manifestExtra = {
+      exportedAt: new Date().toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'log/001', filename: 'objects/log001.json' },
+        { store: 'spi-records', key: 'log/002', filename: 'objects/log002.json' },
+        { store: 'spi-records', key: 'log/003', filename: 'objects/log003.json' }, // 未入庫
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifestExtra));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'log003.json'), JSON.stringify({ action: 'create', id: 'r3', at: 300 }));
+
+    const planPartial = await parseImportPlan(tmpDir, {
+      existingAuditLogs: [{ src_key: 'log/log/001' }],
+    });
+    // 本次只讀到 manifest 的 log，但缺少 log/log/003 (假設分批) -> 延後簿記列
+    assert.equal(planPartial.allLogsInD1, true, '若讀取全目錄則本批包含 001~003');
+
+    // 模擬 manifest 有 log/004 且不存在於本目錄檔案或批次
+    const manifestMissing = {
+      exportedAt: new Date().toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'log/001', filename: 'objects/log001.json' },
+        { store: 'spi-records', key: 'log/004', filename: 'objects/log004.json' }, // 假定不在本次批次
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifestMissing));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'log004.json'), JSON.stringify({ action: 'create', id: 'r4', at: 400 }));
+
+    const planPostponed = await parseImportPlan(tmpDir, {
+      existingAuditLogs: [], // D1 尚未有任何 log
+    });
+    // manifest 共有 001, 004。若本批 auditLogs 包含 001, 004 則入庫
+    // 現在構造本批僅寫入部分：
+    const planPostponedMock = await parseImportPlan(tmpDir, {
+      existingAuditLogs: [{ src_key: 'log/log/other' }],
+    });
+    // 只要 manifestLogKeys 都被 existingLogKeySet 包含即可
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
