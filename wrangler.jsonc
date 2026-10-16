@@ -10,7 +10,10 @@
   },
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": {
-    "AUTH_KDF_ITER": "600000"
+    "AUTH_KDF_ITER": "600000",
+    "ADMIN_USERS": "",
+    "AI_ENABLED": "true",
+    "AI_LOG_PAYLOAD": "false"
   },
   "ratelimits": [
     { "name": "LOGIN_GLOBAL", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },

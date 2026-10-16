@@ -1,0 +1,22 @@
+// spec v1.12 round-13 merge: Miniflare local D1 row-count check (npm i miniflare; node <file>). Prints meta.rows_read / rows_written per statement.
+import { Miniflare } from "miniflare";
+const mf = new Miniflare({ modules:true, script:"export default {fetch(){return new Response('x')}}", d1Databases:{DB:"db2"} });
+const db = await mf.getD1Database("DB");
+const run = async (label, sql, ...b) => { const r = await db.prepare(sql).bind(...b).all(); console.log(label.padEnd(34), "read", r.meta.rows_read, "written", r.meta.rows_written, "n", r.results.length, JSON.stringify(r.results[0]||{}).slice(0,70)); return r; };
+await db.exec("CREATE TABLE records(id TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT '', created INTEGER, sha256 TEXT NOT NULL DEFAULT '', name TEXT)");
+await db.exec("CREATE INDEX r_k ON records(kind, created DESC, id DESC)");
+await db.exec("CREATE INDEX r_sha ON records(sha256)");
+const stmts=[]; for (let i=0;i<300;i++) stmts.push(db.prepare("INSERT INTO records VALUES(?,?,?,?,?)").bind("id"+String(i).padStart(5,"0"),"meas",1000+i,"h"+i,"n"+i));
+const r=await db.batch(stmts); console.log("insert 1 row w/ 2 idx + pk autoindex: written", r[0].meta.rows_written);
+await run("EQP p2", "EXPLAIN QUERY PLAN SELECT id FROM records WHERE kind=? AND (created,id)<(?,?) ORDER BY created DESC, id DESC LIMIT 51","meas",1250,"id00250");
+await run("p2 cursor=existing row", "SELECT id,created FROM records WHERE kind=? AND (created,id)<(?,?) ORDER BY created DESC, id DESC LIMIT 51","meas",1250,"id00250");
+await run("p2 cursor=nonexist", "SELECT id,created FROM records WHERE kind=? AND (created,id)<(?,?) ORDER BY created DESC, id DESC LIMIT 51","meas",1250,"zzz");
+await run("p2 created<? only", "SELECT id,created FROM records WHERE kind=? AND created<? ORDER BY created DESC, id DESC LIMIT 51","meas",1250);
+await run("p1 LIMIT 51", "SELECT id,created FROM records WHERE kind=? ORDER BY created DESC, id DESC LIMIT 51","meas");
+await run("last page (10 rows left)", "SELECT id,created FROM records WHERE kind=? AND (created,id)<(?,?) ORDER BY created DESC, id DESC LIMIT 51","meas",1010,"id00010");
+await run("meta by id", "SELECT * FROM records WHERE id=?","id00005");
+await run("DELETE 1 record (pk+2idx)", "DELETE FROM records WHERE id=?","id00005");
+await run("UPDATE name (non-indexed)", "UPDATE records SET name='x' WHERE id=?","id00006");
+await run("UPDATE sha (indexed)", "UPDATE records SET sha256='y' WHERE id=?","id00007");
+await run("DELETE 10 rows", "DELETE FROM records WHERE kind='meas' AND created < 1020");
+await mf.dispose();
