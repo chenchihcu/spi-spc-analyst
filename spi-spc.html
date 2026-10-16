@@ -1,3 +1,7 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
 <title>SPI·SPC 分析台</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
@@ -271,6 +275,8 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 @media (max-width:520px){.brand h1{font-size:28px}.chartbox{height:240px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
+</head>
+<body>
 
 <button id="toTop" hidden aria-label="回到頂端" title="回到頂端">↑</button>
 <div id="busy" role="status" aria-live="polite" hidden><span class="spin" aria-hidden="true"></span><span id="busyMsg">計算中…</span></div>
@@ -2711,3 +2717,5 @@ const h=(location.hash||"").slice(1);
 if(["issues","overview","compare","dfm","control","capability","sim3d","cross","adv","lab","ai","data"].includes(h))setTab(h);
 })();
 </script>
+</body>
+</html>

@@ -33,6 +33,12 @@ test("所有頁籤與主要流程無執行錯誤", { skip: !JSDOM && "未安裝 
 
   assert.match($("#appVer").textContent, /^v\d+\.\d+\.\d+$/, "主頁需顯示語意化版本");
   assert.match($("#appBuilt").textContent, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, "主頁需顯示到秒的更新時間");
+  assert.equal(d.compatMode, "CSS1Compat", "頁面需處於標準模式而非 Quirks 模式 (D-01)");
+  assert.equal(d.doctype?.name, "html", "需有 <!DOCTYPE html> (D-01)");
+  assert.equal(d.documentElement.lang, "zh-Hant-TW", "html 需指定 lang=zh-Hant-TW (D-01)");
+  assert.equal(d.characterSet, "UTF-8", "文件字元編碼需為 UTF-8 (D-01)");
+  const vp = d.querySelector('meta[name="viewport"]');
+  assert.ok(vp && vp.content.includes("width=device-width") && vp.content.includes("viewport-fit=cover"), "需含正確的 viewport meta (D-01)");
   assert.ok(d.querySelectorAll(".iss-card").length > 0, "首頁應列出問題");
 
   // 以「抓出問題」為目的的介面要素：問題地圖、證據迷你圖、嚴重度分段、來源提示
