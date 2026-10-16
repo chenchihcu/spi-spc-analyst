@@ -1,22 +1,265 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { JSDOM } = (() => { try { return require('jsdom'); } catch { return {}; } })();
+const fs = require('fs');
+const path = require('path');
+const { HTML, withIdb } = require('./_load.js');
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const FIXTURES_DIR = path.join(import.meta.dirname, 'fixtures', 'golden');
+
+function page() {
+  const html = fs.readFileSync(HTML, 'utf8').replace(/<script src=[^>]+><\/script>/g, '');
+  const errs = [];
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    url: 'https://example.test/',
+    beforeParse(w) {
+      w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, {
+        get: (t, k) => (k === 'measureText' ? () => ({ width: 1 }) : t[k] ?? (() => {})),
+        set: (t, k, v) => { t[k] = v; return true; }
+      });
+      Object.defineProperty(w.HTMLElement.prototype, 'offsetParent', {
+        get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; }
+      });
+      w.Element.prototype.scrollIntoView = () => {};
+      w.matchMedia = () => ({ matches: false, addEventListener() {} });
+      w.ResizeObserver = class { observe() {} };
+      w.scrollTo = () => {};
+      w.Chart = class { constructor() {} destroy() {} static register() {} };
+      Object.assign(w, { Response, DecompressionStream, TextDecoder });
+      w.addEventListener('error', (e) => errs.push(e.message));
+      withIdb(w);
+    }
+  });
+  return { dom, errs };
+}
+
+async function pick(dom, sel, name, bytes) {
+  const w = dom.window, inp = w.document.querySelector(sel);
+  Object.defineProperty(inp, 'files', { configurable: true, value: [new w.File([bytes], name)] });
+  inp.dispatchEvent(new w.Event('change'));
+  for (let i = 0; i < 100; i++) {
+    await tick(20);
+    const d = w.document;
+    if (sel === '#placeIn' ? /已存入資料庫|class="err"/.test(d.querySelector('#placeState').innerHTML)
+      : (!d.querySelector('#mapBox').hidden || d.querySelector('#parseErr').textContent)) break;
+  }
+}
+
+function setVendor(dom, v) {
+  const s = dom.window.document.querySelector('#selVendor');
+  s.value = v;
+  s.dispatchEvent(new dom.window.Event('change'));
+}
+
+async function loadPlacement(dom, filename) {
+  const d = dom.window.document;
+  setVendor(dom, 'lirong');
+  d.querySelector('#placePart').value = 'GOLDEN';
+  d.querySelector('#placeRev').value = 'V1';
+  const placeBytes = fs.readFileSync(path.join(FIXTURES_DIR, filename));
+  await pick(dom, '#placeIn', filename, placeBytes);
+  setVendor(dom, 'generic');
+}
+
+async function applyImport(dom, expectedRows) {
+  const d = dom.window.document, w = dom.window;
+  d.querySelector('#inLot').value = 'LOT-GOLDEN';
+  if (!d.querySelector('#inPart').value) d.querySelector('#inPart').value = 'PART-GOLDEN';
+  d.querySelector('#btnApply').click();
+  for (let i = 0; i < 100 && (!w.eval('S.A') || w.eval('S.rows.length') !== expectedRows); i++) await tick(20);
+}
 
 // 金標測試骨架 (M-04, TV-21)
-// 依規則 0.5: 依賴尚未完成項目的測試使用 test.todo 或 test.skip 標示依賴項目
-
+// 依規則 0.5: 依賴尚未完成項目的測試使用 test.todo 標示依賴項目
 test.todo('[D-10] no_coords: 空間分布與問題地圖顯示不適用，無空間問題卡');
 test.todo('[D-10] partial_spec: area 無規格時顯示無規格，不為 0 或 NaN');
 test.todo('[M-02] sigma_zero_constant: 能力與管制圖拒算並顯示原因');
 test.todo('[M-02] sample_lt_10: 樣本數不足 10 顯示原因不輸出數值');
-test.todo('[D-42] duplicate_refdes_coords: 座標重複時取第一筆並列出忽略座標');
-test.todo('[D-42] refdes_suffix_strip_join: 位號 _N 後綴剝除後比對 join');
-test.todo('[D-25] partial_coord_match: 依多欄重複鍵去重，對不上列出位號');
-test.todo('[D-43] panel_id_instead_of_board: PanelId 自動對應為板號');
-test.todo('[D-43] time_only_measurements: 純時間序推定板號');
-test.todo('[D-43] timestamp_alias_measurements: Timestamp 欄位別名');
-test.todo('[D-43] timestamp_lowercase_measurements: timestamp 小寫別名');
-test.todo('[D-43] datetime_alias_measurements: DateTime 欄位別名');
 
-test('normal_baseline: 基礎數值驗證骨架', () => {
-  assert.ok(true, 'normal_baseline 骨架備妥');
+test('normal_baseline: 5 板 × 2 焊墊，Volume 敘述統計與座標 join 10/0', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  await loadPlacement(dom, 'placement.csv');
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'normal_baseline.csv'));
+  await pick(dom, '#fileIn', 'normal_baseline.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /10 筆、5 片板、2 個焊墊位置/);
+  assert.match(prev, /對應 2 個位號/);
+
+  await applyImport(dom, 10);
+
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.N, 10, '樣本數應為 10');
+  assert.equal(A.boards.length, 5, '板數應為 5');
+  assert.ok(Math.abs(A.gMean - 100.1) < 1e-6, `平均應為 100.1，實測 ${A.gMean}`);
+  assert.ok(Math.abs(A.overallSd - 1.1005049346) < 1e-6, `整體標準差應為 1.1005049346，實測 ${A.overallSd}`);
+});
+
+test('[D-42] duplicate_refdes_coords: 座標重複時取第一筆並列出忽略座標', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  await loadPlacement(dom, 'duplicate_refdes_coords.placement.csv');
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'normal_baseline.csv'));
+  await pick(dom, '#fileIn', 'normal_baseline.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /對應 2 個位號/);
+  assert.match(prev, /忽略.*R1\(999,888\)/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const rows = JSON.parse(w.eval('JSON.stringify(S.rows)'));
+  const r1 = rows.find(r => r.comp === 'R1');
+  assert.equal(r1.x, 10, 'R1 的 X 座標應取第一筆 (10)');
+  assert.equal(r1.y, 20, 'R1 的 Y 座標應取第一筆 (20)');
+});
+
+test('[D-42] refdes_suffix_strip_join: 位號 _N 後綴剝除後比對 join', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  await loadPlacement(dom, 'placement.csv');
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'refdes_suffix_strip_join.csv'));
+  await pick(dom, '#fileIn', 'refdes_suffix_strip_join.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /對應 2 個位號/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const rows = JSON.parse(w.eval('JSON.stringify(S.rows)'));
+  assert.equal(rows.length, 10);
+  assert.ok(rows.every(r => r.x != null && r.y != null), '剝除 _N 後綴應成功 join 到座標');
+});
+
+test('[D-25] partial_coord_match: 依多欄重複鍵去重，對不上列出位號', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  await loadPlacement(dom, 'placement.csv');
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'partial_coord_match.csv'));
+  await pick(dom, '#fileIn', 'partial_coord_match.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /對應 2 個位號.*未對應 1 個位號.*R99/);
+
+  await applyImport(dom, 12);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.N, 12, 'B6 兩筆 R99 封裝不同，不視為重複，總筆數應為 12');
+  assert.ok(Math.abs(A.gMean - 100.0833333) < 1e-5, `平均應為 100.0833333，實測 ${A.gMean}`);
+  assert.ok(Math.abs(A.overallSd - 2.3532698) < 1e-5, `整體標準差應為 2.3532698，實測 ${A.overallSd}`);
+});
+
+test('[D-43] panel_id_instead_of_board: PanelId 自動對應為板號', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'panel_id_instead_of_board.csv'));
+  await pick(dom, '#fileIn', 'panel_id_instead_of_board.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /10 筆、5 片板、2 個焊墊位置/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.boards.length, 5, '板數應為 5');
+  assert.equal(A.N, 10, '筆數應為 10');
+  assert.ok(Math.abs(A.gMean - 100.1) < 1e-6);
+  assert.ok(Math.abs(A.overallSd - 1.1005049346) < 1e-6);
+});
+
+test('[D-43] time_only_measurements: 純時間序推定板號', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'time_only_measurements.csv'));
+  await pick(dom, '#fileIn', 'time_only_measurements.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /（推定）/);
+  assert.match(prev, /沒有板號欄/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.boards.length, 5, '推定板數應為 5');
+  assert.equal(A.N, 10, '筆數應為 10');
+  assert.ok(Math.abs(A.gMean - 100.1) < 1e-6);
+});
+
+test('[D-43] timestamp_alias_measurements: Timestamp 欄位別名', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'timestamp_alias_measurements.csv'));
+  await pick(dom, '#fileIn', 'timestamp_alias_measurements.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /（推定）/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.boards.length, 5);
+});
+
+test('[D-43] timestamp_lowercase_measurements: timestamp 小寫別名', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'timestamp_lowercase_measurements.csv'));
+  await pick(dom, '#fileIn', 'timestamp_lowercase_measurements.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /（推定）/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.boards.length, 5);
+});
+
+test('[D-43] datetime_alias_measurements: DateTime 欄位別名', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'datetime_alias_measurements.csv'));
+  await pick(dom, '#fileIn', 'datetime_alias_measurements.csv', csvBytes);
+
+  const d = dom.window.document;
+  assert.equal(d.querySelector('#parseErr').textContent, '');
+  const prev = d.querySelector('#mapPrev').textContent;
+  assert.match(prev, /（推定）/);
+
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.boards.length, 5);
 });
