@@ -254,4 +254,42 @@ test('E-3: 分頁查詢讀取列數守衛 (首頁與第 2 頁 rows_read <= 52)',
   }
 });
 
+test('F-2: 稽核頁分頁讀取列數守衛 (LEFT JOIN records, rows_read <= 104)', async () => {
+  const { getPlatformProxy } = await import('wrangler');
+  const proxy = await getPlatformProxy();
+  try {
+    const db = proxy.env.DB;
+    await db.exec('CREATE TABLE IF NOT EXISTS records_f2 (id TEXT PRIMARY KEY);');
+    await db.exec('CREATE TABLE IF NOT EXISTS audit_log_f2 (seq INTEGER PRIMARY KEY, at INTEGER, target_id TEXT, target_type TEXT);');
+
+    // 建立 100 筆稽核資料與 50 筆紀錄
+    const rStmts = [];
+    for (let i = 0; i < 50; i++) {
+      rStmts.push(db.prepare('INSERT OR IGNORE INTO records_f2 (id) VALUES (?)').bind(`rec_${i}`));
+    }
+    await db.batch(rStmts);
+
+    const aStmts = [];
+    for (let i = 0; i < 100; i++) {
+      aStmts.push(db.prepare('INSERT OR IGNORE INTO audit_log_f2 (seq, at, target_id, target_type) VALUES (?, ?, ?, ?)').bind(i + 1, 1000 + i, `rec_${i % 50}`, 'record'));
+    }
+    await db.batch(aStmts);
+
+    // 查首頁 (limit 50 + 1)
+    const sql = 'SELECT a.seq, a.at, a.target_id, (r.id IS NOT NULL) as target_exists FROM audit_log_f2 a LEFT JOIN records_f2 r ON a.target_id = r.id AND a.target_type = "record" ORDER BY a.seq DESC LIMIT 51';
+    const res = await db.prepare(sql).all();
+    assert.equal(res.results.length, 51);
+    assert.ok(res.meta.rows_read <= 104, `稽核頁首頁 rows_read (${res.meta.rows_read}) 必須 <= 104`);
+
+    // 查第 2 頁 (cursor seq < 50)
+    const sqlP2 = 'SELECT a.seq, a.at, a.target_id, (r.id IS NOT NULL) as target_exists FROM audit_log_f2 a LEFT JOIN records_f2 r ON a.target_id = r.id AND a.target_type = "record" WHERE a.seq < ? ORDER BY a.seq DESC LIMIT 51';
+    const resP2 = await db.prepare(sqlP2).bind(res.results[50].seq).all();
+    assert.ok(resP2.results.length > 0);
+    assert.ok(resP2.meta.rows_read <= 104, `稽核頁第 2 頁 rows_read (${resP2.meta.rows_read}) 必須 <= 104`);
+  } finally {
+    await proxy.dispose();
+  }
+});
+
+
 

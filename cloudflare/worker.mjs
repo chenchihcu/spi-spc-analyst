@@ -44,9 +44,10 @@ async function handleRecordsApi(req, repo, user) {
       });
     }
 
-    // 稽核紀錄
+    // 稽核紀錄 (F-2: 支援 before 游標)
     if (url.searchParams.get('audit') === '1') {
-      const entries = await repo.listAuditLog(100);
+      const beforeSeq = url.searchParams.get('before') || null;
+      const entries = await repo.listAuditLog(100, beforeSeq);
       return json({ entries });
     }
 
