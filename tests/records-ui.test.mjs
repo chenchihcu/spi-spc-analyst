@@ -1,4 +1,4 @@
-// 資料庫介面測試（本機模式：claude.ai／本機檔案時存在瀏覽器 IndexedDB）
+// 資料庫介面測試（純雲端模式：透過 /api/records 與 Cloudflare D1 + R2 互動）
 // 必填檢查 → 存入後建立回合（回合帶批號／料號／指紋）→ 資料庫頁列出、驗證、下載原始檔 → 從資料庫開啟 → 重複檔 → 刪除與稽核紀錄
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -11,22 +11,157 @@ const fs = require("fs");
 const { HTML, withIdb } = require("./_load.js");
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page(saved) {
+function page(saved, serverStateOverride) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
+  const server = serverStateOverride || {
+    user: "a@x.tw",
+    records: [],
+    files: new Map(),
+    audit: [],
+  };
+  let auditSeq = 0;
+  const blobMap = new Map();
+
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
     Object.defineProperty(w.HTMLElement.prototype, "offsetParent", { get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; } });
     w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
     w.Chart = class { constructor() {} destroy() {} static register() {} };
-    // 模擬 claude.ai 的下載功能，記下收到的檔名與內容
-    w.claude = { use: async (n) => (n === "downloads" ? { save: async (x) => { saved.push(x); return { status: "saved" }; } } : null) };
-    Object.assign(w, { Response, DecompressionStream });
+
+    // 捕捉瀏覽器下載：URL.createObjectURL + HTMLAnchorElement.click
+    w.URL.createObjectURL = (blob) => {
+      const u = "blob:test/" + Math.random();
+      blobMap.set(u, blob);
+      return u;
+    };
+    w.URL.revokeObjectURL = (u) => { blobMap.delete(u); };
+    w.HTMLAnchorElement.prototype.click = function () {
+      if (this.download && saved) {
+        saved.push({ filename: this.download, data: blobMap.get(this.href) || this.href });
+        return;
+      }
+    };
+
+    // Mock 雲端 API（模擬 Cloudflare D1 + R2）
+    w.fetch = async (url, opts = {}) => {
+      const u = new URL(url, "https://example.test/");
+      const pathname = u.pathname;
+      if (pathname === "/__me") {
+        return Response.json({ user: server.user });
+      }
+      if (pathname === "/api/records") {
+        const method = (opts.method || "GET").toUpperCase();
+        if (method === "GET") {
+          const id = u.searchParams.get("id");
+          if (id && u.searchParams.get("meta") === "1") {
+            const r = server.records.find((x) => x.id === id);
+            if (!r) return Response.json({ error: "找不到這筆紀錄" }, { status: 404 });
+            return Response.json({ record: r });
+          }
+          if (id) {
+            const r = server.records.find((x) => x.id === id);
+            if (!r || !server.files.has(id)) return Response.json({ error: "找不到原始檔案" }, { status: 404 });
+            return new Response(server.files.get(id), {
+              headers: {
+                "Content-Type": "application/gzip",
+                "X-Rec-Sha256": r.sha256,
+                "X-Raw-Bytes": String(r.bytes),
+              },
+            });
+          }
+          if (u.searchParams.get("audit") === "1") {
+            return Response.json({ entries: [...server.audit].reverse() });
+          }
+          return Response.json({ records: [...server.records], me: server.user });
+        }
+        if (method === "POST") {
+          const headers = opts.headers || {};
+          let meta = {};
+          try {
+            meta = JSON.parse(decodeURIComponent(headers["X-Rec-Meta"] || headers["x-rec-meta"] || ""));
+          } catch {}
+          const rawBytes = +(headers["X-Raw-Bytes"] || headers["x-raw-bytes"] || 0);
+          const rawSha = headers["X-Raw-SHA256"] || headers["x-raw-sha256"] || "";
+          const dup = server.records.find((r) =>
+            r.kind === meta.kind &&
+            r.part === meta.part &&
+            (r.rev || "") === (meta.rev || "") &&
+            (r.lot || "") === (meta.lot || "") &&
+            (r.side || "") === (meta.side || "") &&
+            (r.vendor || "") === (meta.vendor || "") &&
+            (r.placeId || r.place_id || "") === (meta.placeId || "") &&
+            r.sha256 === rawSha
+          );
+          if (dup) {
+            return Response.json({ error: "這個檔案已經存過（相同內容與相同回溯欄位）", existing: dup.id }, { status: 409 });
+          }
+          const id = "REC" + Math.random().toString(36).slice(2, 12);
+          const body = opts.body;
+          if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+            server.files.set(id, new Uint8Array(body));
+          } else {
+            server.files.set(id, new Uint8Array(0));
+          }
+          const rec = {
+            ...meta,
+            id,
+            bytes: rawBytes,
+            sha256: rawSha,
+            user: server.user,
+            created: Date.now(),
+          };
+          server.records.unshift(rec);
+          server.audit.push({
+            seq: ++auditSeq,
+            at: rec.created,
+            by: server.user,
+            action: "create",
+            target_id: id,
+            kind: rec.kind,
+            lot: rec.lot || "",
+            part: rec.part,
+            rev: rec.rev || "",
+            name: rec.name,
+            sha256: rec.sha256,
+            bytes: rec.bytes,
+          });
+          return Response.json({ record: rec });
+        }
+        if (method === "DELETE") {
+          const id = u.searchParams.get("id");
+          const idx = server.records.findIndex((x) => x.id === id);
+          if (idx < 0) return Response.json({ error: "找不到這筆紀錄" }, { status: 404 });
+          const rec = server.records[idx];
+          if (rec.user !== server.user) return Response.json({ error: "只有上傳者可以刪除" }, { status: 403 });
+          server.records.splice(idx, 1);
+          server.files.delete(id);
+          server.audit.push({
+            seq: ++auditSeq,
+            at: Date.now(),
+            by: server.user,
+            action: "delete",
+            target_id: id,
+            kind: rec.kind,
+            lot: rec.lot || "",
+            part: rec.part,
+            rev: rec.rev || "",
+            name: rec.name,
+            sha256: rec.sha256,
+            bytes: rec.bytes,
+          });
+          return Response.json({ ok: true });
+        }
+      }
+      return new Response("Not found", { status: 404 });
+    };
+
+    Object.assign(w, { Response, DecompressionStream, CompressionStream, Blob });
     withIdb(w);
     w.SPI_TEST_HOOK = {};
     w.addEventListener("error", (e) => errs.push(e.message));
   } });
-  return { dom, errs };
+  return { dom, errs, server };
 }
 const CSV = "Board,Pad,Component,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `B${Math.floor(i / 6) + 1},P${i % 6},U1,${100 + (i % 5)},120,100`).join("\n");
 async function until(fn, n = 150) { for (let i = 0; i < n; i++) { if (fn()) return true; await tick(20); } return false; }
@@ -62,19 +197,18 @@ test("批號、料號必填；存入後才建立回合，回合帶來源資訊�
   $("#btnApply").click();
   assert.ok(await until(() => w.eval("S.runs.length") === 3), "存入後建立回合");
   const src = JSON.parse(w.eval("JSON.stringify(SPI_TEST_HOOK.curRun().info.src)"));
-  assert.equal(src.lot, "L2410-01"); assert.equal(src.part, "301-000100124"); assert.equal(src.store, "local"); assert.equal(src.user, "本機");
+  assert.equal(src.lot, "L2410-01"); assert.equal(src.part, "301-000100124"); assert.equal(src.store, "cloud"); assert.equal(src.user, "a@x.tw");
   assert.equal(src.sha256, createHash("sha256").update(CSV).digest("hex"), "指紋為原始檔的 SHA-256");
   assert.match(w.eval("SPI_TEST_HOOK.reportMd()"), /批號 L2410-01｜產品料號 301-000100124/, "報告帶批號與料號");
   // 資料庫頁
   $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click();
   assert.ok(await until(() => /L2410-01/.test($("#recSpi").textContent)));
-  assert.match($("#recMode").textContent, /這台電腦的瀏覽器/);
+  assert.match($("#recMode").textContent, /雲端資料庫/);
   $('#recSpi [data-ract="ver"]').click();
   assert.ok(await until(() => /與上傳時相同/.test($("#recSpi").textContent)), "驗證通過");
   $('#recSpi [data-ract="dl"]').click();
   assert.ok(await until(() => saved.length === 1));
-  assert.equal(saved[0].filename, "批次A_TOP.csv");
-  const txt = await new Promise((ok) => { const r = new w.FileReader(); r.onload = () => ok(r.result); r.readAsText(saved[0].data); });
+  const txt = typeof saved[0].data?.text === "function" ? await saved[0].data.text() : String(saved[0].data);
   assert.equal(txt, CSV, "下載的原始檔與上傳完全相同");
   // 回合清單顯示批號
   $('.subtab[data-sub="runs"]').click();
@@ -83,7 +217,7 @@ test("批號、料號必填；存入後才建立回合，回合帶來源資訊�
 });
 
 test("重複檔沿用既有紀錄；從資料庫開啟時批號料號帶入且不可改、不重複存；只有上傳者可刪，刪除留稽核紀錄", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page([]);
+  const { dom, errs, server } = page([]);
   await tick(50);
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
   $("[data-tab=data]").click();
@@ -106,7 +240,7 @@ test("重複檔沿用既有紀錄；從資料庫開啟時批號料號帶入且�
   assert.ok(await until(() => w.eval("S.runs.length") === 5));
   assert.equal((await w.eval("SPI_TEST_HOOK.RecDB.list()")).length, 1, "開啟後套用不新增紀錄");
   // 別人上傳的紀錄不顯示刪除鈕
-  await w.eval(`(async()=>{const H=SPI_TEST_HOOK.LocalRec,r=(await H.index())[0],db=await H.open(),tx=db.transaction(["meta"],"readwrite");tx.objectStore("meta").put({...r,id:"OTHERxxxxxxxxxxxxxxxxx",user:"b@x.tw",lot:"L9"});await new Promise(ok=>tx.oncomplete=ok)})()`);
+  server.records.push({ ...server.records[0], id: "OTHERxxxxxxxxxxxxxxxxx", user: "b@x.tw", lot: "L9" });
   $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $("#recReload").click();
   assert.ok(await until(() => /L9/.test($("#recSpi").textContent)));
   const rowOf = (lot) => [...d.querySelectorAll("#recSpi tbody tr")].find((tr) => tr.textContent.includes(lot));

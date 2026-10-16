@@ -716,7 +716,6 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </div>
 
 <script src="vendor/chart-4.4.1.umd.min.js"></script>
-<script>/* 網站版用自帶的 Chart.js；在 claude.ai 等沒有 vendor 檔的地方才改用 CDN */window.Chart||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>')</script>
 <script id="core">
 "use strict";
 /* ============ 統計核心 ============ */
@@ -2493,9 +2492,9 @@ drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)readImpo
 function reportMd(){const A=S.A,u=METRICS[A.m].unit,lab={ok:"一致/正常",warn:"警示",ng:"異常",na:"—"};
   return`# SPI·SPC 分析報告\n\n- 產生時間：${new Date().toLocaleString("zh-TW")}\n- 資料來源：${S.source}\n- 量測項目：${METRICS[A.m].label}；元件群組：${S.group==="ALL"?"全部":S.group}；管制圖：${chartName()}\n- 規格：LSL ${A.sp.lsl} / 目標 ${A.sp.tgt} / USL ${A.sp.usl} ${u}\n- 規格來源：${specSrcText()}\n- 刮刀行程方向：沿 ${S.sqDir||"Y"}；擦拭間隔：每 ${S.wipe} 片\n- 鋼板厚度：${S.stencil} µm（高度規格 ${S.htol.lo}%–${S.htol.hi}% 厚度）\n- 階梯鋼板：${S.step.on?S.step.zones.map(z=>`${z.name} ${z.t} µm（${z.mode==="group"?"群組 "+z.group:`X ${z.x0}–${z.x1}, Y ${z.y0}–${z.y1} mm`}）`).join("；"):"未啟用"}\n- 系統版本：${APP.ver} · 系統更新 ${APP.built}\n- 試產回合：${curRun()?curRun().name:""}\n${runSrc(curRun())?`- 資料來源追溯：${srcLine(runSrc(curRun()))}\n- 原始檔 SHA-256：${runSrc(curRun()).sha256}\n`:""}\n## 問題偵測（依嚴重度與佐證排序）\n\n${S.F.map(x=>`- #${x.id}［${LVL[x.lv]}］${x.title}\n  - 事實：${x.facts.join("；")}\n  - 推論（信心 ${x.conf}）：${x.cause}`).join("\n")||"- 未偵測到顯著問題"}\n\n## 一、統計結果（事實）\n\n| 指標 | 數值 |\n|---|---|\n| 樣本數 | ${A.N} |\n| 板數 | ${A.boards.length} |\n| 平均 | ${f(A.gMean,2)} ${u} |\n| σ 組內 / 整體 | ${f(A.sigmaW,3)} / ${f(A.overallSd,3)} |\n${A.cap?`| 能力計算方式 | ${A.cap.mixed?`逐元件群組（組內 σ），以最差群組 ${A.cap.worst} 代表`:"組內 σ"}${A.cap.lowerBound?"；規格窗為機台 PASS 焊墊的實際範圍，真正規格只會更寬，Cp/Cpk 為下限":""}${A.stable?"":"；製程未穩定，僅供參考"} |\n| Cp / Cpk | ${f(A.cap.cp)} / ${f(A.cap.cpk)} |\n| Cpk 95% 信賴區間（以 ${A.cap.nb} 片板計） | ${f(A.cap.ci[0])} – ${f(A.cap.ci[1])} |\n| Pp / Ppk | ${f(A.cap.pp)} / ${f(A.cap.ppk)} |\n| 預估 / 實測 PPM | ${fmtPpm(A.cap.ppmExp)} / ${fmtPpm(A.cap.ppmObs)} |\n`:""}| Anderson-Darling p | ${A.ad.p<.001?"<0.001":f(A.ad.p,3)} |\n| 不良焊墊（全部項目） | ${A.defRows.length} |\n\n${A.cap&&A.cap.mixed?`\n### 逐元件群組製程能力\n\n| 元件群組 | n | 平均 | 規格 | Cpk | Cpk 95% 信賴區間 | Ppk | 預估 PPM | 實測 PPM |\n|---|---|---|---|---|---|---|---|---|\n${A.cap.groups.map(g=>`| ${g.g} | ${g.n} | ${f(g.mu,1)} | ${f(g.lsl,0)}–${f(g.usl,0)} | ${f(g.cpk)} | ${f(g.ci[0])}–${f(g.ci[1])} | ${f(g.ppk)} | ${fmtPpm(g.ppmExp)} | ${fmtPpm(g.ppmObs)} |`).join("\n")}\n`:""}
 ## 二、Nelson 規則（X̄ 圖，管制狀態判斷依據）\n\n${(A.nelX||A.nel).rules.map(r=>`- 規則 ${r.name}：${r.idx.length?"觸發（"+r.idx.map(i=>A.xs.pts[i].lab).join(", ")+"）":"通過"}`).join("\n")}${S.chart!=="xbars"?`\n\n目前畫面管制圖（${chartName()}）：${A.nel.rules.filter(r=>!r.na).map(r=>`規則 ${r.id} ${r.idx.length?"觸發":"通過"}`).join("、")}`:""}\n\n## 三、交叉驗證\n\n| 面向 | 來源 | 判定 | 依據 |\n|---|---|---|---|\n${A.xv.rows.map(x=>`| ${x.k} | ${x.src} | ${lab[x.st]} | ${x.ev} |`).join("\n")}\n\n${fmMd().trim()||"## 失效模式交叉比對\n\n- 無資料"}\n\n## 進階分析\n\n${(()=>{const W=advSummary(A);return[`- EWMA 越界：${W.EWMA越界.join(", ")||"無"}；CUSUM 訊號：${W.CUSUM訊號.join(", ")||"無"}`,`- 面積比 / 轉移效率：${W.面積比.map(g=>`${g.群組} AR ${g.AR}、TE ${g.轉移效率}%`).join("；")}`,`- 最差焊墊 Cpk：${W.最差焊墊Cpk.map(p=>`${p.焊墊} ${p.Cpk}`).join("、")}`,`- 對位異常板：${W.對位異常板.map(a=>`${a.板}（平移 ${a.平移X}/${a.平移Y} µm，旋轉 ${a.旋轉度}°）`).join("；")||"無"}`,W.刮刀前後?`- 刮刀前後差：${W.刮刀前後.差值}，p = ${W.刮刀前後.p}`:"",`- 擦拭週期（每 ${W.擦拭週期.每幾片} 片）：斜率 ${W.擦拭週期.每片斜率}/片，p = ${W.擦拭週期.p}`].filter(Boolean).join("\n")})()}\n\n## 四、不良柏拉圖\n\n${Object.entries(A.pareto).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`- ${DEFECTS[k]}：${v}`).join("\n")||"- 無"}\n${S.ai?`\n## 五、Claude AI 分析（含推論，需工程驗證）\n\n${S.ai}\n`:""}`}
-/* 下載：在 claude.ai 內用平台下載功能；一般瀏覽器（例如 Netlify 部署）直接下載檔案 */
+/* 下載：直接以瀏覽器下載檔案 */
 function browserDownload(filename,data){const type=/\.csv$/.test(filename)?"text/csv;charset=utf-8":"text/markdown;charset=utf-8",url=URL.createObjectURL(new Blob(["\uFEFF"+data],{type})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-async function save(filename,data){const st=$("#expState");try{const d=window.claude&&await window.claude.use("downloads");if(!d){browserDownload(filename,data);st.textContent="已下載 "+filename;return}await d.save({filename,data});st.textContent="已儲存 "+filename}catch(e){st.textContent=e&&e.code==="declined"?"已取消":"下載失敗："+(e&&e.message||e)}}
+async function save(filename,data){const st=$("#expState");try{browserDownload(filename,data);st.textContent="已下載 "+filename}catch(e){st.textContent="下載失敗："+(e&&e.message||e)}}
 $("#btnExpMd").onclick=()=>save("spi-spc-report.md",reportMd());
 $("#btnExpBoard").onclick=()=>save("board-stats.csv",toCSV([["board","n","mean","sd","min","q1","median","q3","max","defect_pads","defect_rate"],...S.A.byBoard.map(b=>[b.board,b.n,f(b.mean,3),f(b.sd,3),b.min,f(b.q1,2),f(b.med,2),f(b.q3,2),b.max,b.defects,f(b.p,4)])]));
 $("#btnExpDef").onclick=()=>save("defect-pads.csv",toCSV([["board","pad","component","group","volume","height","area","offset_x","offset_y","defects"],...S.A.defRows.map(r=>[r.board,r.pad,r.comp,r.group,r.volume,r.height,r.area,r.offx,r.offy,r.codes.map(c=>DEFECTS[c]).join(" / ")])]));
@@ -2528,26 +2527,9 @@ function advSummary(A){const W=advAnalyze(S,A);return{EWMA越界:A.ewma.filter(p
   面積比:W.arGroups.map(g=>({群組:g.g,開孔mm:g.shape==="round"?"Ø"+f(g.apL,3):f(g.apL,3)+"×"+f(g.apW,3),開孔來源:g.src,鋼板µm:g.thk,AR:+f(g.ar,2),寬厚比:+f(g.asp,2),AR達066最大厚度µm:+f(g.tmax,0),轉移效率:+f(g.te,1),CV:+f(g.cv,1)})),最差焊墊Cpk:W.padCpk.slice(0,5).map(p=>({焊墊:p.pad,Cpk:+f(p.cpk)})),
   對位異常板:W.align.filter(a=>Math.max(Math.abs(a.tx),Math.abs(a.ty))>25||a.rotEdge>20||a.strEdge>20).map(a=>({板:a.board,平移X:+f(a.tx,1),平移Y:+f(a.ty,1),旋轉度:+f(a.thDeg,3),伸縮ppm:[+f(a.ex*1000,0),+f(a.ey*1000,0)]})),
   刮刀前後:W.stroke&&{差值:+f(W.stroke.ma-W.stroke.mb,2),p:+f(W.stroke.p,4)},擦拭週期:{每幾片:W.wipe.N,每片斜率:+f(W.wipe.slope,3),r:+f(W.wipe.r,2),p:+f(W.wipe.p,4)}}}
-$("#btnAI").onclick=async()=>{const out=$("#aiOut"),st=$("#aiState");
-  let sample=null;try{sample=window.claude&&await window.claude.use("sample")}catch(e){}
-  if(!sample)return analyzeViaApi(out,st);
-  aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;st.textContent="分析中…";out.innerHTML="";
-  const prompt=`你是資深 SQE／SMT 製程工程師，熟悉錫膏印刷（SPI）、SPC 與 8D。以下是 SPI 統計分析結果（JSON，全部為計算出的事實）。請用繁體中文、條列式回覆，總長約 600–900 字，並嚴格區分「事實」（直接來自數據）與「推論」（需驗證，標註信心 高/中/低）。
-${AI_EVIDENCE_RULE}
-
-輸出段落（使用 ### 標題）：
-### 結論摘要（最該先處理的 3 個問題）
-### 審查系統偵測清單（逐項判斷：同意 / 存疑 / 可能是假訊號，並說明理由；相互佐證的項目是否其實是同一根因）
-### 系統可能漏抓的問題（從資料中找出清單沒列、但值得追查的訊號）
-### 推論：可能原因（依錫膏印刷 4M1E：鋼板開孔/張力/堵孔、刮刀壓力速度角度、PCB 支撐與對位、錫膏黏度與回溫/放置時間、擦拭頻率、環境溫濕度；每項標信心）
-### 驗證實驗（每個主要問題給一個最快能確認或排除根因的現場驗證方法，例如換鋼板對照、單板重印、調整擦拭頻率）
-### 試產 / DFM 建議（開孔、鋼板厚度、參數的具體修改方向）
-
-資料：
-${JSON.stringify(aiPayload())}`;
-  try{const res=await sample(prompt,{modelTier:"complex",signal:aiAbort.signal,onText:({text})=>{out.innerHTML=mdLite(text)}});S.ai=res.text;out.innerHTML=mdLite(res.text);st.textContent=res.truncated?"回覆因長度上限被截斷":"完成 · 可至「資料與規格」匯出含 AI 段落的報告"}
-  catch(e){st.textContent=e&&e.name==="AbortError"?"已停止":e&&e.code==="rate_limited"?"請求過於頻繁，請稍後再試":e&&e.code==="not_granted"?"未授權呼叫 Claude":"分析失敗："+(e&&e.message||e);if(e&&e.text){S.ai=e.text;out.innerHTML=mdLite(e.text)}}
-  finally{$("#btnAI").disabled=false;$("#btnAIStop").hidden=true;aiAbort=null}};
+const AI_PROMPT_TEMPLATE=`你是資深 SQE／SMT 製程工程師，熟悉錫膏印刷（SPI）、SPC 與 8D。以下是 SPI 統計分析結果（JSON，全部為計算出的事實）。請用繁體中文、條列式回覆，總長約 600–900 字，並嚴格區分「事實」（直接來自數據）與「推論」（需驗證，標註信心 高/中/低）。
+${AI_EVIDENCE_RULE}`;
+$("#btnAI").onclick=async()=>{const out=$("#aiOut"),st=$("#aiState");return analyzeViaApi(out,st)};
 $("#btnAIStop").onclick=()=>aiAbort&&aiAbort.abort();
 let AI_ANON_MAP=null;
 function anonymizePayload(p){
@@ -2615,7 +2597,7 @@ async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPaylo
   aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;out.innerHTML="";
   st.textContent=`分析中…（送出統計摘要 ${f(new Blob([body]).size/1024,1)} KB，不含原始 SPI 資料）`;let text="";
   try{const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body,signal:aiAbort.signal});
-    if(!res.ok){let msg=res.status===404?"此網站沒有 AI 分析服務（需部署在 Netlify，或在 claude.ai 內開啟）":`伺服器回應 ${res.status}`;try{const j=await res.json();if(j.error)msg=j.error}catch(e){}st.textContent="AI 分析無法使用："+msg;return}
+    if(!res.ok){let msg=res.status===404?"此網站尚未啟用 AI 分析服務":`伺服器回應 ${res.status}`;try{const j=await res.json();if(j.error)msg=j.error}catch(e){}st.textContent="AI 分析無法使用："+msg;return}
     const rd=res.body.getReader(),dec=new TextDecoder();
     for(;;){const{done,value}=await rd.read();if(done)break;text+=dec.decode(value,{stream:true});out.innerHTML=mdLite(deAnonymizeText(text))}
     S.ai=deAnonymizeText(text);st.textContent=`完成 · 模型 ${res.headers.get("X-AI-Model")||""} · 可至「資料與規格」匯出含 AI 段落的報告`}
@@ -2693,11 +2675,9 @@ $("#p-data .subtabs").addEventListener("keydown",e=>{const T=$$("#p-data .subtab
 /* ---------- 啟動 ---------- */
 $(".tabs").addEventListener("scroll",tabFade,{passive:true});addEventListener("resize",tabFade);setTimeout(tabFade,0);setTimeout(()=>{updateMore();updateVars()},0);
 if(!window.Chart)$("#libWarn").hidden=false;
-/* 部署在 Netlify（有登入保護）時顯示登出；claude.ai 與本機檔案不顯示 */
-/* 本機開發（沒有登入後端）時也開放分享，方便測試 */
+/* 雲端登入狀態：以 /__me 實際回應判斷，不依網址名稱 */
 const HAS_API=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-/* 是否有登入後端：以 /__me 實際回應判斷（自訂網域也適用），不依網址名稱 */
-const meP=typeof fetch==="function"&&/^https?:$/.test(location.protocol)&&!/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname)?fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>j&&j.user?j:null).catch(()=>null):Promise.resolve(null);
+const meP=typeof fetch==="function"&&/^https?:$/.test(location.protocol)?fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>j&&j.user?j:null).catch(()=>null):Promise.resolve(null);
 meP.then(j=>{if(!j)return;$("#userName").textContent=j.user;$("#userChip").hidden=false;$("#logoutLink").hidden=false;if(window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}});
 /* ---------- 分享連結：壓縮後上傳到本網站（Netlify Blobs），連結需登入才能開啟，30 天失效 ---------- */
 async function gzipJSON(o){return new Uint8Array(await new Response(new Response(JSON.stringify(o)).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
@@ -2784,7 +2764,7 @@ function sha256js(d){const K=[],H=[];let n=2,c=0;const fr=x=>(x-Math.floor(x))*4
     for(let i=0;i<64;i++){const S1=(E>>>6|E<<26)^(E>>>11|E<<21)^(E>>>25|E<<7),t1=J+S1+(E&F^~E&G)+K[i]+w[i]|0,S0=(A>>>2|A<<30)^(A>>>13|A<<19)^(A>>>22|A<<10),t2=S0+(A&B^A&C^B&C)|0;J=G;G=F;F=E;E=D+t1|0;D=C;C=B;B=A;A=t1+t2|0}
     H[0]=H[0]+A|0;H[1]=H[1]+B|0;H[2]=H[2]+C|0;H[3]=H[3]+D|0;H[4]=H[4]+E|0;H[5]=H[5]+F|0;H[6]=H[6]+G|0;H[7]=H[7]+J|0}
   return H.map(x=>(x>>>0).toString(16).padStart(8,"0")).join("")}
-async function gzipBytes(u8){return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
+async function gzipBytes(u8){return new Uint8Array(await new Response(new Response(u8).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
 async function gunzipBytes(buf,max=100*1048576,expectedBytes=0){
   const isCoarse = window.matchMedia && window.matchMedia("(pointer:coarse)").matches && window.innerWidth <= 1180;
   if(isCoarse && expectedBytes > 50*1048576) throw new Error("此檔案過大（超過 50 MB），請用桌機開啟");
@@ -2819,60 +2799,41 @@ function recCheck(m){const c=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\
   if(!o.part)return{error:"請填寫產品料號"};if(m.kind==="spi"){o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"}}else{o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"}}return{meta:o}}
 /* 重複判定與後端相同：內容與回溯欄位（量測紀錄含面別、格式、座標檔）全部相同才算 */
 const recSame=(a,b)=>a.kind===b.kind&&a.sha256===b.sha256&&a.part===b.part&&(a.kind==="spi"?a.lot===b.lot&&(a.side||"")===(b.side||"")&&(a.vendor||"")===(b.vendor||"")&&(a.placeId||"")===(b.placeId||""):a.rev===b.rev);
-/* 本機版：IndexedDB「spi-records」 */
-const LocalRec={db:null,
-  open(){if(this.db)return this.db;this.db=new Promise((ok,no)=>{if(!window.indexedDB)return no(new Error("這個瀏覽器無法保存資料庫（可能是無痕模式）"));const q=indexedDB.open("spi-records",1);
-    q.onupgradeneeded=()=>{const d=q.result;d.createObjectStore("files");d.createObjectStore("meta",{keyPath:"id"});d.createObjectStore("log",{autoIncrement:true})};q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error||new Error("無法開啟資料庫"))});return this.db},
-  async tx(stores,mode,fn){const d=await this.open();return new Promise((ok,no)=>{const t=d.transaction(stores,mode);let out;Promise.resolve(fn(t)).then(v=>out=v,no);t.oncomplete=()=>ok(out);t.onerror=()=>no(t.error);t.onabort=()=>no(t.error||new Error("資料庫寫入失敗"))})},
-  req(r){return new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})},
-  async index(){return this.tx(["meta"],"readonly",t=>this.req(t.objectStore("meta").getAll()))},
-  async create(meta,u8,user){const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);
-    const rec={...chk.meta,id:newRecId(),bytes:u8.length,sha256:await sha256Hex(u8),user,created:Date.now()};
-    const dup=(await this.index()).find(r=>recSame(r,rec));if(dup){const e=new Error("這個檔案已經存過（相同內容與相同回溯欄位）");e.existing=dup.id;e.status=409;throw e}
-    await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").put(u8,rec.id);t.objectStore("meta").put(rec);t.objectStore("log").add({action:"create",at:rec.created,by:user,id:rec.id,kind:rec.kind,lot:rec.lot||"",part:rec.part,rev:rec.rev||"",name:rec.name,sha256:rec.sha256,bytes:rec.bytes})});return rec},
-  async get(id){return this.tx(["files"],"readonly",t=>this.req(t.objectStore("files").get(id)))},
-  async del(id,user){const all=await this.index(),r=all.find(x=>x.id===id);if(!r)throw new Error("找不到這筆紀錄（可能已被刪除）");if(r.user!==user)throw new Error(`只有上傳者（${r.user}）可以刪除這筆紀錄`);
-    await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").delete(id);t.objectStore("meta").delete(id);t.objectStore("log").add({action:"delete",at:Date.now(),by:user,id,kind:r.kind,lot:r.lot||"",part:r.part,rev:r.rev||"",name:r.name,sha256:r.sha256,bytes:r.bytes,uploaded:r.created})})},
-  async audit(){return(await this.tx(["log"],"readonly",t=>this.req(t.objectStore("log").getAll()))).reverse().slice(0,500)}};
-function newRecId(){const b=crypto.getRandomValues(new Uint8Array(16));return btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
-var RecDB={mode:"local",me:"本機",cache:null,ready:null,
+/* ---------- 量測紀錄與座標檔資料庫：存放在 Cloudflare 雲端（/api/records，D1 + R2，登入者共用） ---------- */
+/* 原始檔只能新增或刪除，不能修改；每筆記錄上傳者、時間與檔案指紋（SHA-256），可隨時驗證檔案與上傳時相同 */
+var RecDB={mode:"cloud",me:"",cache:null,ready:null,
   async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));e.existing=j.existing;e.status=r.status;throw e}return j},
-  async list(){await this.ready;let l;if(this.mode==="cloud"){const j=await this.jfetch("/api/records?limit=100");this.me=j.me||this.me;l=j.records||[]}else l=(await LocalRec.index()).sort((a,b)=>b.created-a.created);return this.cache=l.map(r=>deepClean(r))},
-  async create(meta,bytes){await this.ready;const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
-    if(this.mode==="cloud"){
-      if(!window.CompressionStream)throw new Error("此瀏覽器不支援 CompressionStream，請更新瀏覽器");
-      const clientSha=await sha256Hex(u8);
-      const gzBody=await gzipBytes(u8);
-      if(gzBody.length>4*1048576)throw new Error(`檔案壓縮後 ${(gzBody.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
-      return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{
-        "Content-Type":"application/gzip",
-        "X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta)),
-        "X-Raw-Bytes":String(u8.length),
-        "X-Raw-SHA256":clientSha
-      },body:gzBody})).record);
-    }
-    return LocalRec.create(chk.meta,u8,this.me)},
+  async checkAuth(){await this.ready;if(!this.me)throw new Error("請先登入帳號以存取雲端量測資料庫")},
+  async list(){await this.checkAuth();const j=await this.jfetch("/api/records?limit=100");this.me=j.me||this.me;const l=j.records||[];return this.cache=l.map(r=>deepClean(r))},
+  async create(meta,bytes){await this.checkAuth();const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
+    if(!window.CompressionStream)throw new Error("此瀏覽器不支援 CompressionStream，請更新瀏覽器");
+    const clientSha=await sha256Hex(u8);
+    const gzBody=await gzipBytes(u8);
+    if(gzBody.length>4*1048576)throw new Error(`檔案壓縮後 ${(gzBody.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
+    return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{
+      "Content-Type":"application/gzip",
+      "X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta)),
+      "X-Raw-Bytes":String(u8.length),
+      "X-Raw-SHA256":clientSha
+    },body:gzBody})).record);
+  },
   /* 取回原始檔並重新計算指紋；ok＝與上傳時記錄的指紋相同 */
-  async get(rec){await this.ready;let u8;
-    if(this.mode==="cloud"){
-      if(!window.DecompressionStream)throw new Error("此瀏覽器不支援 DecompressionStream，請更新瀏覽器");
-      const r=await fetch("/api/records?id="+encodeURIComponent(rec.id),{cache:"no-store"});
-      if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}
-      const buf=await r.arrayBuffer();
-      u8=await gunzipBytes(buf,100*1048576,rec.bytes);
-    }else{
-      u8=await LocalRec.get(rec.id);
-      if(!u8)throw new Error("找不到這筆紀錄的原始檔");
-    }
-    const sha=await sha256Hex(u8);return{bytes:u8,sha,ok:sha===rec.sha256}},
-  async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});return LocalRec.del(id,this.me)},
-  async audit(){await this.ready;if(this.mode==="cloud")return((await this.jfetch("/api/records?audit=1")).entries||[]).map(x=>deepClean(x));return(await LocalRec.audit()).map(x=>deepClean(x))}};
+  async get(rec){await this.checkAuth();
+    if(!window.DecompressionStream)throw new Error("此瀏覽器不支援 DecompressionStream，請更新瀏覽器");
+    const r=await fetch("/api/records?id="+encodeURIComponent(rec.id),{cache:"no-store"});
+    if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}
+    const buf=await r.arrayBuffer();
+    const u8=await gunzipBytes(buf,100*1048576,rec.bytes);
+    const sha=await sha256Hex(u8);return{bytes:u8,sha,ok:sha===rec.sha256}
+  },
+  async del(id){await this.checkAuth();this.cache=null;return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"})},
+  async audit(){await this.checkAuth();return((await this.jfetch("/api/records?audit=1")).entries||[]).map(x=>deepClean(x))}
+};
 RecDB.ready=meP.then(j=>{if(j&&j.user){RecDB.mode="cloud";RecDB.me=j.user}}).catch(()=>{});
-function recWhere(){return RecDB.mode==="cloud"?"雲端資料庫":"這台電腦的瀏覽器"}
+function recWhere(){return"雲端資料庫（Cloudflare D1 + R2）"}
 const fmtTime=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"—";
-/* 下載原始檔（位元組不變）：claude.ai 用平台下載；一般瀏覽器直接下載 */
-async function saveBytes(filename,u8){const d=window.claude&&await window.claude.use("downloads").catch(()=>null);
-  if(d){await d.save({filename,data:new Blob([u8])});return}
+/* 下載原始檔（位元組不變）：以瀏覽器直接下載 */
+async function saveBytes(filename,u8){
   const url=URL.createObjectURL(new Blob([u8],{type:"application/octet-stream"})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 /* 回合帶的來源資訊（批號、料號、原始檔指紋），顯示在回合清單、列印頁首與報告 */
 function srcInfo(r){return{id:r.id,lot:r.lot,part:r.part,side:r.side||"",name:r.name,sha256:r.sha256,user:r.user,created:r.created,store:RecDB.mode,placeId:r.placeId||"",placePart:PLACE&&PLACE.recId&&PLACE.recId===r.placeId?PLACE.part:"",placeRev:PLACE&&PLACE.recId&&PLACE.recId===r.placeId?PLACE.rev:""}}
@@ -2880,7 +2841,7 @@ const runSrc=r=>r&&r.info&&r.info.src||null;
 function srcLine(s){return s?`批號 ${s.lot}｜產品料號 ${s.part}${s.side?"｜"+s.side+" 面":""}｜原始檔 ${s.name}（SHA-256 ${String(s.sha256).slice(0,12)}…，${s.user}，${fmtTime(s.created)}）${s.placePart?`｜座標檔 ${s.placePart} ${s.placeRev}`:""}`:""}
 /* ---------- 資料庫頁 ---------- */
 let REC_CONFIRM=null,REC_VER={};
-async function renderRecords(force){if(!$("#recSpi"))return;await RecDB.ready;$("#recMode").textContent=`存放位置：${recWhere()}${RecDB.mode==="cloud"?`（登入帳號 ${RecDB.me}）`:"（只有這台電腦看得到）"}`;
+async function renderRecords(force){if(!$("#recSpi"))return;await RecDB.ready;$("#recMode").textContent=`存放位置：${recWhere()}${RecDB.me?`（登入帳號 ${RecDB.me}）`:"（需登入雲端帳號）"}`;
   let list;try{list=(!force&&RecDB.cache)||await RecDB.list();$("#recState").textContent=""}catch(e){$("#recState").innerHTML=`<span class="err">無法讀取資料庫：${esc(e.message)}</span>`;return}
   const q=$("#recQ").value.trim().toLowerCase(),hit=r=>!q||[r.lot,r.part,r.rev,r.name,r.user].some(x=>String(x||"").toLowerCase().includes(q));
   const fp=r=>`<span class="mono" title="SHA-256 ${esc(r.sha256)}">${esc(String(r.sha256).slice(0,10))}…</span>${REC_VER[r.id]?` <span class="${REC_VER[r.id].ok?"rec-ok":"rec-bad"}">${REC_VER[r.id].ok?"✓ 與上傳時相同":"✗ "+esc(REC_VER[r.id].msg||"與上傳時不同")}</span>`:""}`;
@@ -2928,8 +2889,6 @@ $("#recCard").addEventListener("click",async e=>{const b=e.target.closest("[data
     if(act==="del"){if(REC_CONFIRM!==id){REC_CONFIRM=id;renderRecords();setTimeout(()=>{if(REC_CONFIRM===id){REC_CONFIRM=null;renderRecords()}},6000);return}
       REC_CONFIRM=null;await RecDB.del(id);if(PLACE&&PLACE.recId===id){PLACE=null;placeSave();placeShow()}delete REC_VER[id];await renderRecords(true);toast(`已刪除 ${rec.kind==="spi"?"批號 "+rec.lot:"座標檔 "+rec.part+" "+rec.rev}（稽核紀錄保留）`)}}
   catch(er){if(er&&er.code==="declined")$("#recState").textContent="已取消下載";else $("#recState").innerHTML=`<span class="err">${esc(er.message||String(er))}</span>`;renderRecords()}});
-/* ---------- 列印／存成 PDF：列印目前頁籤，固定用淺色，頁首附回合與設定資訊 ---------- */
-const IN_CLAUDE=!!window.claude||/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
 let prTheme=null;
 function beforePrint(){/* 先展開問題卡片並記在 ISS_OPEN，主題切換觸發重畫時仍保持展開 */prOpenPrev=new Set(ISS_OPEN);(S.F||[]).forEach(x=>ISS_OPEN.add(x.id));$$("#issList details.iss-card").forEach(d=>d.open=true);
   const ht=document.documentElement;prTheme=ht.getAttribute("data-theme");if(prTheme!=="light")ht.setAttribute("data-theme","light");
@@ -2941,6 +2900,7 @@ function beforePrint(){/* 先展開問題卡片並記在 ISS_OPEN，主題切換
 let prOpenPrev=null;
 function afterPrint(){if(prOpenPrev){ISS_OPEN.clear();prOpenPrev.forEach(i=>ISS_OPEN.add(i));$$("#issList details.iss-card").forEach(d=>d.open=ISS_OPEN.has(+d.dataset.id));prOpenPrev=null}const ht=document.documentElement;if(prTheme===null)ht.removeAttribute("data-theme");else if(prTheme!=="light")ht.setAttribute("data-theme",prTheme);prTheme=null;$$(".print3d").forEach(x=>x.remove())}
 addEventListener("beforeprint",beforePrint);addEventListener("afterprint",afterPrint);
+const IN_CLAUDE=!!window.claude||/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
 if(!IN_CLAUDE){$("#btnPrint").hidden=false;$("#btnPrint").onclick=()=>window.print()}
 if(HAS_API&&window.CompressionStream){
   $("#btnShare").hidden=false;$("#btnShare").onclick=createShare;
@@ -2980,7 +2940,7 @@ try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t
 initRuns(false);
 restoreRuns().then(()=>meP).then(j=>{if((j||HAS_API)&&window.DecompressionStream)return openShareFromUrl()});
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();
