@@ -1256,3 +1256,172 @@ test('LT-1 & LT-2: export-cloudflare 固定讀正式 D1 且與 netlify-sync-dele
     await fs.rm(tmpCfDir, { recursive: true, force: true });
   }
 });
+
+test('MT-1: 注入介面邊界守衛（fetch/now 僅控制時鐘檢查、來源端讀寫與 D1/R2 經模組注入、嚴禁 --source-dir 等本機來源或略過參數）', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const crypto = await import('node:crypto');
+  const {
+    exportSnapshot,
+    importSnapshot,
+    parseMigrationArgs,
+  } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const baseNow = 1700000000000;
+  const workerUrl = 'https://spi-spc-analyst.example.workers.dev';
+
+  // 1. 命令列與模組介面嚴禁本機來源或略過旗標
+  assert.throws(
+    () => parseMigrationArgs(['export', '/tmp/out', '--worker-url', workerUrl, '--source-dir', '/tmp/local']),
+    /未知或不允許的旗標: --source-dir/
+  );
+  assert.throws(
+    () => parseMigrationArgs(['import', '/tmp/out', '--remote', '--worker-url', workerUrl, '--source-dir', '/tmp/local']),
+    /未知或不允許的旗標: --source-dir/
+  );
+
+  await assert.rejects(
+    async () => {
+      await exportSnapshot('/tmp/unused', {
+        workerUrl,
+        sourceDir: '/tmp/local',
+      });
+    },
+    /禁止在模組介面傳入略過或放寬時鐘檢查的參數: sourceDir/
+  );
+
+  process.env.NETLIFY_SOURCE_DIR = '/tmp/local';
+  try {
+    await assert.rejects(
+      async () => {
+        await exportSnapshot('/tmp/unused', {
+          workerUrl,
+        });
+      },
+      /禁止透過環境變數略過時鐘檢查或指定本機來源: NETLIFY_SOURCE_DIR/
+    );
+  } finally {
+    delete process.env.NETLIFY_SOURCE_DIR;
+  }
+
+  // 2. 測試替身注入：fetch 僅控制時鐘檢查、storeFactory 讀取來源端
+  const tmpExportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mt1-export-'));
+  try {
+    const fetchCalls = [];
+    const mockFetch = async (url, opts) => {
+      fetchCalls.push({ url, method: opts?.method });
+      return {
+        status: 200,
+        headers: new Map([['Date', new Date(baseNow).toUTCString()]]),
+      };
+    };
+
+    const recContent = Buffer.from('bin-data-mt1', 'utf8');
+    const shareContent = Buffer.from('{"test":"share-mt1"}', 'utf8');
+    const indexRecords = [{ id: 'rec_mt1', lot: 'LOT-MT1', part: 'P1' }];
+    const log1 = {
+      at: baseNow - 5000,
+      by: 'user_mt',
+      action: 'create',
+      target_type: 'record',
+      target_id: 'rec_mt1',
+      detail: { done: true },
+    };
+
+    const mockStoreFactory = ({ name }) => {
+      if (name === 'spi-records') {
+        return {
+          list: async function* () {
+            yield {
+              blobs: [
+                { key: 'index.json' },
+                { key: 'f/rec_mt1' },
+                { key: 'log/000000000001000-aaaaaaaa' },
+              ],
+            };
+          },
+          getWithMetadata: async (k) => {
+            if (k === 'index.json') return { data: Buffer.from(JSON.stringify(indexRecords)) };
+            if (k === 'f/rec_mt1') return { data: recContent };
+            if (k === 'log/000000000001000-aaaaaaaa') return { data: Buffer.from(JSON.stringify(log1)) };
+            return null;
+          },
+        };
+      }
+      if (name === 'spi-share') {
+        return {
+          list: async function* () {
+            yield {
+              blobs: [{ key: 'share_mt1_12345678901_' }],
+            };
+          },
+          getWithMetadata: async (k) => {
+            if (k === 'share_mt1_12345678901_') {
+              return {
+                data: shareContent,
+                metadata: {
+                  created: baseNow - 10000,
+                  exp: baseNow + 86400000,
+                  user: 'u_mt',
+                  bytes: shareContent.length,
+                },
+              };
+            }
+            return null;
+          },
+        };
+      }
+      return { list: async function* () {}, getWithMetadata: async () => null };
+    };
+
+    // 執行 exportSnapshot：注入 mockFetch 與 mockStoreFactory
+    const manifest = await exportSnapshot(tmpExportDir, {
+      workerUrl,
+      now: () => baseNow,
+      fetch: mockFetch,
+      storeFactory: mockStoreFactory,
+    });
+
+    assert.equal(fetchCalls.length, 1, 'fetch 應僅呼叫 1 次且僅用於時鐘檢查');
+    assert.equal(fetchCalls[0].url, `${workerUrl}/__login`);
+    assert.equal(fetchCalls[0].method, 'HEAD');
+    assert.equal(manifest.records, 1);
+    assert.equal(manifest.shares, 1);
+
+    // 3. 測試替身注入：importSnapshot 注入 r2 與 d1Exec，驗證 R2 上傳核對與 D1 寫入
+    const r2Storage = new Map();
+    const mockR2 = {
+      put: async (k, buf) => { r2Storage.set(k, Buffer.from(buf)); },
+      get: async (k) => {
+        if (!r2Storage.has(k)) return null;
+        const b = r2Storage.get(k);
+        return {
+          arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+        };
+      },
+      delete: async (k) => { r2Storage.delete(k); },
+    };
+
+    const executedSqls = [];
+    const mockD1Exec = async (sql) => { executedSqls.push(sql); };
+
+    await importSnapshot(tmpExportDir, {
+      apply: true,
+      remote: false, // 本機模式不發 HEAD
+      now: () => baseNow + 1000,
+      r2: mockR2,
+      d1Exec: mockD1Exec,
+    });
+
+    assert.equal(r2Storage.has('f/rec_mt1'), true, 'R2 應成功寫入 f/rec_mt1');
+    assert.equal(r2Storage.has('shares/share_mt1_12345678901_'), true, 'R2 應成功寫入 shares');
+    assert.equal(executedSqls.length > 0, true, 'D1 SQL 應被執行');
+
+    const optsSaved = JSON.parse(await fs.readFile(path.join(tmpExportDir, 'import-options.json'), 'utf8'));
+    assert.equal(optsSaved.applied_at, baseNow + 1000);
+  } finally {
+    await fs.rm(tmpExportDir, { recursive: true, force: true });
+  }
+});
+
