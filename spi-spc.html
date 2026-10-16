@@ -52,7 +52,7 @@ header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:spac
   .wrap{max-width:none!important;padding:0!important}
   .printHead{display:block;font-size:12px;border-bottom:1.5px solid #000;padding:0 0 6px;margin:0 0 10px;color:#000}
   .printHead b{font-size:15px;margin-right:10px}
-  header.top,.rail,.tabs,.ctxbar,#toast,#busy,dialog,#libWarn{display:none!important}
+  header.top,.rail,.tabs,.ctxbar,#toast,#busy,#libWarn{display:none!important}
   .sticky{position:static!important;box-shadow:none!important}
   .panel button:not([data-ent]),.panel input[type=file],.panel .drop,#hud{display:none!important}
   .card,.iss-card,.kpi,table,figure{break-inside:avoid}
@@ -136,10 +136,7 @@ table.show-all tr.more-row{display:table-row}
 #busy{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:999px;font-size:13.5px;box-shadow:0 4px 18px rgba(0,0,0,.18)}#busy[hidden]{display:none}
 .spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(1turn)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
-dialog#shareDlg{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:20px 22px;width:min(560px,calc(100% - 32px))}
-dialog#shareDlg::backdrop{background:rgba(10,13,11,.45)}
-dialog#shareDlg h3{margin:0 0 8px;font-size:17px}
-.shareRow{display:flex;gap:8px;margin:10px 0}.shareRow input{flex:1;min-width:0;font-family:var(--f-mono);font-size:12.5px}
+.shareRow{display:flex;gap:8px;margin:10px 0;align-items:center}.shareRow input{flex:1;min-width:0;font-family:var(--f-mono);font-size:12.5px}
 .shareHint{font-size:12.5px;color:var(--muted);margin:8px 0 14px}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
 .chip b{color:var(--ink);font-weight:500}
@@ -280,13 +277,6 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 
 <button id="toTop" hidden aria-label="回到頂端" title="回到頂端">↑</button>
 <div id="busy" role="status" aria-live="polite" hidden><span class="spin" aria-hidden="true"></span><span id="busyMsg">計算中…</span></div>
-<dialog id="shareDlg" aria-labelledby="shareTtl"><form method="dialog">
-  <h3 id="shareTtl">分享連結</h3>
-  <p id="shareMsg" role="status">正在建立連結…</p>
-  <div class="shareRow" id="shareRow" hidden><input type="text" id="shareUrl" readonly aria-label="分享連結網址"><button type="button" class="primary" id="btnCopyShare">複製</button></div>
-  <p class="shareHint">開啟連結的人必須先登入本網站；連結 30 天後失效。分享時，這個回合的量測資料會上傳到本網站的儲存空間（不會分享到其他地方）。</p>
-  <div class="row" style="justify-content:flex-end"><button value="close">關閉</button></div>
-</form></dialog>
 <div class="wrap">
 <div class="printHead" id="printHead" aria-hidden="true"></div>
 <header class="top">
@@ -303,6 +293,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <p class="menu-user" id="userChip" hidden>帳號 <b id="userName"></b></p>
         <button role="menuitem" id="btnPrint" hidden title="列印目前頁籤，或在列印視窗選「另存為 PDF」">列印／存成 PDF</button>
         <button role="menuitem" id="btnShare" hidden title="把目前的回合與畫面做成連結，傳給同事開啟">分享連結</button>
+        <button role="menuitem" id="btnMyShares" hidden title="檢視與管理自己建立的分享連結">我的分享</button>
         <a role="menuitem" id="logoutLink" href="/__logout" hidden>登出</a>
       </div>
     </div>
@@ -550,8 +541,24 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 <section class="panel" id="p-ai" role="tabpanel" hidden>
   <div class="card">
     <h3>Claude 品質工程分析 <small>將目前全部統計結果與交叉驗證送出，回覆分開事實與推論</small></h3>
+    <div class="notice" id="aiNoticeBox" style="background:var(--surface2);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:12.5px;color:var(--ink)">
+      <p style="margin:0 0 6px"><b>送出前告知與資料隱私保護：</b></p>
+      <ul style="margin:0 0 6px 18px;padding:0;line-height:1.6">
+        <li><b>服務商路徑：</b>經由 Cloudflare AI Gateway 安全轉發至 Anthropic（Claude 3.5 Sonnet）。</li>
+        <li><b>實際送出欄位：</b>試產回合名稱、量測指標、單位、規格窗、鋼板與階梯設定、樣本數與板數、整體平均與 σ、製程能力（Cp/Cpk/Pp/Ppk 及信賴區間）、判異點數與 Nelson 規則、問題清單（嚴重與警示卡片之事實現況與推論）。</li>
+        <li><b>包含的識別資料：</b>板號清單（如序號）、最差焊墊 ID、問題事實中的焊墊名稱（如 U2-05）、試產回合名稱。</li>
+        <li><b>AI Gateway 記錄設定：</b><span id="aiGatewayLogNotice">預設不保存提示詞與回應內容（已帶 <code>cf-aig-collect-log-payload: false</code>，僅留存 token 用量 metadata）。</span></li>
+      </ul>
+      <div class="row" style="align-items:center;margin-top:8px">
+        <label class="row" style="cursor:pointer;font-size:13px;align-items:center"><input type="checkbox" id="aiAnon"> <b>送出前匿名化板號與焊墊</b>（板號轉為 B01…、焊墊轉為 P001…，分析回覆後自動還原）</label>
+      </div>
+      <details class="how" id="aiPayloadDetails" style="margin-top:8px">
+        <summary>預覽送出內容 (JSON)</summary>
+        <pre class="mono" id="aiPayloadPre" style="max-height:220px;overflow:auto;background:var(--bg);padding:8px;border-radius:6px;font-size:11.5px;margin-top:6px"></pre>
+      </details>
+    </div>
     <div class="row"><button class="primary" id="btnAI">產生分析報告</button><button id="btnAIStop" hidden>停止</button><span class="note" id="aiState"></span></div>
-    <div class="ai-out" id="aiOut" style="margin-top:12px"><p class="note">按下按鈕後，Claude 會審查系統偵測到的問題清單，並產生：結論摘要、逐項同意或存疑、可能漏抓的問題、原因推論與信心、驗證實驗、試產／DFM 建議。送出的只有統計摘要與問題清單，不含逐焊墊的原始 SPI 資料。</p></div>
+    <div class="ai-out" id="aiOut" style="margin-top:12px"><p class="note">按下按鈕後，Claude 會審查系統偵測到的問題清單，並產生：結論摘要、逐項同意或存疑、可能漏抓的問題、原因推論與信心、驗證實驗、試產／DFM 建議。</p></div>
   </div>
 </section>
 
@@ -596,6 +603,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <div class="tbl" style="max-height:300px;overflow:auto"><table id="mapTbl"></table></div>
         <div id="mapPrev" class="note"></div>
         <div class="row recrow" id="recRow"><div class="field"><label for="inLot">批號（必填）</label><input type="text" id="inLot" maxlength="64" placeholder="例：L2410-01"></div><div class="field"><label for="inPart">產品料號（必填）</label><input type="text" id="inPart" maxlength="64" placeholder="例：301-000100124"></div><span class="note" id="recNote" style="align-self:center;max-width:52ch"></span></div>
+        <p class="note" id="impSaveNotice" style="margin:6px 0;max-width:70ch">原始檔將存入本站資料庫，登入帳號皆可檢視；可於資料庫頁刪除（只有上傳者）；永久保存，直到上傳者刪除。</p>
         <div class="row"><label class="row" style="font-size:13px"><input type="radio" name="impMode" value="new" checked> 新增為新回合</label><input type="text" id="inRunName" aria-label="新回合名稱" placeholder="回合名稱，例：試產 2 · 鋼板 V2" style="min-width:min(100%,220px)">
           <label class="row" style="font-size:13px"><input type="radio" name="impMode" value="replace"> 取代目前回合</label><button class="primary" id="btnApply">套用匯入</button></div>
       </div>
@@ -649,6 +657,60 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <h3 style="margin-top:16px">座標檔 <small id="recPlaceSub"></small></h3>
     <div class="tbl"><table id="recPlace"></table></div>
     <details class="how" id="recAuditBox" style="margin-top:14px"><summary>稽核紀錄（新增與刪除）</summary><div class="tbl" id="recAudit" style="margin-top:8px"></div></details>
+  </div>
+</section>
+
+<section class="panel" id="p-share" role="tabpanel" hidden>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3>建立分享連結 <small>將目前回合製作成 30 天有效的分享連結</small></h3>
+      <button type="button" class="linkbtn" id="btnShareBack">← 返回</button>
+    </div>
+    <div id="sharePreBox">
+      <div class="row" style="margin:12px 0;gap:20px;flex-wrap:wrap">
+        <div><span class="lbl">分享回合</span><div class="num" id="shareRunName" style="font-size:16px;font-weight:600">-</div></div>
+        <div><span class="lbl">筆數</span><div class="num" id="shareRowCount" style="font-size:16px;font-weight:600">-</div></div>
+        <div><span class="lbl">預估大小</span><div class="num" id="shareEstSize" style="font-size:16px;font-weight:600">-</div></div>
+        <div><span class="lbl">有效期限</span><div class="num" style="font-size:16px;font-weight:600">30 天</div></div>
+      </div>
+      <p class="note" style="margin:8px 0;color:var(--ink)">
+        <b>注意事項：</b>開啟者須登入本站才能存取；建立分享時，此回合的量測資料與設定將上傳並保存在本站伺服器（供授權同事檢視）。
+      </p>
+      <div class="row" style="margin-top:16px">
+        <button type="button" class="primary" id="btnConfirmShare">確認建立分享連結</button>
+      </div>
+    </div>
+    <div id="sharePostBox" hidden style="margin-top:16px">
+      <p id="shareMsg" role="status" style="margin:0 0 8px;font-weight:600">已成功建立分享連結！</p>
+      <div class="shareRow" id="shareRow" hidden>
+        <input type="text" id="shareUrl" readonly aria-label="分享連結網址" style="flex:1">
+        <button type="button" class="primary" id="btnCopyShare">複製網址</button>
+      </div>
+      <div class="row" style="margin-top:16px;align-items:center;gap:12px" id="shareRevokeWrap">
+        <button type="button" class="chipbtn danger" id="btnRevokeCurrent">撤銷此連結</button>
+        <span id="revokeConfirmSpan" hidden>
+          確定要撤銷此連結嗎？撤銷後將立刻失效：
+          <button type="button" class="danger" id="btnConfirmRevokeCurrent">確認撤銷</button>
+          <button type="button" id="btnCancelRevokeCurrent">取消</button>
+        </span>
+        <span class="note" id="shareRevokeMsg"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="p-shares" role="tabpanel" hidden>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3>我的分享連結 <small>檢視或撤銷您建立的分享</small></h3>
+      <button type="button" class="linkbtn" id="btnSharesBack">← 返回</button>
+    </div>
+    <div class="tbl" style="margin-top:12px;max-height:450px;overflow:auto">
+      <table id="mySharesTbl">
+        <thead><tr><th>建立時間 (UTC+8)</th><th>回合名稱</th><th>大小</th><th>到期時間 (UTC+8)</th><th>狀態</th><th>操作</th></tr></thead>
+        <tbody id="mySharesBody"><tr><td colspan="6" class="note">載入中…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </section>
 </div>
@@ -1701,7 +1763,36 @@ function applyScope(){const on=AN_TABS.has(S.tab);$$("[data-scope=a]").forEach(e
 function tabIntoView(t){const bar=$(".tabs"),el=$(`.tab[data-tab="${t}"]`);if(!bar||!el)return;const l=el.offsetLeft-bar.offsetLeft,r=l+el.offsetWidth;
   if(l<bar.scrollLeft+24)bar.scrollLeft=Math.max(0,l-24);else if(r>bar.scrollLeft+bar.clientWidth-24)bar.scrollLeft=r-bar.clientWidth+24;tabFade()}
 function tabFade(){const bar=$(".tabs");if(!bar)return;bar.classList.toggle("fl",bar.scrollLeft>2);bar.classList.toggle("fr",bar.scrollLeft+bar.clientWidth<bar.scrollWidth-2)}
-function setTab(t){if(S.tab&&S.tab!==t)SCROLL[S.tab]=scrollY;const changed=S.tab!==t;S.tab=t;$$(".tab").forEach(x=>{x.setAttribute("aria-selected",x.dataset.tab===t);x.tabIndex=x.dataset.tab===t?0:-1});tabIntoView(t);$$(".panel").forEach(p=>p.hidden=p.id!=="p-"+t);if(t!=="sim3d")stopPlay();applyScope();showCtx();renderTab();if(changed)scrollTo(0,Math.min(SCROLL[t]||0,document.documentElement.scrollHeight));try{history.replaceState(null,"","#"+t)}catch(e){}}
+const ALL_TABS = ["issues","overview","control","capability","sim3d","cross","adv","compare","dfm","lab","ai","data","share","shares"];
+function setTab(t, fromHistory = false) {
+  if (!ALL_TABS.includes(t)) t = "issues";
+  if (S.tab && S.tab !== t) SCROLL[S.tab] = scrollY;
+  const changed = S.tab !== t;
+  S.tab = t;
+  $$(".tab").forEach(x => {
+    const sel = x.dataset.tab === t;
+    x.setAttribute("aria-selected", sel);
+    x.tabIndex = sel ? 0 : -1;
+  });
+  tabIntoView(t);
+  $$(".panel").forEach(p => p.hidden = p.id !== "p-" + t);
+  if (t !== "sim3d") stopPlay();
+  applyScope();
+  showCtx();
+  if (t === "share") initSharePage();
+  else if (t === "shares") loadMyShares();
+  else if (t === "ai") initAiPage();
+  else renderTab();
+  if (changed) scrollTo(0, Math.min(SCROLL[t] || 0, document.documentElement.scrollHeight));
+  if (!fromHistory) {
+    try {
+      if (location.hash !== "#" + t) {
+        history.pushState({ tab: t }, "", "#" + t);
+        location.hash = "#" + t;
+      }
+    } catch (e) {}
+  }
+}
 
 /* ---------- 總覽 ---------- */
 function kpi(k,v,s,cls=""){return`<div class="kpi ${cls}"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`}
@@ -2073,7 +2164,7 @@ function init3D(){if(T.ok)return true;const el=$("#view3d");if(!window.THREE){el
 function size3(){const el=$("#view3d");if(!T.renderer||!el.clientWidth)return;T.renderer.setSize(el.clientWidth,el.clientHeight);T.cam.aspect=el.clientWidth/el.clientHeight;T.cam.updateProjectionMatrix();draw3()}
 function draw3(){if(!T.ok)return;if(T.raf)return;T.raf=requestAnimationFrame(()=>{T.raf=0;const c=T.cam;c.position.set(T.tx+T.rad*Math.sin(T.phi)*Math.sin(T.theta),T.rad*Math.cos(T.phi),T.tz+T.rad*Math.sin(T.phi)*Math.cos(T.theta));c.lookAt(T.tx,0,T.tz);T.renderer.render(T.scene,c)})}
 function statusCol(r){const d=classify(r,S.specs,S);if(!d.length)return css("--ok");return d.some(c=>c==="INS"||c==="BRG"||c==="EXC")?css("--ng"):css("--warn")}
-function build3D(){const A=S.A;while(T.root.children.length){const o=T.root.children.pop();o.geometry&&o.geometry.dispose();o.material&&o.material.dispose()}
+function build3D(){if(!window.THREE||!T||!T.root||!T.root.children)return;const A=S.A;while(T.root.children.length){const o=T.root.children.pop();o.geometry&&o.geometry.dispose();o.material&&o.material.dispose()}
   const all=S.rows,xs=all.map(r=>r.x),ys=all.map(r=>r.y),x0=Math.min(...xs)-4,x1=Math.max(...xs)+4,y0=Math.min(...ys)-4,y1=Math.max(...ys)+4,cx=(x0+x1)/2,cy=(y0+y1)/2;
   const brd=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,1.2,y1-y0),new THREE.MeshStandardMaterial({color:0x1f4a3a,roughness:.75}));brd.position.y=-0.6;T.root.add(brd);
   const rows=S.rows.filter(r=>r.board===S.board&&(S.group==="ALL"||r.group===S.group)),ex=S.exag/1000;T.meshes=[];
@@ -2135,7 +2226,7 @@ function setSpecSrc(v){if(v===S.specSrc)return;
   if(v==="machine"){if(!S.rows.some(r=>r.result!=null)){toast("目前回合沒有機台判定碼欄位，無法使用機台判定");syncControls();return}S.specsCustom=clone(S.specs);const ms=machineSpecs(S.rows,S,S.specsCustom);S.specs=ms.specs;S.specsG=ms.groups;S.specSrc="machine"}
   else{S.specSrc="custom";if(S.specsCustom)S.specs=clone(S.specsCustom);S.specsCustom=null;S.specsG=null}
   persist();syncControls();recompute()}
-function curRun(){return S.runs.find(r=>r.id===S.runId)}
+function curRun(){return (S.runs&&S.runs.find(r=>r.id===S.runId))||null}
 function runState(run){return run.id===S.runId?{...S}:{...S,rows:run.rows,metrics:run.metrics,...clone(run.cfg)}}
 function addRun(name,rows,metrics,cfg,info){name=safeId(name)||"未命名回合";const id=Math.max(0,...S.runs.map(r=>r.id))+1;S.runs.push({id,name,rows,metrics:withHpct(metrics),cfg:cfg||snapCfg(),info:info||null,aoi:null});return id}
 function switchRun(id){const c=curRun();if(c)c.cfg=snapCfg();const n=S.runs.find(r=>r.id===id);if(!n)return;
@@ -2458,17 +2549,77 @@ ${JSON.stringify(aiPayload())}`;
   catch(e){st.textContent=e&&e.name==="AbortError"?"已停止":e&&e.code==="rate_limited"?"請求過於頻繁，請稍後再試":e&&e.code==="not_granted"?"未授權呼叫 Claude":"分析失敗："+(e&&e.message||e);if(e&&e.text){S.ai=e.text;out.innerHTML=mdLite(e.text)}}
   finally{$("#btnAI").disabled=false;$("#btnAIStop").hidden=true;aiAbort=null}};
 $("#btnAIStop").onclick=()=>aiAbort&&aiAbort.abort();
-/* 網站版（例如 Netlify）：呼叫後端 /api/analyze。只送統計摘要與問題清單，不送逐焊墊的原始 SPI 資料 */
-function apiPayload(){const p=aiPayload();delete p["前15不良焊墊"];return p}
+let AI_ANON_MAP=null;
+function anonymizePayload(p){
+  const boardMap=new Map(),padMap=new Map();
+  let bIdx=1,pIdx=1;
+  const getB=b=>{if(!b)return b;if(!boardMap.has(b))boardMap.set(b,"B"+String(bIdx++).padStart(2,"0"));return boardMap.get(b)};
+  const getP=p=>{if(!p)return p;if(!padMap.has(p))padMap.set(p,"P"+String(pIdx++).padStart(3,"0"));return padMap.get(p)};
+  const copy=JSON.parse(JSON.stringify(p));
+  copy["試產回合"]="試產回合-1";
+  if(Array.isArray(copy["各板"]))copy["各板"].forEach(b=>{b.板=getB(b.板)});
+  if(copy["管制狀態"]&&Array.isArray(copy["管制狀態"].觸發規則))copy["管制狀態"].觸發規則.forEach(r=>{if(r.板)r.板=r.板.split(" ").map(getB).join(" ")});
+  if(copy["Nelson"]&&Array.isArray(copy["Nelson"]))copy["Nelson"].forEach(r=>{if(Array.isArray(r.點))r.點=r.點.map(getB)});
+  if(copy["進階"]){
+    if(Array.isArray(copy["進階"].EWMA越界))copy["進階"].EWMA越界=copy["進階"].EWMA越界.map(getB);
+    if(Array.isArray(copy["進階"].CUSUM訊號))copy["進階"].CUSUM訊號=copy["進階"].CUSUM訊號.map(getB);
+    if(Array.isArray(copy["進階"].最差焊墊Cpk))copy["進階"].最差焊墊Cpk.forEach(x=>{x.焊墊=getP(x.焊墊)});
+    if(Array.isArray(copy["進階"].對位異常板))copy["進階"].對位異常板.forEach(x=>{x.板=getB(x.板)});
+  }
+  if(Array.isArray(copy["系統偵測問題清單"])){
+    copy["系統偵測問題清單"].forEach(item=>{
+      if(Array.isArray(item.事實)){
+        item.事實=item.事實.map(f=>{
+          let s=f;
+          for(const[realB,anonB] of boardMap.entries())s=s.replaceAll(realB,anonB);
+          for(const[realP,anonP] of padMap.entries())s=s.replaceAll(realP,anonP);
+          return s;
+        });
+      }
+    });
+  }
+  const revBoards=new Map([...boardMap.entries()].map(([k,v])=>[v,k]));
+  const revPads=new Map([...padMap.entries()].map(([k,v])=>[v,k]));
+  AI_ANON_MAP={boards:revBoards,pads:revPads};
+  return copy;
+}
+function deAnonymizeText(text){
+  if(!AI_ANON_MAP||!text)return text;
+  let s=text;
+  for(const[anonP,realP] of AI_ANON_MAP.pads.entries())s=s.replaceAll(anonP,realP);
+  for(const[anonB,realB] of AI_ANON_MAP.boards.entries())s=s.replaceAll(anonB,realB);
+  return s;
+}
+function initAiPage(){
+  updateAiPreview();
+  if(typeof fetch==="function"){
+    fetch("/api/analyze").then(r=>r.json()).then(j=>{
+      if(!j.ok&&j.error){$("#aiState").textContent=j.error;$("#btnAI").disabled=true}
+      else if(j.logPayload){$("#aiGatewayLogNotice").innerHTML="<b>注意：</b>Cloudflare AI Gateway 已啟用記錄保存。"}
+      else{$("#aiGatewayLogNotice").innerHTML="預設不保存提示詞與回應內容（已帶 <code>cf-aig-collect-log-payload: false</code>，僅留存 token 用量 metadata）。"}
+    }).catch(()=>{});
+  }
+}
+function updateAiPreview(){
+  const el=$("#aiPayloadPre");
+  if(el)try{el.textContent=JSON.stringify(apiPayload(),null,2)}catch(e){}
+}
+function apiPayload(){
+  const p=aiPayload();delete p["前15不良焊墊"];
+  if($("#aiAnon")&&$("#aiAnon").checked)return anonymizePayload(p);
+  AI_ANON_MAP=null;
+  return p;
+}
+window.apiPayload=apiPayload;
 async function analyzeViaApi(out,st){const body=JSON.stringify({payload:apiPayload()});
   aiAbort=new AbortController();$("#btnAI").disabled=true;$("#btnAIStop").hidden=false;out.innerHTML="";
   st.textContent=`分析中…（送出統計摘要 ${f(new Blob([body]).size/1024,1)} KB，不含原始 SPI 資料）`;let text="";
   try{const res=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body,signal:aiAbort.signal});
     if(!res.ok){let msg=res.status===404?"此網站沒有 AI 分析服務（需部署在 Netlify，或在 claude.ai 內開啟）":`伺服器回應 ${res.status}`;try{const j=await res.json();if(j.error)msg=j.error}catch(e){}st.textContent="AI 分析無法使用："+msg;return}
     const rd=res.body.getReader(),dec=new TextDecoder();
-    for(;;){const{done,value}=await rd.read();if(done)break;text+=dec.decode(value,{stream:true});out.innerHTML=mdLite(text)}
-    S.ai=text;st.textContent=`完成 · 模型 ${res.headers.get("X-AI-Model")||""} · 可至「資料與規格」匯出含 AI 段落的報告`}
-  catch(e){st.textContent=e&&e.name==="AbortError"?"已停止":"AI 分析失敗："+(e&&e.message||e);if(text){S.ai=text;out.innerHTML=mdLite(text)}}
+    for(;;){const{done,value}=await rd.read();if(done)break;text+=dec.decode(value,{stream:true});out.innerHTML=mdLite(deAnonymizeText(text))}
+    S.ai=deAnonymizeText(text);st.textContent=`完成 · 模型 ${res.headers.get("X-AI-Model")||""} · 可至「資料與規格」匯出含 AI 段落的報告`}
+  catch(e){st.textContent=e&&e.name==="AbortError"?"已停止":"AI 分析失敗："+(e&&e.message||e);if(text){S.ai=deAnonymizeText(text);out.innerHTML=mdLite(deAnonymizeText(text))}}
   finally{$("#btnAI").disabled=false;$("#btnAIStop").hidden=true;aiAbort=null}}
 
 /* ---------- 主題變更重繪 ---------- */
@@ -2558,17 +2709,53 @@ async function gunzipJSON(buf,max=SHARE_RAW_MAX){const rd=new Response(buf).body
 /* 分享內容來自別人：所有字串都過濾，數值必須有限，避免注入 */
 function deepClean(v,d=0){if(d>12||v==null)return null;if(typeof v==="string")return safeId(v);if(typeof v==="number")return isFinite(v)?v:null;if(typeof v==="boolean")return v;
   if(Array.isArray(v))return v.map(x=>deepClean(x,d+1));if(typeof v==="object"){const o={};for(const k of Object.keys(v)){if(k==="__proto__"||k==="constructor"||k==="prototype")continue;o[safeId(k)]=deepClean(v[k],d+1)}return o}return null}
-function sharePack(){const c=curRun();if(c)c.cfg=snapCfg();const cmp=S.tab==="compare";
+let CURRENT_SHARE_ID=null,SHARE_FROM_TAB="overview";
+function sharePack(){const c=curRun();if(c)c.cfg=snapCfg();
+  const srcTab=(S.tab==="share"||S.tab==="shares")?SHARE_FROM_TAB:S.tab;
+  const cmp=srcTab==="compare";
   const pick=cmp?[S.cmpA,S.cmpB].map(id=>S.runs.find(r=>r.id===id)).filter(Boolean):[c];
   const runs=[...new Set(pick)].map(r=>({name:r.name,rows:r.rows,metrics:r.metrics,cfg:r.cfg,info:r.info,aoi:r.aoi}));
-  return{kind:"spi-share",v:1,created:Date.now(),app:$("#appVer").textContent,runs,view:{tab:S.tab,metric:S.metric,group:S.group,board:S.board,cur:pick.indexOf(c),cmp}}}
-async function createShare(){const dlg=$("#shareDlg");$("#shareRow").hidden=true;$("#shareMsg").textContent="正在壓縮並上傳…";try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
+  return{kind:"spi-share",v:1,created:Date.now(),app:$("#appVer").textContent,runs,view:{tab:srcTab,metric:S.metric,group:S.group,board:S.board,cur:pick.indexOf(c),cmp}}}
+function initSharePage(){
+  const c=curRun(),rName=c?c.name:"未命名回合",cnt=S.rows.length,kb=Math.max(1,Math.round(cnt*0.045));
+  $("#shareRunName").textContent=rName;$("#shareRowCount").textContent=cnt+" 筆";$("#shareEstSize").textContent="~"+kb+" KB";
+  $("#sharePreBox").hidden=false;$("#sharePostBox").hidden=true;$("#shareRow").hidden=true;$("#shareRevokeMsg").textContent="";$("#revokeConfirmSpan").hidden=true;$("#btnRevokeCurrent").hidden=false;CURRENT_SHARE_ID=null;
+}
+async function confirmCreateShare(){
+  const c=curRun();if(!c||!S.rows.length){toast("目前沒有量測資料可供分享");return}
+  busy(true,"正在壓縮並上傳…");
   try{const body=await gzipJSON(sharePack());if(body.length>SHARE_MAX)throw new Error(`壓縮後仍有 ${(body.length/1048576).toFixed(1)} MB，超過分享上限 4 MB`);
-    const r=await fetch("/api/share",{method:"POST",headers:{"Content-Type":"application/gzip"},body});
+    const r=await fetch("/api/share",{method:"POST",headers:{"Content-Type":"application/gzip","x-share-name":encodeURIComponent(c.name||"試產回合")},body});
     const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
-    const url=`${location.origin}/?share=${j.id}`;$("#shareUrl").value=url;$("#shareRow").hidden=false;
+    CURRENT_SHARE_ID=j.id;const url=`${location.origin}/?share=${j.id}`;$("#shareUrl").value=url;$("#sharePreBox").hidden=true;$("#sharePostBox").hidden=false;$("#shareRow").hidden=false;
     $("#shareMsg").textContent=`連結已建立（${(body.length/1024).toFixed(0)} KB），${new Date(j.expires).toLocaleDateString("zh-TW")} 前有效。`;$("#shareUrl").select()}
-  catch(e){$("#shareMsg").textContent="無法建立分享連結："+e.message}}
+  catch(e){toast("無法建立分享連結："+e.message)}
+  finally{busy(false)}
+}
+async function revokeCurrentShare(){
+  if(!CURRENT_SHARE_ID)return;busy(true,"正在撤銷…");
+  try{const r=await fetch("/api/share?id="+encodeURIComponent(CURRENT_SHARE_ID),{method:"DELETE"});const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+    $("#revokeConfirmSpan").hidden=true;$("#btnRevokeCurrent").hidden=true;$("#shareRow").hidden=true;$("#shareRevokeMsg").textContent="✓ 此分享連結已撤銷失效。";toast("已撤銷分享連結")}
+  catch(e){$("#shareRevokeMsg").textContent="撤銷失敗："+e.message;toast("撤銷失敗："+e.message)}
+  finally{busy(false)}
+}
+async function loadMyShares(){
+  const tb=$("#mySharesBody");if(!tb)return;tb.innerHTML='<tr><td colspan="6" class="note">載入中…</td></tr>';
+  try{const r=await fetch("/api/share?mine=1");if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||("HTTP "+r.status))}
+    const {shares=[]}=await r.json();if(!shares.length){tb.innerHTML='<tr><td colspan="6" class="note">目前沒有分享紀錄。</td></tr>';return}
+    const now=Date.now();
+    tb.innerHTML=shares.map(s=>{
+      const isRev=!!s.revoked_at,isExp=s.exp<now;
+      let st='<span class="pill ok">有效</span>';if(isRev)st='<span class="pill ng">已撤銷</span>';else if(isExp)st='<span class="pill warn">已過期</span>';
+      const act=(!isRev&&!isExp)?`<div class="rec-act" id="act-share-${esc(s.id)}"><button class="chipbtn danger" data-sact="rev" data-id="${esc(s.id)}">撤銷</button></div>`:"—";
+      return`<tr><td class="mono" style="white-space:nowrap">${esc(fmtTime(s.created))}</td><td><b>${esc(s.name)}</b></td><td class="num mono">${(s.bytes/1024).toFixed(0)} KB</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(s.exp))}</td><td>${st}</td><td>${act}</td></tr>`}).join("")}
+  catch(e){tb.innerHTML=`<tr><td colspan="6" class="err">無法載入分享清單：${esc(e.message)}</td></tr>`}
+}
+function createShare(){
+  if(ALL_TABS.includes(S.tab)&&S.tab!=="share"&&S.tab!=="shares")SHARE_FROM_TAB=S.tab;
+  setTab("share");
+}
 async function openShareFromUrl(){const id=new URLSearchParams(location.search).get("share");if(!id)return;
   const u=new URL(location.href);u.searchParams.delete("share");history.replaceState(null,"",u.pathname+u.search+u.hash);
   if(!/^[A-Za-z0-9_-]{22}$/.test(id)){toast("分享連結格式不正確");return}
@@ -2648,7 +2835,7 @@ const LocalRec={db:null,
     await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").delete(id);t.objectStore("meta").delete(id);t.objectStore("log").add({action:"delete",at:Date.now(),by:user,id,kind:r.kind,lot:r.lot||"",part:r.part,rev:r.rev||"",name:r.name,sha256:r.sha256,bytes:r.bytes,uploaded:r.created})})},
   async audit(){return(await this.tx(["log"],"readonly",t=>this.req(t.objectStore("log").getAll()))).reverse().slice(0,500)}};
 function newRecId(){const b=crypto.getRandomValues(new Uint8Array(16));return btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
-const RecDB={mode:"local",me:"本機",cache:null,ready:null,
+var RecDB={mode:"local",me:"本機",cache:null,ready:null,
   async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));e.existing=j.existing;e.status=r.status;throw e}return j},
   async list(){await this.ready;let l;if(this.mode==="cloud"){const j=await this.jfetch("/api/records?limit=100");this.me=j.me||this.me;l=j.records||[]}else l=(await LocalRec.index()).sort((a,b)=>b.created-a.created);return this.cache=l.map(r=>deepClean(r))},
   async create(meta,bytes){await this.ready;const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
@@ -2681,7 +2868,7 @@ const RecDB={mode:"local",me:"本機",cache:null,ready:null,
   async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});return LocalRec.del(id,this.me)},
   async audit(){await this.ready;if(this.mode==="cloud")return((await this.jfetch("/api/records?audit=1")).entries||[]).map(x=>deepClean(x));return(await LocalRec.audit()).map(x=>deepClean(x))}};
 RecDB.ready=meP.then(j=>{if(j&&j.user){RecDB.mode="cloud";RecDB.me=j.user}}).catch(()=>{});
-const recWhere=()=>RecDB.mode==="cloud"?"雲端資料庫":"這台電腦的瀏覽器";
+function recWhere(){return RecDB.mode==="cloud"?"雲端資料庫":"這台電腦的瀏覽器"}
 const fmtTime=t=>t?new Date(t).toLocaleString("zh-TW",{hour12:false}):"—";
 /* 下載原始檔（位元組不變）：claude.ai 用平台下載；一般瀏覽器直接下載 */
 async function saveBytes(filename,u8){const d=window.claude&&await window.claude.use("downloads").catch(()=>null);
@@ -2755,17 +2942,47 @@ let prOpenPrev=null;
 function afterPrint(){if(prOpenPrev){ISS_OPEN.clear();prOpenPrev.forEach(i=>ISS_OPEN.add(i));$$("#issList details.iss-card").forEach(d=>d.open=ISS_OPEN.has(+d.dataset.id));prOpenPrev=null}const ht=document.documentElement;if(prTheme===null)ht.removeAttribute("data-theme");else if(prTheme!=="light")ht.setAttribute("data-theme",prTheme);prTheme=null;$$(".print3d").forEach(x=>x.remove())}
 addEventListener("beforeprint",beforePrint);addEventListener("afterprint",afterPrint);
 if(!IN_CLAUDE){$("#btnPrint").hidden=false;$("#btnPrint").onclick=()=>window.print()}
-if(HAS_API&&window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}
+if(HAS_API&&window.CompressionStream){
+  $("#btnShare").hidden=false;$("#btnShare").onclick=createShare;
+  $("#btnMyShares").hidden=false;$("#btnMyShares").onclick=()=>setTab("shares");
+}
 $("#btnCopyShare").onclick=async()=>{const el=$("#shareUrl");try{await navigator.clipboard.writeText(el.value);$("#btnCopyShare").textContent="已複製"}catch(e){el.select();document.execCommand&&document.execCommand("copy");$("#btnCopyShare").textContent="已複製"}setTimeout(()=>$("#btnCopyShare").textContent="複製",1800)};
+$("#btnConfirmShare").onclick=confirmCreateShare;
+$("#btnRevokeCurrent").onclick=()=>{
+  $("#revokeConfirmSpan").hidden=false;$("#btnRevokeCurrent").hidden=true;
+};
+$("#btnCancelRevokeCurrent").onclick=()=>{
+  $("#revokeConfirmSpan").hidden=true;$("#btnRevokeCurrent").hidden=false;
+};
+$("#btnConfirmRevokeCurrent").onclick=revokeCurrentShare;
+$("#btnShareBack").onclick=()=>history.back();
+$("#btnSharesBack").onclick=()=>history.back();
+$("#mySharesTbl").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-sact]");if(!b)return;
+  const id=b.dataset.id;if(!id)return;
+  const wrap=document.getElementById("act-share-"+id);if(!wrap)return;
+  wrap.innerHTML=`確定撤銷？<button type="button" class="danger" id="yes-rev-${id}">是</button> <button type="button" id="no-rev-${id}">否</button>`;
+  document.getElementById(`no-rev-${id}`).onclick=()=>loadMyShares();
+  document.getElementById(`yes-rev-${id}`).onclick=async()=>{
+    busy(true,"正在撤銷…");
+    try{const r=await fetch(`/api/share?id=${encodeURIComponent(id)}`,{method:"DELETE"});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||("HTTP "+r.status));toast("已撤銷分享連結");loadMyShares()}
+    catch(er){toast("撤銷失敗："+er.message)}finally{busy(false)}
+  };
+});
+const anonCheck=$("#aiAnon");if(anonCheck)anonCheck.onchange=updateAiPreview;
+window.addEventListener("popstate",e=>{
+  const target=e.state?.tab||(location.hash||"").slice(1);
+  if(target&&ALL_TABS.includes(target))setTab(target,true);
+});
 S.runs=[];S.cmpA=1;S.cmpB=2;S.aoiBw=10;S.grr=null;
 try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t){S.stencil=sv.t;S.htol={lo:sv.lo||75,hi:sv.hi||125};S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}
 initRuns(false);
 restoreRuns().then(()=>meP).then(j=>{if((j||HAS_API)&&window.DecompressionStream)return openShareFromUrl()});
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,importCfg,setSpecSrc,recompute,switchRun});
-const h=(location.hash||"").slice(1);
-if(["issues","overview","compare","dfm","control","capability","sim3d","cross","adv","lab","ai","data"].includes(h))setTab(h);
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab});
+const initHash=(location.hash||"").slice(1);
+if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();
 </script>
 </body>

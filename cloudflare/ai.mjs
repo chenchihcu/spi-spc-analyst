@@ -4,9 +4,13 @@ import { validatePayload, buildMessages, SYSTEM_PROMPT, InputError } from '../li
 const json = (obj, status = 200) => Response.json(obj, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function handleAnalyze(req, env) {
+  if (env && env.AI_ENABLED === 'false') {
+    return json({ error: '管理員已停用 AI 分析功能' }, 403);
+  }
   const model = env.AI_MODEL || 'claude-sonnet-5-5';
   const gateway = Boolean(env.CF_ACCOUNT_ID && env.CF_AI_GATEWAY_ID && env.CF_AI_GATEWAY_TOKEN && (env.ANTHROPIC_API_KEY || env.CF_AI_BYOK === 'true'));
-  if (req.method === 'GET') return json({ ok: true, gateway, model });
+  const logPayload = env.AI_LOG_PAYLOAD === 'true';
+  if (req.method === 'GET') return json({ ok: true, gateway, model, logPayload });
   if (req.method !== 'POST') return json({ error: '只接受 GET 或 POST' }, 405);
   const origin = req.headers.get('origin');
   if (origin && origin !== new URL(req.url).origin) return json({ error: '不接受其他網站的請求' }, 403);
@@ -15,10 +19,19 @@ export async function handleAnalyze(req, env) {
   let payload;
   try { payload = validatePayload(await req.text()); }
   catch (e) { if (e instanceof InputError) return json({ error: e.message }, 400); throw e; }
+
+  const defaultHeaders = env.CF_AI_BYOK === 'true'
+    ? { Authorization: `Bearer ${env.CF_AI_GATEWAY_TOKEN}` }
+    : { 'cf-aig-authorization': `Bearer ${env.CF_AI_GATEWAY_TOKEN}` };
+
+  if (!logPayload) {
+    defaultHeaders['cf-aig-collect-log-payload'] = 'false';
+  }
+
   const client = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY || 'placeholder',
     baseURL: `https://gateway.ai.cloudflare.com/v1/${env.CF_ACCOUNT_ID}/${env.CF_AI_GATEWAY_ID}/anthropic`,
-    defaultHeaders: env.CF_AI_BYOK === 'true' ? { Authorization: `Bearer ${env.CF_AI_GATEWAY_TOKEN}` } : { 'cf-aig-authorization': `Bearer ${env.CF_AI_GATEWAY_TOKEN}` },
+    defaultHeaders,
   });
   const stream = client.messages.stream({ model, max_tokens: 2000, system: SYSTEM_PROMPT, messages: buildMessages(payload) });
   const enc = new TextEncoder();
