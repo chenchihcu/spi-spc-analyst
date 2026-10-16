@@ -311,8 +311,13 @@ export async function parseImportPlan(dir, options = {}) {
     deletedExcludeKeys.length * 1 +
     syncDelRecords.length * 1;
 
-  // 額度估算 (DELETE 也按 INSERT 算)
-  const quotaRowsWritten = localRowsWritten + (deletedExcludeKeys.length + syncDelRecords.length) * 3;
+  // 額度估算 (F-1: DELETE 以該表 INSERT 的每筆列數計：records 5、shares 4、audit_log 4)
+  const quotaRowsWritten =
+    plannedRecords.length * 5 +
+    plannedShares.length * 4 +
+    (auditLogs.length + excludeAudits.length + syncDelAudits.length) * 4 +
+    deletedExcludeKeys.length * 4 +
+    syncDelRecords.length * 5;
 
   return {
     plannedRecords,
