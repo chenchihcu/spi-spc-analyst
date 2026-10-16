@@ -1149,12 +1149,12 @@ function specOfGroup(st,g,m){const G=st.specSrc==="machine"&&st.specsG&&st.specs
 /* 判定：規格來源為「機台判定」且該焊墊有機台判定碼時，好壞完全依機台；不良類別再依推估規格歸類（都在推估範圍內時記為「機台判 NG」） */
 function classify(r,sp,st){if(st&&st.specSrc==="machine"&&st.specsG&&st.specsG[r.group])sp=st.specsG[r.group]; /* 機台模式：無判定碼的焊墊與不良歸類都用該群組的推估規格 */
   if(st&&st.specSrc==="machine"&&r.result!=null){if(!r.mNG)return[];const d=specClassify(r,sp,st);return d.length?d:["MNG"]}return specClassify(r,sp,st)}
-function specClassify(r,sp,st){const d=[];let hl=sp.height.lsl,hu=sp.height.usl;
+function specClassify(r,sp,st){const d=[];let hl=sp&&sp.height?sp.height.lsl:NaN,hu=sp&&sp.height?sp.height.usl:NaN;
   if(st&&st.step&&st.step.on&&r.height!=null){const t=padThk(r,st);hl=t*st.htol.lo/100;hu=t*st.htol.hi/100}
-  if(r.volume!=null){if(r.volume<sp.volume.lsl)d.push("INS");else if(r.volume>sp.volume.usl)d.push("EXC")}
-  if(r.area!=null&&r.area>sp.area.usl)d.push("BRG");
-  if(r.height!=null){if(r.height<hl)d.push("LOWH");else if(r.height>hu)d.push("HIH")}
-  if((r.offx!=null&&(r.offx<sp.offx.lsl||r.offx>sp.offx.usl))||(r.offy!=null&&(r.offy<sp.offy.lsl||r.offy>sp.offy.usl)))d.push("OFF");
+  if(r.volume!=null&&sp&&sp.volume){if(r.volume<sp.volume.lsl)d.push("INS");else if(r.volume>sp.volume.usl)d.push("EXC")}
+  if(r.area!=null&&sp&&sp.area&&r.area>sp.area.usl)d.push("BRG");
+  if(r.height!=null&&isFinite(hl)&&isFinite(hu)){if(r.height<hl)d.push("LOWH");else if(r.height>hu)d.push("HIH")}
+  if(sp&&sp.offx&&sp.offy&&((r.offx!=null&&(r.offx<sp.offx.lsl||r.offx>sp.offx.usl))||(r.offy!=null&&(r.offy<sp.offy.lsl||r.offy>sp.offy.usl))))d.push("OFF");
   return d}
 
 /* ============ 分析 ============ */
@@ -1174,15 +1174,15 @@ function analyze(st){
   const cellsB=new Map();for(const r of rows){let bm=cellsB.get(r.board);if(!bm)cellsB.set(r.board,bm=new Map());let a=bm.get(r.group);if(!a)bm.set(r.group,a=[]);a.push(r[m])}
   let ssw=0,dfw=0;const bPool=new Map();
   for(const[b,bm]of cellsB){let ss=0,df=0;for(const v of bm.values())if(v.length>1){const mu=mean(v);ss+=v.reduce((s,x)=>s+(x-mu)**2,0);df+=v.length-1}bPool.set(b,{s:df>0?Math.sqrt(ss/df):0,df});ssw+=ss;dfw+=df}
-  const sigmaW=dfw>0?Math.sqrt(ssw/dfw):overallSd;
+  const sigmaW=(dfw>0&&ssw>0)?Math.sqrt(ssw/dfw):overallSd;
   // 長期 σ：扣除各群組平均後的整體標準差（只有一個群組時即整體標準差）
   const gStat=gList.map(g=>{const v=rows.filter(r=>r.group===g).map(r=>r[m]);return{g,v,mu:mean(v)}});
   const sigmaLT=mixed?Math.sqrt(gStat.reduce((s,x)=>s+x.v.reduce((t,y)=>t+(y-x.mu)**2,0),0)/Math.max(1,N-gList.length)):overallSd;
   // 三向管制圖：X̄ 界限以板平均的移動全距估計板間 σ（每板焊墊多且元件混合時，板內 σ 會讓界限過窄而大量誤報）
-  const isZeroSd=overallSd===0||sigmaW===0;
+  const isZeroSd=overallSd===0;
   const bmr0=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB0=isZeroSd?NaN:(bmr0.length?mean(bmr0):0)/1.128||sigmaW/Math.sqrt(nbar);
   // S 圖：每板的組內合併標準差；中心線 c4(n)·σ̂、界限 ±3σ̂√(1−c4²)，依每板自由度調整
-  const xs={cl:gMean,sB:sB0,pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:isZeroSd?NaN:gMean+3*sB0,lcl:isZeroSd?NaN:gMean-3*sB0,z:isZeroSd?0:(b.mean-gMean)/sB0})),
+  const xs={cl:gMean,sB:sB0,rejected:false,reason:"",subgroupWarning:"",pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:isZeroSd?NaN:gMean+3*sB0,lcl:isZeroSd?NaN:gMean-3*sB0,z:isZeroSd?0:(b.mean-gMean)/sB0})),
     s:byBoard.map(b=>{const bp=bPool.get(b.board)||{s:b.sd,df:b.n-1};if(!(bp.df>=1)||isZeroSd)return{lab:b.board,v:isZeroSd?0:NaN,cl:NaN,ucl:NaN,lcl:NaN};const c=c4(bp.df+1),cl=c*sigmaW,h=3*sigmaW*Math.sqrt(Math.max(1-c*c,0));return{lab:b.board,v:bp.s,cl,ucl:cl+h,lcl:Math.max(0,cl-h)}})};
   if(boards.length<5){
     xs.rejected=true;xs.reason=`子群組（板數）不足（需 ≥5，本資料 n=${boards.length}）`;
@@ -1200,7 +1200,7 @@ function analyze(st){
   const padAt=new Map();for(const r of rows)if(r.pad===pad&&!padAt.has(r.board))padAt.set(r.board,r);
   const pv=boards.map(b=>{const r=padAt.get(b);return r?{lab:b,v:r[m]}:null}).filter(Boolean);
   const mr=pv.slice(1).map((p,i)=>Math.abs(p.v-pv[i].v)),mrbar=mr.length?mean(mr):0,iMean=pv.length?mean(pv.map(p=>p.v)):0,sI=isZeroSd?0:mrbar/1.128||1e-9;
-  const imr={pad,cl:iMean,ucl:isZeroSd?NaN:iMean+3*sI,lcl:isZeroSd?NaN:iMean-3*sI,mrbar,mrucl:isZeroSd?NaN:3.267*mrbar,pts:pv.map(p=>({...p,z:isZeroSd?0:(p.v-iMean)/sI})),mr:mr.map((v,i)=>({lab:pv[i+1].lab,v}))};
+  const imr={pad,cl:iMean,rejected:false,reason:"",subgroupWarning:"",ucl:isZeroSd?NaN:iMean+3*sI,lcl:isZeroSd?NaN:iMean-3*sI,mrbar,mrucl:isZeroSd?NaN:3.267*mrbar,pts:pv.map(p=>({...p,z:isZeroSd?0:(p.v-iMean)/sI})),mr:mr.map((v,i)=>({lab:pv[i+1].lab,v}))};
   if(pv.length<5){
     imr.rejected=true;imr.reason=`點數不足（需 ≥5，本資料 n=${pv.length}）`;
     imr.ucl=NaN;imr.lcl=NaN;imr.mrucl=NaN;imr.pts.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});
