@@ -15,7 +15,9 @@ import {
   buildAuditInsertSql,
   buildDeleteAuditSql,
   buildDeleteRecordSql,
+  buildDeleteShareSql,
 } from './migration-sql.mjs';
+import { auditStatus } from '../lib/records-core.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WRANGLER = join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
@@ -161,6 +163,8 @@ export async function parseImportPlan(dir, options = {}) {
   const plannedShares = [];
   const excludedShares = [];
   const expiredShares = [];
+  const retractedShares = [];
+  const existingShareIds = new Set(options.existingShareIds || []);
 
   for (const s of sharesList) {
     if (s.exp && s.exp <= exportTime) {
@@ -170,30 +174,53 @@ export async function parseImportPlan(dir, options = {}) {
     const isExcluded = excludeShares.some((prefix) => s.id.startsWith(prefix));
     if (isExcluded) {
       excludedShares.push({ share: s, reason: `--exclude-share` });
+      if (existingShareIds.has(s.id)) {
+        retractedShares.push(s.id);
+      }
     } else {
       plannedShares.push(s);
     }
   }
 
-  // 稽核紀錄 log/* 準備
+  for (const sId of existingShareIds) {
+    if (excludeShares.some((prefix) => sId.startsWith(prefix))) {
+      if (!retractedShares.includes(sId)) {
+        retractedShares.push(sId);
+        if (!excludedShares.some((e) => e.share.id === sId)) {
+          excludedShares.push({ share: { id: sId }, reason: `--exclude-share` });
+        }
+      }
+    }
+  }
+
+  // 稽核紀錄 log/* 準備 (G-1: 依來源站 auditStatus 計算每筆 log/* 的 done 布林值)
   const logEntries = manifest.entries.filter((e) => e.store === 'spi-records' && e.key.startsWith('log/'));
-  // 依時間排序 (at 由舊到新)
-  const auditLogs = [];
+  const rawLogs = [];
   for (const l of logEntries) {
     const raw = JSON.parse(await readFile(join(dir, l.filename), 'utf8'));
-    // G-1: detail 帶 done (布林值)
-    const detailObj = { ...(raw.detail || {}) };
+    rawLogs.push({ ...raw, filename: l.filename, src_key: `log/${l.key}` });
+  }
+  rawLogs.sort((a, b) => (b.at || 0) - (a.at || 0));
+  const evaluatedLogs = auditStatus(rawLogs.map(r => ({ ...r, id: r.target_id || r.id })), records);
+  const evaluatedMap = new Map();
+  for (const e of evaluatedLogs) {
+    evaluatedMap.set(e.src_key, !!e.ok);
+  }
+
+  const auditLogs = [];
+  for (const r of rawLogs) {
+    const detailObj = { ...(r.detail || {}) };
     if (detailObj.done === undefined) {
-      detailObj.done = true;
+      detailObj.done = evaluatedMap.get(r.src_key) ?? true;
     }
     auditLogs.push({
-      at: raw.at || 0,
-      by: raw.by || 'system',
-      action: raw.action || '',
-      target_type: raw.target_type || 'record',
-      target_id: raw.target_id || '',
+      at: r.at || 0,
+      by: r.by || 'system',
+      action: r.action || '',
+      target_type: r.target_type || 'record',
+      target_id: r.target_id || '',
       detail: detailObj,
-      src_key: `log/${l.key}`,
+      src_key: r.src_key,
     });
   }
   auditLogs.sort((a, b) => a.at - b.at);
@@ -268,7 +295,6 @@ export async function parseImportPlan(dir, options = {}) {
     }
   }
 
-  const existingShareIds = new Set(options.existingShareIds || []);
   for (const s of plannedShares) {
     if (!existingShareIds.has(s.id)) {
       const hasBin = manifest.entries.some((e) => e.store === 'spi-share' && e.key === s.id);
@@ -302,14 +328,15 @@ export async function parseImportPlan(dir, options = {}) {
     }
   }
 
-  // 計算估算列數 (F-1 雙估算指標)
-  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1 (E-1, D-2, E-2)
+  // 計算估算列數 (F-1 雙估算指標 + G-3 分享撤回)
+  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1 (E-1, D-2, E-2, G-3)
   const localRowsWritten =
     plannedRecords.length * 5 +
     plannedShares.length * 4 +
     (auditLogs.length + excludeAudits.length + syncDelAudits.length) * 4 +
     deletedExcludeKeys.length * 1 +
-    syncDelRecords.length * 1;
+    syncDelRecords.length * 1 +
+    retractedShares.length * 1;
 
   // 額度估算 (F-1: DELETE 以該表 INSERT 的每筆列數計：records 5、shares 4、audit_log 4)
   const quotaRowsWritten =
@@ -317,7 +344,23 @@ export async function parseImportPlan(dir, options = {}) {
     plannedShares.length * 4 +
     (auditLogs.length + excludeAudits.length + syncDelAudits.length) * 4 +
     deletedExcludeKeys.length * 4 +
-    syncDelRecords.length * 5;
+    syncDelRecords.length * 5 +
+    retractedShares.length * 4;
+
+  const expectedShareSet = new Set(plannedShares.map((s) => s.id));
+  const staleLiveShares = [];
+  const selfCreatedShares = [];
+  const now = options.now || Date.now();
+  const existingShares = options.existingShares || [];
+  const selfCreatedSet = new Set(options.selfCreatedShareIds || []);
+
+  for (const s of existingShares) {
+    if (selfCreatedSet.has(s.id)) {
+      selfCreatedShares.push(s.id);
+    } else if (!expectedShareSet.has(s.id) && !s.revoked_at && s.exp > now) {
+      staleLiveShares.push(s.id);
+    }
+  }
 
   return {
     plannedRecords,
@@ -325,11 +368,15 @@ export async function parseImportPlan(dir, options = {}) {
     plannedShares,
     excludedShares,
     expiredShares,
+    retractedShares,
     auditLogs,
     excludeAudits,
     deletedExcludeKeys,
     syncDelRecords,
     syncDelAudits,
+    expectedShareSet: [...expectedShareSet],
+    staleLiveShares,
+    selfCreatedShares,
     localRowsWritten,
     quotaRowsWritten,
   };
@@ -345,6 +392,8 @@ export async function importSnapshot(dir, options = {}) {
     excludedRecords: plan.excludedRecords.length,
     plannedShares: plan.plannedShares.length,
     excludedShares: plan.excludedShares.length,
+    retractedShares: plan.retractedShares.length,
+    staleLiveShares: plan.staleLiveShares.length,
     auditLogs: plan.auditLogs.length + plan.excludeAudits.length + plan.syncDelAudits.length,
     deletedExcludeKeys: plan.deletedExcludeKeys.length,
     syncDelRecords: plan.syncDelRecords.length,
@@ -356,22 +405,33 @@ export async function importSnapshot(dir, options = {}) {
     console.warn(`[WARNING] Quota rows written estimate (${plan.quotaRowsWritten}) exceeds 80,000 limit. Batching required across UTC days.`);
   }
 
+  if (plan.staleLiveShares.length > 0) {
+    console.warn(`[C5 GATE WARNING] 發現 ${plan.staleLiveShares.length} 筆過時未撤銷分享: ${plan.staleLiveShares.join(', ')}`);
+  }
+
   if (!options.apply) return plan;
 
   // 執行 --apply: 生成 SQL 語句並分批執行
   const deleteExcludeSqls = buildDeleteAuditSql(plan.deletedExcludeKeys);
   const deleteRecordSqls = buildDeleteRecordSql(plan.syncDelRecords);
+  const deleteShareSqls = buildDeleteShareSql(plan.retractedShares);
   const allAudits = [...plan.auditLogs, ...plan.excludeAudits, ...plan.syncDelAudits];
   const recordSqls = buildRecordInsertSql(plan.plannedRecords);
   const shareSqls = buildShareInsertSql(plan.plannedShares);
   const auditSqls = buildAuditInsertSql(allAudits);
 
-  const allSqls = [...deleteExcludeSqls, ...deleteRecordSqls, ...recordSqls, ...shareSqls, ...auditSqls];
+  const allSqls = [...deleteExcludeSqls, ...deleteRecordSqls, ...deleteShareSqls, ...recordSqls, ...shareSqls, ...auditSqls];
   const targetFlag = options.remote ? '--remote' : '--local';
 
   for (let i = 0; i < allSqls.length; i++) {
     const s = allSqls[i];
     wrangler(['d1', 'execute', DB, targetFlag, '--command', s]);
+  }
+
+  if (options.r2) {
+    for (const sId of plan.retractedShares) {
+      try { await options.r2.delete(`shares/${sId}`); } catch {}
+    }
   }
 
   console.log(JSON.stringify({ phase: 'apply-complete', statementsExecuted: allSqls.length }));

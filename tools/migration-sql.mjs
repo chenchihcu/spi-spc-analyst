@@ -81,3 +81,15 @@ export function buildDeleteRecordSql(ids) {
   }
   return stmts;
 }
+
+export function buildDeleteShareSql(ids) {
+  if (!ids || ids.length === 0) return [];
+  const stmts = [];
+  const batchSize = MAX_PARAMS_PER_STMT;
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const chunk = ids.slice(i, i + batchSize);
+    const inClause = chunk.map(id => sqlStr(id)).join(', ');
+    stmts.push(`DELETE FROM shares WHERE id IN (${inClause});`);
+  }
+  return stmts;
+}
