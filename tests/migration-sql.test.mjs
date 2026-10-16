@@ -1141,3 +1141,118 @@ test('K-1: 時鐘檢查（import --remote 與 export 必填 --worker-url、差 9
   }
 });
 
+test('LT-1 & LT-2: export-cloudflare 固定讀正式 D1 且與 netlify-sync-deletions 均不做時鐘檢查；模組介面禁止 skipClockCheck', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const {
+    exportSnapshot,
+    importSnapshot,
+    exportCloudflareSnapshot,
+    netlifySyncDeletions,
+    parseMigrationArgs,
+  } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const workerUrl = 'https://spi-spc-analyst.example.workers.dev';
+
+  // 1. LT-1: 模組介面不得有 skipClockCheck 或放寬門檻參數
+  await assert.rejects(
+    async () => {
+      await exportSnapshot('/tmp/unused', {
+        workerUrl,
+        skipClockCheck: true,
+      });
+    },
+    /禁止在模組介面傳入略過或放寬時鐘檢查的參數/
+  );
+  await assert.rejects(
+    async () => {
+      await importSnapshot('/tmp/unused', {
+        skipClockCheck: true,
+      });
+    },
+    /禁止在模組介面傳入略過或放寬時鐘檢查的參數/
+  );
+
+  // 2. LT-2 ①②: export-cloudflare 命令列不帶 --remote、不接受 --worker-url
+  const parsedCf = parseMigrationArgs(['export-cloudflare', '/tmp/cf-out', '--since', '2026-10-16T00:00:00Z']);
+  assert.equal(parsedCf.cmd, 'export-cloudflare');
+  assert.equal(parsedCf.since, '2026-10-16T00:00:00Z');
+
+  assert.throws(
+    () => parseMigrationArgs(['export-cloudflare', '--since', '2026-10-16T00:00:00Z', '--worker-url', workerUrl]),
+    /未知或不允許的旗標: --worker-url/
+  );
+  assert.throws(
+    () => parseMigrationArgs(['export-cloudflare', '--since', '2026-10-16T00:00:00Z', '--remote']),
+    /未知或不允許的旗標: --remote/
+  );
+  assert.throws(
+    () => parseMigrationArgs(['netlify-sync-deletions', '/tmp/cf-out', '--site', 'site123', '--worker-url', workerUrl]),
+    /未知或不允許的旗標: --worker-url/
+  );
+
+  // 3. LT-2 ①②: exportCloudflareSnapshot 內部固定傳遞 --remote 目標，且不做時鐘檢查
+  const tmpCfDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lt2-cf-'));
+  try {
+    const queryTargets = [];
+    const delta = await exportCloudflareSnapshot(tmpCfDir, {
+      since: '2026-10-16T00:00:00.000Z',
+      fetch: async () => {
+        throw new Error('export-cloudflare 不得發送時鐘檢查請求');
+      },
+      d1Query: async (sql, meta) => {
+        queryTargets.push(meta);
+        if (sql.includes("action = 'delete'")) {
+          return [{ target_id: 'rec_drill_del', at: 1760573000000, by: 'admin', detail: '{}' }];
+        }
+        if (sql.includes("action = 'share_revoke'")) {
+          return [{ target_id: 'share_drill_revoked_12', at: 1760573000000, by: 'admin' }];
+        }
+        return [];
+      },
+    });
+
+    assert.equal(delta.target, 'remote');
+    assert.equal(queryTargets.every((m) => m.target === 'remote' && m.args.includes('--remote')), true, 'export-cloudflare 內部一律使用 --remote');
+    assert.deepEqual(delta.deletedRecords, ['rec_drill_del']);
+    assert.deepEqual(delta.revokedShares, ['share_drill_revoked_12']);
+
+    // 4. LT-2 ②: netlifySyncDeletions 不做時鐘檢查，將刪除與撤銷同步回來源站替身
+    const deletedKeys = [];
+    let updatedIndexList = null;
+    let usedEtag = null;
+    const syncRes = await netlifySyncDeletions(tmpCfDir, {
+      site: 'site-test',
+      apply: true,
+      fetch: async () => {
+        throw new Error('netlify-sync-deletions 不得發送時鐘檢查請求');
+      },
+      storeFactory: ({ name }) => ({
+        delete: async (k) => { deletedKeys.push(`${name}:${k}`); },
+        getWithMetadata: async (k) => {
+          if (name === 'spi-records' && k === 'index.json') {
+            return {
+              data: JSON.stringify([{ id: 'rec_keep', lot: 'L1' }, { id: 'rec_drill_del', lot: 'DRILL-演練' }]),
+              etag: 'etag-123',
+            };
+          }
+          return null;
+        },
+        setJSON: async (k, val, opts) => {
+          updatedIndexList = val;
+          usedEtag = opts?.onlyIfMatch;
+        },
+      }),
+    });
+
+    assert.deepEqual(syncRes.syncedDeletedRecords, ['rec_drill_del']);
+    assert.deepEqual(syncRes.syncedRevokedShares, ['share_drill_revoked_12']);
+    assert.equal(deletedKeys.includes('spi-records:f/rec_drill_del'), true);
+    assert.equal(deletedKeys.includes('spi-share:share_drill_revoked_12'), true);
+    assert.deepEqual(updatedIndexList, [{ id: 'rec_keep', lot: 'L1' }]);
+    assert.equal(usedEtag, 'etag-123');
+  } finally {
+    await fs.rm(tmpCfDir, { recursive: true, force: true });
+  }
+});
