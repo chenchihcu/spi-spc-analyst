@@ -33,12 +33,12 @@ export function buildRecordInsertSql(rows) {
 export function buildShareInsertSql(rows) {
   if (!rows || rows.length === 0) return [];
   const stmts = [];
-  // shares columns: id, user, name, created, exp, bytes (6 cols)
-  const batchSize = Math.floor(MAX_PARAMS_PER_STMT / 6);
+  // shares columns: id, user, name, created, exp, bytes, sha256 (7 cols)
+  const batchSize = Math.floor(MAX_PARAMS_PER_STMT / 7);
   for (let i = 0; i < rows.length; i += batchSize) {
     const chunk = rows.slice(i, i + batchSize);
-    const valueClauses = chunk.map(s => `(${sqlStr(s.id)}, ${sqlStr(s.user || '')}, ${sqlStr(s.name || '')}, ${Number(s.created) || 0}, ${Number(s.exp) || 0}, ${Number(s.bytes) || 0})`).join(', ');
-    const stmt = `INSERT INTO shares (id, user, name, created, exp, bytes) VALUES ${valueClauses} ON CONFLICT(id) DO NOTHING;`;
+    const valueClauses = chunk.map(s => `(${sqlStr(s.id)}, ${sqlStr(s.user || '')}, ${sqlStr(s.name || '')}, ${Number(s.created) || 0}, ${Number(s.exp) || 0}, ${Number(s.bytes) || 0}, ${sqlStr(s.sha256 || '')})`).join(', ');
+    const stmt = `INSERT INTO shares (id, user, name, created, exp, bytes, sha256) VALUES ${valueClauses} ON CONFLICT(id) DO NOTHING;`;
     stmts.push(stmt);
   }
   return stmts;

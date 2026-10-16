@@ -346,3 +346,228 @@ test('G-3: 排除清單增加時已匯入分享撤回、列數統計與 C5 過�
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('H-1: auditStatus 由新到舊呼叫與 done 覆寫、log/* 先於簿記列 (seq 保證)', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan } = await import('../tools/migrate-netlify-blobs.mjs');
+  const { auditStatus } = await import('../lib/records-core.mjs');
+
+  // 1. 本機直接測試來源站 auditStatus 行為：
+  // 沒有 done 標記、目標仍存在的 delete -> false
+  const rAlive = [{ id: 'target_alive' }];
+  const logDeleteAlive = [{ id: 'target_alive', action: 'delete', at: 1000, by: 'u' }];
+  const res1 = auditStatus(logDeleteAlive, rAlive);
+  assert.equal(res1[0].ok, false, '沒有 done 標記且目標仍存在的 delete 應為 false');
+
+  // 沒有 done 標記、目標從未存在的 create -> false
+  const rEmpty = [];
+  const logCreateNever = [{ id: 'target_never', action: 'create', at: 1000, by: 'u' }];
+  const res2 = auditStatus(logCreateNever, rEmpty);
+  assert.equal(res2[0].ok, false, '沒有 done 標記且目標從未存在的 create 應為 false');
+
+  // 同 id 兩筆沒有 done 標記的 delete（由新到舊呼叫）-> 只有鍵較新的為 true
+  const logTwoDeletes = [
+    { id: 'target_del', action: 'delete', at: 2000, by: 'u', key: 'log/000000000002000-aaaaaaaa' },
+    { id: 'target_del', action: 'delete', at: 1000, by: 'u', key: 'log/000000000001000-bbbbbbbb' },
+  ];
+  const res3 = auditStatus(logTwoDeletes, []);
+  assert.equal(res3[0].ok, true, '鍵較新的 delete 應為 true');
+  assert.equal(res3[1].ok, false, '鍵較舊的 delete 應為 false');
+
+  // 2. parseImportPlan 整合測試：覆寫原始 done
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'h1-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const manifest = {
+      exportedAt: new Date(1700000000000).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec1', filename: 'objects/rec1.bin' },
+        { store: 'spi-records', key: 'log/000000000001000-aaaaaaaa', filename: 'objects/log1.json' },
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify([{ id: 'rec1', lot: 'EX_LOT' }]));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'rec1.bin'), Buffer.from('data'));
+    const rawLog = {
+      at: 1000,
+      by: 'user',
+      action: 'delete',
+      target_type: 'record',
+      target_id: 'rec1',
+      detail: { done: true },
+    };
+    await fs.writeFile(path.join(tmpDir, 'objects', 'log1.json'), JSON.stringify(rawLog));
+
+    const plan = await parseImportPlan(tmpDir, {
+      excludeLots: ['EX_LOT'],
+    });
+
+    assert.equal(plan.auditLogs.length, 1);
+    assert.equal(plan.auditLogs[0].detail.done, false, '原始 done 應被 auditStatus 結果 (false) 覆寫');
+    assert.equal(plan.excludeAudits.length, 1);
+    assert.equal(plan.excludeAudits[0].action, 'migrate_exclude');
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('H-2: shares.sha256 欄位與 C3 checkShares 完整性核對', async () => {
+  const { checkShares } = await import('../tools/migrate-netlify-blobs.mjs');
+  const crypto = await import('node:crypto');
+
+  const shareId = 'abcABC1234567890_test_';
+  const content = Buffer.from('{"test":"share content"}', 'utf8');
+  const validSha256 = crypto.createHash('sha256').update(content).digest('hex');
+
+  const mockDb = {
+    prepare: (sql) => ({
+      bind: () => ({
+        first: async () => ({ sha256: validSha256 }),
+      }),
+    }),
+  };
+
+  // 1. 正常核對通過
+  const mockR2Valid = {
+    get: async () => ({
+      arrayBuffer: async () => content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength),
+    }),
+  };
+  const resValid = await checkShares(mockR2Valid, mockDb, [{ id: shareId, bytes: content.length }]);
+  assert.equal(resValid.ok, true);
+  assert.equal(resValid.failures.length, 0);
+
+  // 2. 同大小不同內容 -> SHA-256 核對失敗
+  const corruptedContent = Buffer.from('{"test":"share corrupted"}', 'utf8');
+  assert.notEqual(crypto.createHash('sha256').update(corruptedContent).digest('hex'), validSha256);
+  const mockR2Corrupt = {
+    get: async () => ({
+      arrayBuffer: async () => corruptedContent.buffer.slice(corruptedContent.byteOffset, corruptedContent.byteOffset + corruptedContent.byteLength),
+    }),
+  };
+  const resCorrupt = await checkShares(mockR2Corrupt, mockDb, [{ id: shareId, bytes: corruptedContent.length }]);
+  assert.equal(resCorrupt.ok, false);
+  assert.equal(resCorrupt.failures[0].reason, 'sha256-mismatch');
+
+  // 3. 大小不同 -> 大小核對失敗
+  const shortContent = Buffer.from('short', 'utf8');
+  const mockR2Short = {
+    get: async () => ({
+      arrayBuffer: async () => shortContent.buffer.slice(shortContent.byteOffset, shortContent.byteOffset + shortContent.byteLength),
+    }),
+  };
+  const resShort = await checkShares(mockR2Short, mockDb, [{ id: shareId, bytes: content.length }]);
+  assert.equal(resShort.ok, false);
+  assert.equal(resShort.failures[0].reason, 'size-mismatch');
+});
+
+test('H-3: 過時未撤銷分享排除將撤回者、DRILL-演練分類與 --same-options', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const { parseImportPlan } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'h3-test-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const manifest = {
+      exportedAt: new Date(1700000000000).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify([]));
+
+    const S_RETRACT = 'retract1234567890_share';
+    const S_DRILL = 'drill123456789012_share';
+    const sharesList = [
+      { id: S_RETRACT, created: 1699000000000, exp: 1705000000000, user: 'u', bytes: 100 },
+    ];
+    await fs.writeFile(path.join(tmpDir, 'shares.json'), JSON.stringify(sharesList));
+
+    // 1. S_RETRACT 被 --exclude-share 命中 -> staleLiveShares 筆數不可包含它 (H-3 ①)
+    // S_DRILL 在本站已被撤銷 (revoked_at != null) -> 歸「已匯入、已在本站撤銷」，不是過時未撤銷 (H-3 ②)
+    const plan = await parseImportPlan(tmpDir, {
+      excludeShares: ['retract'],
+      existingShareIds: [S_RETRACT],
+      existingShares: [
+        { id: S_RETRACT, exp: 1705000000000, revoked_at: null },
+        { id: S_DRILL, exp: 1705000000000, revoked_at: 1700500000000 },
+      ],
+      selfCreatedShareIds: [],
+      now: 1700000000000,
+    });
+
+    assert.deepEqual(plan.retractedShares, [S_RETRACT]);
+    assert.equal(plan.staleLiveShares.length, 0, '將撤回的分享不可計入 staleLiveShares');
+    assert.deepEqual(plan.importedRevokedShares, [S_DRILL], '已在本站撤銷的分享應被正確分類');
+
+    // 2. 測試 --same-options: 當有 saved import-options.json 時讀回 (H-3 ③)
+    const savedOpts = {
+      excludeLots: ['SAVED_LOT'],
+      excludeShares: ['retract'],
+    };
+    await fs.writeFile(path.join(tmpDir, 'import-options.json'), JSON.stringify(savedOpts));
+
+    const planSame = await parseImportPlan(tmpDir, {
+      sameOptions: true,
+      existingShareIds: [S_RETRACT],
+    });
+    assert.deepEqual(planSame.retractedShares, [S_RETRACT], '--same-options 應讀回 savedOpts 並正確識別已撤回分享');
+
+    // 若同時帶 --same-options 與 --exclude-lot -> 必須報錯中止
+    await assert.rejects(
+      async () => {
+        await parseImportPlan(tmpDir, {
+          sameOptions: true,
+          excludeLots: ['OTHER_LOT'],
+        });
+      },
+      /--same-options 不得與任何 --exclude-\* 選項同時使用/
+    );
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('H-4: 稽核頁 API 忽略 limit 參數，一律 LIMIT 51', async () => {
+  const { Repo } = await import('../lib/repo.mjs');
+
+  let executedSql = '';
+  let executedParams = [];
+  const mockDb = {
+    prepare: (sql) => {
+      executedSql = sql;
+      return {
+        bind: (...params) => {
+          executedParams = params;
+          return {
+            all: async () => ({
+              results: Array.from({ length: 51 }, (_, i) => ({
+                seq: 100 - i,
+                at: 1700000000000 + i,
+                by: 'u',
+                action: 'create',
+                target_type: 'record',
+                target_id: `rec_${i}`,
+                detail: '{}',
+                live: `rec_${i}`,
+              })),
+            }),
+          };
+        },
+      };
+    },
+  };
+
+  const repo = new Repo(mockDb, null);
+  // 傳入 limit = 100，API 必須忽略並嚴格限制回傳最大 50 筆
+  const results = await repo.listAuditLog(100);
+  assert.equal(results.length, 50, '回傳筆數需截斷為最多 50 筆');
+  assert.match(executedSql, /LIMIT 51/, 'SQL 語句必須包含 LIMIT 51');
+  assert.equal(executedParams.length, 0, '無 cursor 時不應帶 limit 參數');
+});

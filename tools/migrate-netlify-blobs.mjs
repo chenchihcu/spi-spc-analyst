@@ -131,10 +131,32 @@ export async function parseImportPlan(dir, options = {}) {
     sharesList = JSON.parse(await readFile(join(dir, 'shares.json'), 'utf8'));
   } catch {}
 
-  const excludeLots = new Set(options.excludeLots || []);
-  const excludeLotPrefixes = options.excludeLotPrefixes || [];
-  const excludeIds = new Set(options.excludeIds || []);
-  const excludeShares = options.excludeShares || [];
+  let excludeLotsList = options.excludeLots || [];
+  let excludeLotPrefixes = options.excludeLotPrefixes || [];
+  let excludeIdsList = options.excludeIds || [];
+  let excludeShares = options.excludeShares || [];
+
+  if (options.sameOptions) {
+    const hasAnyExclude = (options.excludeLots && options.excludeLots.length > 0) ||
+      (options.excludeLotPrefixes && options.excludeLotPrefixes.length > 0) ||
+      (options.excludeIds && options.excludeIds.length > 0) ||
+      (options.excludeShares && options.excludeShares.length > 0);
+    if (hasAnyExclude) {
+      die('--same-options 不得與任何 --exclude-* 選項同時使用');
+    }
+    try {
+      const savedOpts = JSON.parse(await readFile(join(dir, 'import-options.json'), 'utf8'));
+      excludeLotsList = savedOpts.excludeLots || [];
+      excludeLotPrefixes = savedOpts.excludeLotPrefixes || [];
+      excludeIdsList = savedOpts.excludeIds || [];
+      excludeShares = savedOpts.excludeShares || [];
+    } catch (e) {
+      die(`無法讀取 import-options.json: ${e.message}`);
+    }
+  }
+
+  const excludeLots = new Set(excludeLotsList);
+  const excludeIds = new Set(excludeIdsList);
 
   const plannedRecords = [];
   const excludedRecords = [];
@@ -178,7 +200,9 @@ export async function parseImportPlan(dir, options = {}) {
         retractedShares.push(s.id);
       }
     } else {
-      plannedShares.push(s);
+      const shareEntry = manifest.entries.find((e) => e.store === 'spi-share' && e.key === s.id);
+      const sha256 = shareEntry ? (shareEntry.sha256 || '') : '';
+      plannedShares.push({ ...s, sha256 });
     }
   }
 
@@ -193,14 +217,14 @@ export async function parseImportPlan(dir, options = {}) {
     }
   }
 
-  // 稽核紀錄 log/* 準備 (G-1: 依來源站 auditStatus 計算每筆 log/* 的 done 布林值)
+  // 稽核紀錄 log/* 準備 (G-1, H-1: 依鍵名由新到舊呼叫 auditStatus 並強制覆寫 done)
   const logEntries = manifest.entries.filter((e) => e.store === 'spi-records' && e.key.startsWith('log/'));
   const rawLogs = [];
   for (const l of logEntries) {
     const raw = JSON.parse(await readFile(join(dir, l.filename), 'utf8'));
-    rawLogs.push({ ...raw, filename: l.filename, src_key: `log/${l.key}` });
+    rawLogs.push({ ...raw, filename: l.filename, key: l.key, src_key: `log/${l.key}` });
   }
-  rawLogs.sort((a, b) => (b.at || 0) - (a.at || 0));
+  rawLogs.sort((a, b) => (b.key || '').localeCompare(a.key || ''));
   const evaluatedLogs = auditStatus(rawLogs.map(r => ({ ...r, id: r.target_id || r.id })), records);
   const evaluatedMap = new Map();
   for (const e of evaluatedLogs) {
@@ -210,9 +234,7 @@ export async function parseImportPlan(dir, options = {}) {
   const auditLogs = [];
   for (const r of rawLogs) {
     const detailObj = { ...(r.detail || {}) };
-    if (detailObj.done === undefined) {
-      detailObj.done = evaluatedMap.get(r.src_key) ?? true;
-    }
+    detailObj.done = evaluatedMap.get(r.src_key) ?? true;
     auditLogs.push({
       at: r.at || 0,
       by: r.by || 'system',
@@ -223,7 +245,7 @@ export async function parseImportPlan(dir, options = {}) {
       src_key: r.src_key,
     });
   }
-  auditLogs.sort((a, b) => a.at - b.at);
+  auditLogs.sort((a, b) => (a.at || 0) - (b.at || 0));
 
   // 排除標記稽核列 (migrate_exclude)
   const excludeAudits = [];
@@ -350,14 +372,18 @@ export async function parseImportPlan(dir, options = {}) {
   const expectedShareSet = new Set(plannedShares.map((s) => s.id));
   const staleLiveShares = [];
   const selfCreatedShares = [];
+  const importedRevokedShares = [];
   const now = options.now || Date.now();
   const existingShares = options.existingShares || [];
   const selfCreatedSet = new Set(options.selfCreatedShareIds || []);
+  const retractedSet = new Set(retractedShares);
 
   for (const s of existingShares) {
     if (selfCreatedSet.has(s.id)) {
       selfCreatedShares.push(s.id);
-    } else if (!expectedShareSet.has(s.id) && !s.revoked_at && s.exp > now) {
+    } else if (s.revoked_at != null) {
+      importedRevokedShares.push(s.id);
+    } else if (!expectedShareSet.has(s.id) && s.exp > now && !retractedSet.has(s.id)) {
       staleLiveShares.push(s.id);
     }
   }
@@ -377,8 +403,38 @@ export async function parseImportPlan(dir, options = {}) {
     expectedShareSet: [...expectedShareSet],
     staleLiveShares,
     selfCreatedShares,
+    importedRevokedShares,
     localRowsWritten,
     quotaRowsWritten,
+  };
+}
+
+export async function checkShares(r2, db, sharesJson) {
+  const failures = [];
+  for (const s of sharesJson) {
+    const row = await db.prepare('SELECT sha256 FROM shares WHERE id = ?').bind(s.id).first();
+    if (!row || !row.sha256) {
+      failures.push({ id: s.id, reason: 'missing-or-empty-sha256-in-d1' });
+      continue;
+    }
+    const r2Obj = await r2.get(`shares/${s.id}`);
+    if (!r2Obj) {
+      failures.push({ id: s.id, reason: 'missing-in-r2' });
+      continue;
+    }
+    const buf = Buffer.from(await r2Obj.arrayBuffer());
+    if (buf.length !== s.bytes) {
+      failures.push({ id: s.id, reason: 'size-mismatch', expected: s.bytes, actual: buf.length });
+      continue;
+    }
+    const hash = createHash('sha256').update(buf).digest('hex');
+    if (hash !== row.sha256) {
+      failures.push({ id: s.id, reason: 'sha256-mismatch', expected: row.sha256, actual: hash });
+    }
+  }
+  return {
+    ok: failures.length === 0,
+    failures,
   };
 }
 
@@ -412,15 +468,24 @@ export async function importSnapshot(dir, options = {}) {
   if (!options.apply) return plan;
 
   // 執行 --apply: 生成 SQL 語句並分批執行
+  // H-1 ②: 同一次 --apply 先寫完全部 log/*，再寫簿記列
   const deleteExcludeSqls = buildDeleteAuditSql(plan.deletedExcludeKeys);
   const deleteRecordSqls = buildDeleteRecordSql(plan.syncDelRecords);
   const deleteShareSqls = buildDeleteShareSql(plan.retractedShares);
-  const allAudits = [...plan.auditLogs, ...plan.excludeAudits, ...plan.syncDelAudits];
   const recordSqls = buildRecordInsertSql(plan.plannedRecords);
   const shareSqls = buildShareInsertSql(plan.plannedShares);
-  const auditSqls = buildAuditInsertSql(allAudits);
+  const logAuditSqls = buildAuditInsertSql(plan.auditLogs);
+  const bookkeepingAuditSqls = buildAuditInsertSql([...plan.excludeAudits, ...plan.syncDelAudits]);
 
-  const allSqls = [...deleteExcludeSqls, ...deleteRecordSqls, ...deleteShareSqls, ...recordSqls, ...shareSqls, ...auditSqls];
+  const allSqls = [
+    ...recordSqls,
+    ...shareSqls,
+    ...logAuditSqls,
+    ...bookkeepingAuditSqls,
+    ...deleteExcludeSqls,
+    ...deleteRecordSqls,
+    ...deleteShareSqls,
+  ];
   const targetFlag = options.remote ? '--remote' : '--local';
 
   for (let i = 0; i < allSqls.length; i++) {
@@ -428,10 +493,35 @@ export async function importSnapshot(dir, options = {}) {
     wrangler(['d1', 'execute', DB, targetFlag, '--command', s]);
   }
 
+  // H-4 ②: 刪除 R2 物件，失敗殘留 key 逐筆列出
+  const failedR2Keys = [];
   if (options.r2) {
     for (const sId of plan.retractedShares) {
-      try { await options.r2.delete(`shares/${sId}`); } catch {}
+      try {
+        await options.r2.delete(`shares/${sId}`);
+      } catch (err) {
+        failedR2Keys.push(`shares/${sId}`);
+      }
     }
+  }
+  if (failedR2Keys.length > 0) {
+    console.warn(`[WARNING] R2 刪除失敗殘留 keys (${failedR2Keys.length}):`);
+    for (const k of failedR2Keys) {
+      console.warn(`  npx wrangler r2 object delete <bucket>/${k} --remote`);
+    }
+  }
+
+  // H-3 ③: --apply 成功後寫入 import-options.json
+  const savedOptions = {
+    excludeLots: options.excludeLots || [],
+    excludeLotPrefixes: options.excludeLotPrefixes || [],
+    excludeIds: options.excludeIds || [],
+    excludeShares: options.excludeShares || [],
+  };
+  try {
+    await writeFile(join(dir, 'import-options.json'), JSON.stringify(savedOptions, null, 2), 'utf8');
+  } catch (e) {
+    console.warn(`[WARNING] 無法儲存 import-options.json: ${e.message}`);
   }
 
   console.log(JSON.stringify({ phase: 'apply-complete', statementsExecuted: allSqls.length }));
@@ -450,6 +540,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     const dir = args[1] || die('Directory required');
     const remote = args.includes('--remote');
     const apply = args.includes('--apply');
+    const sameOptions = args.includes('--same-options');
     const excludeLots = [];
     const excludeLotPrefixes = [];
     const excludeIds = [];
@@ -462,7 +553,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       else if (args[i] === '--exclude-share' && args[i + 1]) excludeShares.push(args[++i]);
     }
 
-    importSnapshot(dir, { remote, apply, excludeLots, excludeLotPrefixes, excludeIds, excludeShares })
+    importSnapshot(dir, { remote, apply, sameOptions, excludeLots, excludeLotPrefixes, excludeIds, excludeShares })
       .catch((err) => { console.error(err); process.exit(1); });
   }
 }
