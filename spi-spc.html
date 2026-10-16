@@ -3321,8 +3321,25 @@ try{const sv=JSON.parse(localStorage.getItem("spi-stencil")||"null");if(sv&&sv.t
   if(sv.step&&Array.isArray(sv.step.zones)){S.step=sv.step;S.selZone=(sv.step.zones[0]||{}).id}if(sv.aperture&&sv.aperture.groups)S.aperture=sv.aperture}}catch(e){}
 initRuns(false);
 restoreRuns().then(()=>meP).then(j=>{if((j||HAS_API)&&window.DecompressionStream)return openShareFromUrl()});
+const PHONE_MQ = "(max-width:600px), (pointer:coarse) and (max-height:500px)";
+const TABLET_MQ = "(max-width:1279.98px), (pointer:coarse)";
+function updateLayout() {
+  if (typeof window === "undefined" || !window.matchMedia) return;
+  const phone = window.matchMedia(PHONE_MQ).matches;
+  if (phone) {
+    document.documentElement.dataset.layout = "phone";
+  } else {
+    const tablet = window.matchMedia(TABLET_MQ).matches;
+    document.documentElement.dataset.layout = tablet ? "tablet" : "desktop";
+  }
+}
+updateLayout();
+try {
+  window.matchMedia(PHONE_MQ).addEventListener("change", updateLayout);
+  window.matchMedia(TABLET_MQ).addEventListener("change", updateLayout);
+} catch(e) {}
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();

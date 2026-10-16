@@ -61,6 +61,38 @@ const put = (k, status, messages) => (out[k] = { status, messages });
   if (pkg) { const d = { ...(JSON.parse(pkg).devDependencies || {}), ...(JSON.parse(pkg).dependencies || {}) };
     const loose = Object.entries(d).filter(([, v]) => /[\^~*]|latest/.test(v)); if (loose.length) { st = "warn"; m.push(`FACT: package.json 未鎖版：${loose.map((x) => x.join("@")).join("、")}`); } else m.push("FACT: package.json 相依皆鎖定版本"); }
   if (/three\.js\/r128/.test(html)) m.push("INFERENCE: three.js r128 為較舊版本（2021），功能足夠且穩定；升級需重新驗證 3D 頁");
+
+  // 檢查 wrangler.jsonc 的 ratelimits 是否符合 9.5 / L-14 規範 (C-2)
+  const w = read("wrangler.jsonc");
+  if (w) {
+    try {
+      const cfg = JSON.parse(w);
+      const rl = cfg.ratelimits;
+      if (!Array.isArray(rl) || rl.length !== 1) {
+        st = "fail";
+        m.push(`FACT: wrangler.jsonc 的 ratelimits 必須恰好一個 binding (目前: ${rl ? rl.length : 0})`);
+      } else {
+        const item = rl[0];
+        if (item.name !== "LOGIN_LIMIT") {
+          st = "fail";
+          m.push(`FACT: ratelimits 名稱必須為 LOGIN_LIMIT (目前: ${item.name})`);
+        }
+        if (!item.namespace_id || !/^\d+$/.test(String(item.namespace_id))) {
+          st = "fail";
+          m.push(`FACT: ratelimits namespace_id 必須為正整數字串 (目前: ${item.namespace_id})`);
+        }
+        if (!item.simple || item.simple.limit !== 10 || item.simple.period !== 60) {
+          st = "fail";
+          m.push(`FACT: ratelimits simple 設定必須為 { limit: 10, period: 60 }`);
+        } else {
+          m.push("FACT: wrangler.jsonc LOGIN_LIMIT 設定正確 (10 reqs/60s)");
+        }
+      }
+    } catch (e) {
+      st = "fail";
+      m.push(`FACT: wrangler.jsonc 解析失敗: ${e.message}`);
+    }
+  }
   put("deps", st, m);
 }
 // 6. 測試

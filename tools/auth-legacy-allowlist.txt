@@ -1,0 +1,8 @@
+# tools/auth-legacy-allowlist.txt: 認證舊字樣白名單 (D-1, 9.5 AL-1)
+# 格式：<路徑或 glob> <理由>
+cloudflare/migrations/0003_v110.sql 清除舊節流表與欄位的遷移腳本
+tests/auth-lock.test.mjs 9.5 登入鎖定完整驗證與舊字樣斷言測試
+tools/auth-legacy-allowlist.txt 白名單檔案本身
+CHANGELOG.md 歷史更新紀錄提及節流模式
+docs/*.md 需求規格書歷史複本
+spi-spc-analyst-spec-*.md 規格書歷史紀錄

@@ -21,12 +21,6 @@ class CountingD1 {
             if (sql.includes("FROM records WHERE id = ?")) {
               return self.records.get(params[0]) || null;
             }
-            if (sql.includes("FROM records WHERE kind = ? AND part = ?")) {
-              return null;
-            }
-            if (sql.includes("FROM stats WHERE key = 'auth_mode'")) {
-              return { value: 0 };
-            }
             if (sql.includes("INSERT INTO auth_attempts")) {
               const row = { id: self.authAttempts.length + 1, key_hash: params[0], at: params[1] };
               self.authAttempts.push(row);
@@ -106,9 +100,9 @@ test('CF Free Plan 預算守衛：D1 查詢數每請求 <= 40', async () => {
   }, new Uint8Array([0x1f, 0x8b, 0x08]));
   assert.ok(d1.queryCount <= 40, `新增紀錄查詢數 ${d1.queryCount} 必須 <= 40`);
 
-  // 5. 登入防禦流程
+  // 5. 登入防禦流程 (9.5 定案設計)
   d1.queryCount = 0;
-  await repo.getRecentAuthAttempts(['h1', 'h2']);
-  await repo.insertAuthAttempt('h1');
+  await repo.getAuthAttempts('h1', 'ip1');
+  await repo.insertAuthAttemptAtomic('h1', 'ip1');
   assert.ok(d1.queryCount <= 40, `登入防禦查詢數 ${d1.queryCount} 必須 <= 40`);
 });
