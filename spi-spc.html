@@ -2,8 +2,11 @@
 <html lang="zh-Hant-TW">
 <head>
 <meta charset="utf-8">
-<title>SPI·SPC 分析台</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F2F4F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1311" media="(prefers-color-scheme: dark)">
+<title>SPI·SPC 分析台</title>
 <style>
 /* 字型自帶（網站內 vendor/fonts）：英文標題與數字用 Barlow Condensed／IBM Plex Mono；中文使用系統字（微軟正黑體／蘋方），不需下載 */
 @font-face{font-family:"Barlow Condensed";font-weight:500;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-500-normal.woff2) format("woff2")}
@@ -20,17 +23,30 @@
   --f-body:"Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:10px;
+  --tap-min:44px;
+  --tabbar-h:49px;
+  --navbar-h:44px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+  --r-card:16px;
+  --r-sheet:20px;
+  --c-bar:rgba(242,244,240,.88);
+  --c-hairline:rgba(24,32,27,.10);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0F1311;--surface:#171C19;--surface2:#212923;--ink:#E4E9E4;--muted:#98A39B;--line:#2D3731;
   --accent:#DB8A50;--accent-soft:#3A2516;--accent-ink:#F2C6A5;
   --ok:#55BE84;--ok-soft:#173726;--warn:#E3AE50;--warn-soft:#3A2D12;--ng:#EC6F60;--ng-soft:#41201B;
-  --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark}}
+  --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark;
+  --c-bar:rgba(15,19,17,.88);--c-hairline:rgba(228,233,228,.10)}}
 :root[data-theme="dark"]{
   --bg:#0F1311;--surface:#171C19;--surface2:#212923;--ink:#E4E9E4;--muted:#98A39B;--line:#2D3731;
   --accent:#DB8A50;--accent-soft:#3A2516;--accent-ink:#F2C6A5;
   --ok:#55BE84;--ok-soft:#173726;--warn:#E3AE50;--warn-soft:#3A2D12;--ng:#EC6F60;--ng-soft:#41201B;
-  --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark}
+  --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark;
+  --c-bar:rgba(15,19,17,.88);--c-hairline:rgba(228,233,228,.10)}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) calc(48px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
@@ -187,7 +203,7 @@ table.show-all tr.more-row{display:table-row}
 .acts .lv{width:8px;height:8px;border-radius:50%}
 .corr td{text-align:center;font-family:var(--f-mono);font-size:12px;border:1px solid var(--surface)}
 .vec{width:100%;max-width:100%;display:block;border-radius:8px;background:var(--surface2)}
-@media (max-width:720px){.sticky{position:static}.vsep{display:none}}
+@media (max-width:720px){.vsep{display:none}}
 .field{display:flex;flex-direction:column;gap:3px;min-width:0}
 .field label{font-size:11px;color:var(--muted);letter-spacing:.06em}
 select,input[type=number],input[type=text],textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:34px}
@@ -209,13 +225,15 @@ button:disabled{opacity:.5;cursor:default}
   button,select,input[type=number],input[type=text],textarea{min-height:44px}
   select,input[type=number],input[type=text],textarea{font-size:16px!important}
   .tab{min-height:46px;padding:10px 16px}
-  .chip.chipBtn,a.chip{min-height:36px;padding:6px 14px}
-  .pmap-cells button{min-height:40px}
-  .seg button{min-height:40px}
-  input[type=checkbox],input[type=radio]{width:22px;height:22px}
-  input[type=range]{min-height:36px}
+  .chip.chipBtn,a.chip{min-height:44px;padding:6px 14px}
+  .card .cbtn, .toc button, .how summary{min-height:44px;display:inline-flex;align-items:center;padding:0 12px}
+  .pmap-cells button{min-height:44px}
+  .seg button{min-height:44px}
+  input[type=checkbox],input[type=radio]{width:24px;height:24px}
+  input[type=range]{min-height:44px}
   #zoneMap{touch-action:none}
-  .linkbtn{min-height:40px}
+  .linkbtn{min-height:44px}
+  .rec-act button{min-height:44px}
 }
 .panel{padding-top:18px;display:grid;gap:16px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
@@ -271,6 +289,197 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:520px){.brand h1{font-size:28px}.chartbox{height:240px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- iPhone 行動版殼層樣式 (≤767px) ---------- */
+.mtab{display:none}
+.sheet-modal{display:none}
+.rail-chip{display:none}
+.rail-sheet-modal{display:contents}
+.rail-sheet-modal .sheet-backdrop,.rail-sheet-modal .sheet-handle,.rail-sheet-modal .sheet-head{display:none}
+.rail-fields{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
+
+@media (max-width:767px){
+  html,body{-webkit-text-size-adjust:100%}
+  body{font-size:16px!important;line-height:1.5;padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 24px)!important}
+  nav.tabs{display:none!important}
+  #moreWrap{display:none!important}
+  .brand .tag{display:none!important}
+  .brand .ver{display:none!important}
+  .toprow .chip{display:none!important}
+
+  header.top{
+    position:sticky;
+    top:0;
+    z-index:20;
+    height:calc(var(--navbar-h) + var(--safe-t));
+    padding:var(--safe-t) 16px 0;
+    margin:0 -16px;
+    background:var(--c-bar);
+    backdrop-filter:blur(20px) saturate(180%);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border-bottom:0.5px solid var(--c-hairline);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .brand{justify-content:center;width:100%}
+  .brand h1{font-size:17px!important;font-weight:600!important;line-height:44px;margin:0;text-align:center}
+
+  .sticky{position:sticky!important;top:calc(var(--navbar-h) + var(--safe-t))!important;z-index:15;background:var(--bg)}
+  .rail{padding:8px 0;border-bottom:0.5px solid var(--line);display:block}
+  .rail-chip{
+    display:flex!important;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    height:44px;
+    min-height:44px;
+    padding:0 14px;
+    border-radius:var(--r);
+    background:var(--surface);
+    border:1px solid var(--line);
+    font-size:15px;
+    font-weight:500;
+    color:var(--ink);
+    box-shadow:0 1px 3px rgba(0,0,0,0.06);
+    cursor:pointer;
+  }
+  .rail-sheet-modal:not(.open){display:none!important}
+  .rail-sheet-modal.open{display:flex!important;position:fixed;inset:0;z-index:70;flex-direction:column;justify-content:flex-end}
+  .rail-sheet-modal .sheet-backdrop,.rail-sheet-modal .sheet-handle,.rail-sheet-modal .sheet-head{display:flex}
+  .rail-fields{display:flex;flex-direction:column;gap:14px}
+  .rail-fields select{width:100%;min-height:44px;font-size:16px!important}
+  .rail-fields .specbtn{width:100%;min-height:44px;justify-content:center;border:1px solid var(--line);border-radius:var(--r);background:var(--surface2)}
+
+  .mtab{
+    display:flex!important;
+    position:fixed;
+    inset-inline:0;
+    bottom:0;
+    z-index:40;
+    height:calc(var(--tabbar-h) + var(--safe-b));
+    padding-bottom:var(--safe-b);
+    background:var(--c-bar);
+    backdrop-filter:blur(20px) saturate(180%);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border-top:0.5px solid var(--c-hairline);
+    align-items:stretch;
+    justify-content:space-around;
+  }
+  .mtab-btn{
+    flex:1;
+    min-height:44px;
+    min-width:44px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    background:none;
+    border:none;
+    color:var(--muted);
+    cursor:pointer;
+    padding:4px 0;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mtab-btn svg{display:block;width:22px;height:22px}
+  .mtab-btn span{font-size:11px!important;font-weight:600;line-height:1}
+  .mtab-btn[aria-selected="true"],.mtab-btn.active{color:var(--accent)}
+
+  .sheet-modal:not(.open){display:none!important}
+  .sheet-modal.open{display:flex!important;position:fixed;inset:0;z-index:70;flex-direction:column;justify-content:flex-end}
+  .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .sheet-panel{
+    position:relative;
+    z-index:1;
+    max-height:85dvh;
+    background:var(--surface);
+    border-radius:var(--r-sheet) var(--r-sheet) 0 0;
+    padding:12px 20px calc(24px + var(--safe-b));
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    box-shadow:0 -4px 24px rgba(0,0,0,0.16);
+  }
+  .sheet-handle{width:36px;height:5px;border-radius:999px;background:var(--line);margin:0 auto 4px;align-self:center}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:0.5px solid var(--c-hairline)}
+  .sheet-head h3{font-size:17px;font-weight:600;margin:0}
+  .sheet-close{all:unset;cursor:pointer;font-size:18px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+  .sheet-sec-title{font-size:13px!important;font-weight:600;color:var(--muted);letter-spacing:0.04em;padding:10px 4px 4px}
+  .sheet-list{display:flex;flex-direction:column;background:var(--surface2);border-radius:var(--r-card);overflow:hidden}
+  .sheet-row{
+    all:unset;
+    box-sizing:border-box;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    min-height:52px;
+    padding:0 16px;
+    font-size:16px;
+    font-weight:500;
+    color:var(--ink);
+    border-bottom:0.5px solid var(--c-hairline);
+    cursor:pointer;
+  }
+  .sheet-row:last-child{border-bottom:none}
+  .sheet-row:active,.sheet-row:hover{background:var(--line)}
+  .sheet-arrow{color:var(--muted);font-size:18px}
+  .sheet-ver-info{text-align:center;font-size:12px!important;color:var(--muted);padding:16px 0 8px}
+  .sheet-ver-info p{margin:2px 0}
+
+  .field label{font-size:13px!important}
+  .lbl,.tabgrp,.ver,.click-hint,.ev-cap,.how,.kpi .k,.kpi .s,.pill,th,.fact,.pmap-lab,.note,small,#aiPayloadPre{font-size:12px!important}
+
+  button,select,input,textarea,summary,[role="button"]{min-height:44px}
+  select,input[type=number],input[type=text],textarea{font-size:16px!important}
+  .card .cbtn,.toc button,.how summary{min-height:44px!important;display:inline-flex!important;align-items:center!important;padding:0 12px!important}
+  .chipbtn,.chip.chipBtn,a.chip,.seg button,.linkbtn,.rec-act button{min-height:44px!important;min-width:44px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
+
+  .subtabs{
+    display:flex;
+    gap:4px;
+    overflow-x:auto;
+    flex-wrap:nowrap;
+    padding:4px;
+    background:var(--surface2);
+    border-radius:999px;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);
+  }
+  .subtab{
+    flex:1 1 0;
+    min-width:max-content;
+    height:44px;
+    min-height:44px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 16px;
+    font-size:14px;
+    border-radius:999px;
+  }
+
+  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tbl td:first-child,.tbl th:first-child{
+    position:sticky;
+    left:0;
+    background:var(--surface);
+    z-index:2;
+    box-shadow:2px 0 5px rgba(0,0,0,0.06);
+  }
+  .tbl.sticky-head thead th{top:calc(44px + env(safe-area-inset-top,0px))!important;z-index:3}
+  .tbl.sticky-head thead th:first-child{z-index:4}
+
+  #toTop,#toast{bottom:calc(var(--tabbar-h) + var(--safe-b) + 12px)!important}
+}
+
+@media (max-width:720px){
+  .pmap-cells{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .pmap-cells button{min-width:28px!important;min-height:44px!important;height:44px!important;flex:0 0 auto;font-size:12px!important}
+}
 </style>
 </head>
 <body>
@@ -283,7 +492,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.10.2</b> · 更新 <b class="num" id="appBuilt">2026-10-14 20:54:16</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.11.0</b> · 更新 <b class="num" id="appBuilt">2026-10-16 22:45:00</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -303,20 +512,33 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 <p class="err" id="libWarn" hidden role="alert" style="margin:0 0 8px">圖表函式庫未能載入，數據分析與問題偵測仍可使用，圖表會空白。請重新整理頁面或檢查網路。</p>
 <div class="sticky">
 <div class="rail" role="region" aria-label="分析設定">
-  <div class="field"><label for="selRun">試產回合</label><select id="selRun"></select></div>
-  <div class="field" data-scope="a"><label for="selMetric">量測項目</label><select id="selMetric"></select></div>
-  <div class="field" data-scope="a"><label for="selGroup">元件群組</label><select id="selGroup"></select></div>
-  <div class="field" data-scope="a"><label for="selChart">管制圖</label>
-    <select id="selChart">
-      <option value="xbars">X̄-S（每板為子群組）</option>
-      <option value="imr">I-MR（單一焊墊跨板）</option>
-      <option value="p">P′ 圖（每板不良率，Laney）</option>
-      <option value="ewma">EWMA（小幅漂移）</option>
-      <option value="cusum">CUSUM（累積偏移）</option>
-    </select></div>
-  <div class="field" id="padField" data-scope="a" hidden><label for="selPad">焊墊</label><select id="selPad"></select></div>
-  <p class="note" id="railNote" hidden style="margin:0;align-self:center;max-width:42ch"></p>
-  <button class="specbtn" id="railSpecBtn" title="鋼板厚度與規格在「資料與規格 → 匯入與規格」修改"><span class="lbl">鋼板／規格</span> <b id="railSum"></b> <span aria-hidden="true">✎</span></button>
+  <button type="button" class="rail-chip" id="btnRailChip" aria-haspopup="dialog" aria-expanded="false" aria-controls="railSheet" aria-label="開啟分析設定與篩選"><span id="railChipSummary">範例資料 · 體積 · 全部元件 ▾</span></button>
+  <div class="rail-sheet-modal" id="railSheet" role="dialog" aria-modal="true" aria-label="分析設定" hidden>
+    <div class="sheet-backdrop" id="railBackdrop"></div>
+    <div class="sheet-panel">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <h3>分析設定</h3>
+        <button type="button" class="sheet-close" id="railSheetClose" aria-label="關閉分析設定">✕</button>
+      </div>
+      <div class="rail-fields">
+        <div class="field"><label for="selRun">試產回合</label><select id="selRun"></select></div>
+        <div class="field" data-scope="a"><label for="selMetric">量測項目</label><select id="selMetric"></select></div>
+        <div class="field" data-scope="a"><label for="selGroup">元件群組</label><select id="selGroup"></select></div>
+        <div class="field" data-scope="a"><label for="selChart">管制圖</label>
+          <select id="selChart">
+            <option value="xbars">X̄-S（每板為子群組）</option>
+            <option value="imr">I-MR（單一焊墊跨板）</option>
+            <option value="p">P′ 圖（每板不良率，Laney）</option>
+            <option value="ewma">EWMA（小幅漂移）</option>
+            <option value="cusum">CUSUM（累積偏移）</option>
+          </select></div>
+        <div class="field" id="padField" data-scope="a" hidden><label for="selPad">焊墊</label><select id="selPad"></select></div>
+        <p class="note" id="railNote" hidden style="margin:0;align-self:center;max-width:42ch"></p>
+        <button class="specbtn" id="railSpecBtn" title="鋼板厚度與規格在「資料與規格 → 匯入與規格」修改"><span class="lbl">鋼板／規格</span> <b id="railSum"></b> <span aria-hidden="true">✎</span></button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <nav class="tabs" role="tablist" aria-label="分析頁籤">
@@ -393,7 +615,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       <div class="legend"><span><i class="sq" style="background:var(--series2)"></i>實測分布</span><span><i style="border-color:var(--accent)"></i>常態擬合</span><span><i class="dash" style="border-color:var(--ng)"></i>LSL / USL</span></div>
       <div class="chartbox tall"><canvas id="cHist" role="img" aria-label="直方圖"></canvas></div></div>
     <div class="card"><h3>常態機率圖 Q-Q <small id="qqSub"></small></h3>
-      <details class="how"><summary>怎麼看</summary><p>點越貼近直線越符合常態。兩端上翹或下彎代表尾部比常態厚，預估 PPM 會低估實際不良；此時以「實測 PPM」為準。</p></details>
+      <details class="how"><summary>怎麼看</summary><p>點越貼近直線越符合常態。兩端上翹或下彎代表尾部比常態厚，預估 PPM 會低估實際不良；此時以「超規 PPM」為準。</p></details>
       <div class="chartbox tall"><canvas id="cQQ" role="img" aria-label="常態機率圖"></canvas></div></div>
   </div>
   <div class="card"><h3>各板盒鬚圖 <small>箱體為 Q1–Q3，橫線為中位數，鬚為最小–最大</small></h3>
@@ -720,6 +942,74 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </section>
 </div>
 
+<nav class="mtab" aria-label="主要分頁">
+  <button type="button" class="mtab-btn" data-tab="issues" aria-selected="true" aria-current="page">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span>問題</span>
+  </button>
+  <button type="button" class="mtab-btn" data-tab="overview">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+    <span>總覽</span>
+  </button>
+  <button type="button" class="mtab-btn" data-tab="control">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    <span>管制圖</span>
+  </button>
+  <button type="button" class="mtab-btn" data-tab="capability">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    <span>能力</span>
+  </button>
+  <button type="button" class="mtab-btn" id="mtabMore" aria-haspopup="dialog" aria-expanded="false" aria-controls="moreSheet">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+    <span>更多</span>
+  </button>
+</nav>
+
+<div class="sheet-modal" id="moreSheet" role="dialog" aria-modal="true" aria-label="更多功能與分頁" hidden>
+  <div class="sheet-backdrop" id="moreBackdrop"></div>
+  <div class="sheet-panel">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <h3>更多功能與分頁</h3>
+      <button type="button" class="sheet-close" id="moreSheetClose" aria-label="關閉選單">✕</button>
+    </div>
+    <div class="sheet-content">
+      <div class="sheet-sec-title">看證據</div>
+      <div class="sheet-list">
+        <button type="button" class="sheet-row" data-mtab="sim3d"><span>3D 錫膏模擬</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" data-mtab="cross"><span>交叉驗證</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" data-mtab="adv"><span>進階分析</span><span class="sheet-arrow">›</span></button>
+      </div>
+
+      <div class="sheet-sec-title">改善與驗證</div>
+      <div class="sheet-list">
+        <button type="button" class="sheet-row" data-mtab="compare"><span>試產比較</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" data-mtab="dfm"><span>DFM 建議</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" data-mtab="lab"><span>實驗驗證</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" data-mtab="ai"><span>AI 分析</span><span class="sheet-arrow">›</span></button>
+      </div>
+
+      <div class="sheet-sec-title">設定</div>
+      <div class="sheet-list">
+        <button type="button" class="sheet-row" data-mtab="data"><span>資料與規格</span><span class="sheet-arrow">›</span></button>
+      </div>
+
+      <div class="sheet-sec-title">操作與帳號</div>
+      <div class="sheet-list" id="sheetUserTools">
+        <button type="button" class="sheet-row" id="mBtnPrint" hidden><span>列印／存成 PDF</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" id="mBtnShare" hidden><span>分享連結</span><span class="sheet-arrow">›</span></button>
+        <button type="button" class="sheet-row" id="mBtnMyShares" hidden><span>我的分享</span><span class="sheet-arrow">›</span></button>
+        <a class="sheet-row" id="mLogoutLink" href="/__logout" hidden><span>登出</span><span class="sheet-arrow">›</span></a>
+      </div>
+
+      <div class="sheet-ver-info">
+        <p>SPI·SPC 分析台 <b>v9.11.0</b></p>
+        <p>最後更新：2026-10-16 22:45:00</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="vendor/chart-4.4.1.umd.min.js"></script>
 <script>/* 網站版用自帶的 Chart.js；在 claude.ai 等沒有 vendor 檔的地方才改用 CDN */window.Chart||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>')</script>
 <script id="core">
@@ -734,12 +1024,14 @@ function sd(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce(
 function quant(sorted,p){const i=(sorted.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return sorted[lo]+(sorted[hi]-sorted[lo])*(i-lo)}
 function lgamma(z){const g=7,c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];if(z<0.5)return Math.log(Math.PI/Math.sin(Math.PI*z))-lgamma(1-z);z-=1;let x=c[0];for(let i=1;i<g+2;i++)x+=c[i]/(z+i);const t=z+g+0.5;return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x)}
 function c4(n){return n<2?1:Math.sqrt(2/(n-1))*Math.exp(lgamma(n/2)-lgamma((n-1)/2))}
-function erf(x){const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+0.3275911*x);const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y}
-const Phi=z=>0.5*(1+erf(z/Math.SQRT2));
+const SQRT_PI=Math.sqrt(Math.PI);
+function erfc(x){if(x<0)return 2-erfc(-x);if(x===0)return 1;if(x<1.5){let term=x,sum=x,x2=x*x;for(let k=1;k<50;k++){term*=-x2/k;const add=term/(2*k+1);sum+=add;if(Math.abs(add)<1e-17*Math.abs(sum))break}return 1-(2/SQRT_PI)*sum}let f=x,C=f,D=0;for(let m=1;m<=60;m++){const a=m/2,b=x;D=b+a*D;if(D===0)D=1e-30;C=b+a/C;if(C===0)C=1e-30;D=1/D;const delta=C*D;f*=delta;if(Math.abs(delta-1)<1e-16)break}return(Math.exp(-x*x)/SQRT_PI)/f}
+function erf(x){return 1-erfc(x)}
+const Phi=z=>z<0?0.5*erfc(-z/Math.SQRT2):1-0.5*erfc(z/Math.SQRT2);
 function invPhi(p){const a=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.357751867269,-30.66479806614716,2.506628277459239],b=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572],c=[-0.007784894002430293,-0.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783],d=[0.007784695709041462,0.3224671290700398,2.445134137142996,3.754408661907416],pl=0.02425;let q,r;if(p<pl){q=Math.sqrt(-2*Math.log(p));return(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)}if(p>1-pl){q=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)}q=p-0.5;r=q*q;return(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1)}
 function pearson(x,y){const n=x.length;if(n<3)return NaN;const mx=mean(x),my=mean(y);let sxy=0,sxx=0,syy=0;for(let i=0;i<n;i++){const dx=x[i]-mx,dy=y[i]-my;sxy+=dx*dy;sxx+=dx*dx;syy+=dy*dy}return sxy/Math.sqrt(sxx*syy)}
 function andersonDarling(vals){const n=vals.length;if(n<8)return{A:NaN,p:NaN};const s=[...vals].sort((a,b)=>a-b),m=mean(s),d=sd(s);if(!d)return{A:NaN,p:NaN};let S=0;for(let i=0;i<n;i++){const F1=Math.min(Math.max(Phi((s[i]-m)/d),1e-12),1-1e-12),F2=Math.min(Math.max(Phi((s[n-1-i]-m)/d),1e-12),1-1e-12);S+=(2*i+1)*(Math.log(F1)+Math.log(1-F2))}const A=-n-S/n,As=A*(1+0.75/n+2.25/(n*n));let p;if(As>=0.6)p=Math.exp(1.2937-5.709*As+0.0186*As*As);else if(As>=0.34)p=Math.exp(0.9177-4.279*As-1.38*As*As);else if(As>=0.2)p=1-Math.exp(-8.318+42.796*As-59.938*As*As);else p=1-Math.exp(-13.436+101.14*As-223.73*As*As);return{A:As,p:Math.min(Math.max(p,0),1)}}
-function skewKurt(a){const n=a.length,m=mean(a),d=sd(a);if(!d||n<4)return{skew:NaN,kurt:NaN};let s3=0,s4=0;for(const v of a){const z=(v-m)/d;s3+=z**3;s4+=z**4}return{skew:s3/n,kurt:s4/n-3}}
+function skewKurt(a){const n=a.length;if(n<4)return{skew:NaN,kurt:NaN};const m=mean(a),d=sd(a);if(!d)return{skew:NaN,kurt:NaN};let s3=0,s4=0;for(const v of a){const z=(v-m)/d;s3+=z**3;s4+=z**4}const G1=(n/((n-1)*(n-2)))*s3;const G2=((n*(n+1))/((n-1)*(n-2)*(n-3)))*s4-(3*(n-1)*(n-1))/((n-2)*(n-3));return{skew:G1,kurt:G2}}
 
 /* Nelson 8 規則：輸入標準化 z 序列 */
 const NELSON=[
@@ -887,51 +1179,119 @@ function analyze(st){
   const gStat=gList.map(g=>{const v=rows.filter(r=>r.group===g).map(r=>r[m]);return{g,v,mu:mean(v)}});
   const sigmaLT=mixed?Math.sqrt(gStat.reduce((s,x)=>s+x.v.reduce((t,y)=>t+(y-x.mu)**2,0),0)/Math.max(1,N-gList.length)):overallSd;
   // 三向管制圖：X̄ 界限以板平均的移動全距估計板間 σ（每板焊墊多且元件混合時，板內 σ 會讓界限過窄而大量誤報）
-  const bmr0=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB0=(bmr0.length?mean(bmr0):0)/1.128||sigmaW/Math.sqrt(nbar);
+  const isZeroSd=overallSd===0||sigmaW===0;
+  const bmr0=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB0=isZeroSd?NaN:(bmr0.length?mean(bmr0):0)/1.128||sigmaW/Math.sqrt(nbar);
   // S 圖：每板的組內合併標準差；中心線 c4(n)·σ̂、界限 ±3σ̂√(1−c4²)，依每板自由度調整
-  const xs={cl:gMean,sB:sB0,pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:gMean+3*sB0,lcl:gMean-3*sB0,z:(b.mean-gMean)/sB0})),
-    s:byBoard.map(b=>{const bp=bPool.get(b.board)||{s:b.sd,df:b.n-1};if(!(bp.df>=1))return{lab:b.board,v:NaN,cl:NaN,ucl:NaN,lcl:NaN};const c=c4(bp.df+1),cl=c*sigmaW,h=3*sigmaW*Math.sqrt(Math.max(1-c*c,0));return{lab:b.board,v:bp.s,cl,ucl:cl+h,lcl:Math.max(0,cl-h)}})};
+  const xs={cl:gMean,sB:sB0,pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:isZeroSd?NaN:gMean+3*sB0,lcl:isZeroSd?NaN:gMean-3*sB0,z:isZeroSd?0:(b.mean-gMean)/sB0})),
+    s:byBoard.map(b=>{const bp=bPool.get(b.board)||{s:b.sd,df:b.n-1};if(!(bp.df>=1)||isZeroSd)return{lab:b.board,v:isZeroSd?0:NaN,cl:NaN,ucl:NaN,lcl:NaN};const c=c4(bp.df+1),cl=c*sigmaW,h=3*sigmaW*Math.sqrt(Math.max(1-c*c,0));return{lab:b.board,v:bp.s,cl,ucl:cl+h,lcl:Math.max(0,cl-h)}})};
+  if(boards.length<5){
+    xs.rejected=true;xs.reason=`子群組（板數）不足（需 ≥5，本資料 n=${boards.length}）`;
+    xs.pts.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});xs.s.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});
+  }else if(boards.length<20){
+    xs.subgroupWarning="子群組少於 20，界限僅供參考";
+  }
+  if(isZeroSd){
+    xs.rejected=true;xs.reason="製程變異為零";
+    xs.pts.forEach(p=>{p.ucl=NaN;p.lcl=NaN;p.z=0;});xs.s.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});
+  }
   // I-MR（單一焊墊）
   const pads=[...new Set(rows.map(r=>r.pad))];
   const pad=pads.includes(st.pad)?st.pad:pads[0];
   const padAt=new Map();for(const r of rows)if(r.pad===pad&&!padAt.has(r.board))padAt.set(r.board,r);
   const pv=boards.map(b=>{const r=padAt.get(b);return r?{lab:b,v:r[m]}:null}).filter(Boolean);
-  const mr=pv.slice(1).map((p,i)=>Math.abs(p.v-pv[i].v)),mrbar=mr.length?mean(mr):0,iMean=pv.length?mean(pv.map(p=>p.v)):0,sI=mrbar/1.128||1e-9;
-  const imr={pad,cl:iMean,ucl:iMean+3*sI,lcl:iMean-3*sI,mrbar,mrucl:3.267*mrbar,pts:pv.map(p=>({...p,z:(p.v-iMean)/sI})),mr:mr.map((v,i)=>({lab:pv[i+1].lab,v}))};
+  const mr=pv.slice(1).map((p,i)=>Math.abs(p.v-pv[i].v)),mrbar=mr.length?mean(mr):0,iMean=pv.length?mean(pv.map(p=>p.v)):0,sI=isZeroSd?0:mrbar/1.128||1e-9;
+  const imr={pad,cl:iMean,ucl:isZeroSd?NaN:iMean+3*sI,lcl:isZeroSd?NaN:iMean-3*sI,mrbar,mrucl:isZeroSd?NaN:3.267*mrbar,pts:pv.map(p=>({...p,z:isZeroSd?0:(p.v-iMean)/sI})),mr:mr.map((v,i)=>({lab:pv[i+1].lab,v}))};
+  if(pv.length<5){
+    imr.rejected=true;imr.reason=`點數不足（需 ≥5，本資料 n=${pv.length}）`;
+    imr.ucl=NaN;imr.lcl=NaN;imr.mrucl=NaN;imr.pts.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});
+  }else if(pv.length<20){
+    imr.subgroupWarning="子群組少於 20，界限僅供參考";
+  }
+  if(isZeroSd){
+    imr.rejected=true;imr.reason="製程變異為零";
+    imr.ucl=NaN;imr.lcl=NaN;imr.mrucl=NaN;imr.pts.forEach(p=>{p.ucl=NaN;p.lcl=NaN;p.z=0;});
+  }
   // P' 圖（Laney）：每板焊墊數多、板與板之間本來就有額外變異時，二項式界限會過窄；以標準化值的移動全距估計放大倍數 σz
   const totD=byBoard.reduce((s,b)=>s+b.defects,0),totN=byBoard.reduce((s,b)=>s+b.n,0),pbar=totN?totD/totN:0;
   const pz=byBoard.map(b=>{const sg=Math.sqrt(pbar*(1-pbar)/b.n)||1e-9;return(b.p-pbar)/sg}),pmr=pz.slice(1).map((z,i)=>Math.abs(z-pz[i])),sigZ=pmr.length&&pbar>0&&pbar<1?mean(pmr)/1.128:1;
   const pc={cl:pbar,sigZ,pts:byBoard.map(b=>{const sg=(Math.sqrt(pbar*(1-pbar)/b.n)||1e-9)*(sigZ||1);return{lab:b.board,v:b.p,ucl:Math.min(1,pbar+3*sg),lcl:Math.max(0,pbar-3*sg),z:(b.p-pbar)/sg}})};
   // EWMA（λ=0.2, L=3）與 CUSUM（k=0.5σx̄, h=5σx̄），以每板平均為輸入
   // σ 取自板平均的移動全距（三向管制圖法），避免每板上百焊墊時界限過窄
-  const bmr=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB=(bmr.length?mean(bmr):0)/1.128||sigmaW/Math.sqrt(nbar);
+  const bmr=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB=isZeroSd?NaN:(bmr.length?mean(bmr):0)/1.128||sigmaW/Math.sqrt(nbar);
   const lam=0.2;let zp=gMean;
-  const ewma=byBoard.map((b,i)=>{const z=lam*b.mean+(1-lam)*zp;zp=z;const s=sB*Math.sqrt(lam/(2-lam)*(1-(1-lam)**(2*(i+1))));return{lab:b.board,raw:b.mean,v:z,ucl:gMean+3*s,lcl:gMean-3*s,z:(z-gMean)/s}});
+  const ewma=byBoard.map((b,i)=>{const z=lam*b.mean+(1-lam)*zp;zp=z;const s=isZeroSd?NaN:sB*Math.sqrt(lam/(2-lam)*(1-(1-lam)**(2*(i+1))));return{lab:b.board,raw:b.mean,v:z,ucl:isZeroSd?NaN:gMean+3*s,lcl:isZeroSd?NaN:gMean-3*s,z:isZeroSd?0:(z-gMean)/s}});
+  if(boards.length<5){ewma.rejected=true;ewma.reason=xs.reason;ewma.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});}
+  else if(boards.length<20)ewma.subgroupWarning="子群組少於 20，界限僅供參考";
+  if(isZeroSd){ewma.rejected=true;ewma.reason="製程變異為零";ewma.forEach(p=>{p.ucl=NaN;p.lcl=NaN;p.z=0;});}
   const sx=sB,hc=5*sx;let cp=0,cm=0;
-  const cusum={h:hc/sx,sB,pts:byBoard.map(b=>{const u=(b.mean-gMean)/sx;cp=Math.max(0,u-0.5+cp);cm=Math.max(0,-u-0.5+cm);return{lab:b.board,cp,cm}})};
+  const cusum={h:isZeroSd?NaN:hc/sx,sB,pts:byBoard.map(b=>{const u=isZeroSd?0:(b.mean-gMean)/sx;cp=Math.max(0,u-0.5+cp);cm=Math.max(0,-u-0.5+cm);return{lab:b.board,cp,cm}})};
+  if(boards.length<5){cusum.rejected=true;cusum.reason=xs.reason;}
+  else if(boards.length<20)cusum.subgroupWarning="子群組少於 20，界限僅供參考";
+  if(isZeroSd){cusum.rejected=true;cusum.reason="製程變異為零";}
   // 判異規則：顯示用依所選管制圖與其適用規則；管制狀態一律以 X̄ 圖（8 條規則）判斷，不受所選圖影響
   const RULES={xbars:null,imr:null,p:[1,2,3,4],ewma:[1],cusum:[1]};
-  const cuz=cusum.pts.map(p=>({lab:p.lab,z:(p.cp>=p.cm?1:-1)*Math.max(p.cp,p.cm)/cusum.h*3}));
+  const cuz=cusum.pts.map(p=>({lab:p.lab,z:isZeroSd?0:(p.cp>=p.cm?1:-1)*Math.max(p.cp,p.cm)/cusum.h*3}));
   const series=st.chart==="imr"?imr.pts:st.chart==="p"?pc.pts:st.chart==="ewma"?ewma:st.chart==="cusum"?cuz:xs.pts;
-  const nel=nelson(series.map(p=>p.z),RULES[st.chart]||null),nelX=st.chart==="xbars"||!st.chart?nel:nelson(xs.pts.map(p=>p.z));
+  let nel=nelson(series.map(p=>p.z),RULES[st.chart]||null),nelX=st.chart==="xbars"||!st.chart?nel:nelson(xs.pts.map(p=>p.z));
+  if(isZeroSd||xs.rejected){
+    nel={flag:new Set(),rules:NELSON.map(r=>({id:r.id,name:r.name,hint:r.hint,idx:[]}))};
+    nelX=nel;
+  }
   const stable=!nelX.rules.some(r=>r.idx.length&&r.id!==7);
   // 能力：Cp/Cpk 用組內 σ，Pp/Ppk 用長期 σ；混合多個元件群組時逐群組計算，整體取最差群組，預估 PPM 為各群組加權
-  const hasSpec=isFinite(sp.lsl)&&isFinite(sp.usl)&&sp.usl>sp.lsl;
+  const hasSpec=Boolean(sp&&isFinite(sp.lsl)&&isFinite(sp.usl)&&sp.usl>sp.lsl);
+  let capReason=null;
+  if(!sp||(!isFinite(sp.lsl)&&!isFinite(sp.usl)))capReason="缺少規格界限";
+  else if(!isFinite(sp.lsl)||!isFinite(sp.usl))capReason="缺少單邊規格界限";
+  else if(sp.usl<=sp.lsl)capReason="規格上限小於或等於規格下限（USL ≤ LSL）";
+  else if(isZeroSd)capReason="製程變異為零，Cp/Cpk 無法定義";
+  else if(!mixed&&N<10)capReason=`樣本數不足（需 ≥10，本群組 n=${N}）`;
+
   // Cpk 信賴區間（NIST）：同一片板的焊墊彼此不獨立，有效樣本數取板數（保守），不用焊墊數
-  const capOf=(mu,sw,sl,n,nb,q=sp)=>{const cpk=Math.min(q.usl-mu,mu-q.lsl)/(3*sw),ne=Math.min(n,nb||n),se=ne>1?Math.sqrt(1/(9*ne)+cpk*cpk/(2*(ne-1))):NaN;
-    return{n,nb:ne,mu,lsl:q.lsl,usl:q.usl,cp:(q.usl-q.lsl)/(6*sw),cpk,pp:(q.usl-q.lsl)/(6*sl),ppk:Math.min(q.usl-mu,mu-q.lsl)/(3*sl),ci:[cpk-1.96*se,cpk+1.96*se],ppmExp:(Phi((q.lsl-mu)/sl)+1-Phi((q.usl-mu)/sl))*1e6}};
+  const capOf=(mu,sw,sl,n,nb,q=sp)=>{
+    if(n<10)return{n,nb:Math.min(n,nb||n),mu,lsl:q.lsl,usl:q.usl,cp:NaN,cpk:NaN,pp:NaN,ppk:NaN,ci:[NaN,NaN],ppmExp:NaN,reason:`樣本數不足（需 ≥10，本群組 n=${n}）`};
+    if(sw<=0||sl<=0||!isFinite(sw)||!isFinite(sl))return{n,nb:Math.min(n,nb||n),mu,lsl:q.lsl,usl:q.usl,cp:NaN,cpk:NaN,pp:NaN,ppk:NaN,ci:[NaN,NaN],ppmExp:NaN,reason:"製程變異為零，Cp/Cpk 無法定義"};
+    const cpk=Math.min(q.usl-mu,mu-q.lsl)/(3*sw),ne=Math.min(n,nb||n),se=ne>1?Math.sqrt(1/(9*ne)+cpk*cpk/(2*(ne-1))):NaN;
+    return{n,nb:ne,mu,lsl:q.lsl,usl:q.usl,cp:(q.usl-q.lsl)/(6*sw),cpk,pp:(q.usl-q.lsl)/(6*sl),ppk:Math.min(q.usl-mu,mu-q.lsl)/(3*sl),ci:[cpk-1.96*se,cpk+1.96*se],ppmExp:(Phi((q.lsl-mu)/sl)+1-Phi((q.usl-mu)/sl))*1e6};
+  };
   let cap=null;
   const gq=g=>mixed?specOfGroup(st,g,m):sp;
-  if(hasSpec){const ppmObs=rows.filter(r=>{const q=gq(r.group);return r[m]<q.lsl||r[m]>q.usl}).length/N*1e6;
-    if(!mixed)cap={...capOf(gMean,sigmaW,overallSd,N,boards.length),ppmObs,mixed:false,stable};
-    else{const G=gStat.map(x=>{let ss=0,df=0;for(const bm of cellsB.values()){const v=bm.get(x.g);if(v&&v.length>1){const mu=mean(v);ss+=v.reduce((s,y)=>s+(y-mu)**2,0);df+=v.length-1}}
-        const sw=df>0?Math.sqrt(ss/df):sd(x.v)||1e-9,sl=sd(x.v)||1e-9,q=gq(x.g);return{g:x.g,...capOf(x.mu,sw,sl,x.v.length,new Set(rows.filter(r=>r.group===x.g).map(r=>r.board)).size,q),ppmObs:x.v.filter(v=>v<q.lsl||v>q.usl).length/x.v.length*1e6}}).filter(x=>isFinite(x.cpk));
-      const worst=G.reduce((w,x)=>!w||x.cpk<w.cpk?x:w,null),wp=G.reduce((w,x)=>!w||x.ppk<w.ppk?x:w,null);
-      if(worst)cap={cp:worst.cp,cpk:worst.cpk,pp:worst.pp,ppk:worst.ppk,ci:worst.ci,n:worst.n,nb:worst.nb,mu:worst.mu,lsl:worst.lsl,usl:worst.usl,perGroupSpec:!!(st.specSrc==="machine"&&st.specsG),worst:worst.g,worstP:wp.g,
-        ppmExp:G.reduce((s,x)=>s+x.ppmExp*x.n,0)/G.reduce((s,x)=>s+x.n,0),ppmObs,mixed:true,groups:G.sort((a,b)=>a.cpk-b.cpk),stable,ratio:sigmaW/sigmaLT}}
-    if(cap&&!cap.mixed)cap.ratio=sigmaW/overallSd;
+  if(hasSpec&&!isZeroSd){
+    const ppmObs=rows.filter(r=>{const q=gq(r.group);return r[m]<q.lsl||r[m]>q.usl}).length/N*1e6;
+    if(!mixed){
+      const c=capOf(gMean,sigmaW,overallSd,N,boards.length,sp);
+      cap={...c,ppmObs,mixed:false,stable,reason:c.reason||capReason};
+    }else{
+      const G=gStat.map(x=>{
+        let ss=0,df=0;
+        for(const bm of cellsB.values()){
+          const v=bm.get(x.g);
+          if(v&&v.length>1){const mu=mean(v);ss+=v.reduce((s,y)=>s+(y-mu)**2,0);df+=v.length-1}
+        }
+        const sw=df>0?Math.sqrt(ss/df):sd(x.v),sl=sd(x.v),q=gq(x.g);
+        const c=capOf(x.mu,sw,sl,x.v.length,new Set(rows.filter(r=>r.group===x.g).map(r=>r.board)).size,q);
+        return{g:x.g,...c,ppmObs:x.v.filter(v=>v<q.lsl||v>q.usl).length/x.v.length*1e6};
+      });
+      const validG=G.filter(x=>isFinite(x.cpk));
+      if(validG.length){
+        const worst=validG.reduce((w,x)=>!w||x.cpk<w.cpk?x:w,null);
+        const wp=validG.reduce((w,x)=>!w||x.ppk<w.ppk?x:w,null);
+        cap={cp:worst.cp,cpk:worst.cpk,pp:worst.pp,ppk:worst.ppk,ci:worst.ci,n:worst.n,nb:worst.nb,mu:worst.mu,lsl:worst.lsl,usl:worst.usl,perGroupSpec:!!(st.specSrc==="machine"&&st.specsG),worst:worst.g,worstP:wp.g,
+          ppmExp:validG.reduce((s,x)=>s+x.ppmExp*x.n,0)/validG.reduce((s,x)=>s+x.n,0),ppmObs,mixed:true,groups:G.sort((a,b)=>(isFinite(a.cpk)?a.cpk:1e9)-(isFinite(b.cpk)?b.cpk:1e9)),stable,ratio:sigmaW/sigmaLT};
+      }else{
+        const gReasons=[...new Set(G.map(g=>g.reason).filter(Boolean))];
+        cap={cp:NaN,cpk:NaN,pp:NaN,ppk:NaN,ci:[NaN,NaN],n:N,nb:boards.length,mu:gMean,lsl:sp.lsl,usl:sp.usl,perGroupSpec:!!(st.specSrc==="machine"&&st.specsG),worst:G[0]?.g||"-",worstP:G[0]?.g||"-",ppmExp:NaN,ppmObs,mixed:true,groups:G,stable,ratio:NaN,reason:gReasons.join("；")||"樣本數不足（需 ≥10）"};
+      }
+    }
+    if(cap&&!cap.mixed)cap.ratio=overallSd>0?sigmaW/overallSd:NaN;
     // 機台模式的規格窗是「PASS 焊墊實際出現過的範圍」，真正的機台規格只會更寬，所以算出的 Cp/Cpk 是下限
-    if(cap)cap.lowerBound=st.specSrc==="machine"}
+    if(cap)cap.lowerBound=st.specSrc==="machine";
+  }else{
+    cap={cp:NaN,cpk:NaN,pp:NaN,ppk:NaN,ci:[NaN,NaN],n:N,nb:boards.length,mu:gMean,lsl:sp?.lsl,usl:sp?.usl,ppmExp:NaN,ppmObs:isZeroSd?0:NaN,mixed,stable,reason:capReason};
+  }
+
+  const specCenter=hasSpec?(sp.usl+sp.lsl)/2:NaN;
+  const unitMismatch=Boolean(hasSpec&&((cap&&isFinite(cap.cpk)&&Math.abs(cap.cpk)>50)||(overallSd>0&&Math.abs(specCenter-gMean)>10*overallSd)||(overallSd===0&&Math.abs(specCenter-gMean)>0)));
   const ad=andersonDarling(all.length>4000?all.filter((_,i)=>i%Math.ceil(all.length/4000)===0):all),sk=skewKurt(all);
   // 群組
   const groups=[...new Set(rows.map(r=>r.group))].map(g=>{const v=rows.filter(r=>r.group===g).map(r=>r[m]);return{g,n:v.length,mean:mean(v),sd:sd(v)}});
@@ -946,7 +1306,7 @@ function analyze(st){
   const xOut=new Set(xs.pts.filter(p=>Math.abs(p.z)>3).map(p=>p.lab));
   const pOut=new Set(pc.pts.filter(p=>p.v>p.ucl||p.v<p.lcl).map(p=>p.lab));
   const worst=byBoard.reduce((w,b)=>!w||b.p>w.p||(b.p===w.p&&Math.abs(b.mean-gMean)>Math.abs(w.mean-gMean))?b:w,null);
-  const A={m,sp,rows,boards,byBoard,N,gMean,overallSd,sigmaW,sigmaLT,mixed,nbar,xs,imr,pc,ewma,cusum,series,nel,nelX,stable,cap,hasSpec,ad,sk,groups,eta2,pareto,defRows,rHA,msa,rX,rY,xOut,pOut,worst,pads,sqDir:st.sqDir==="X"?"X":"Y"};
+  const A={m,sp,rows,boards,byBoard,N,gMean,overallSd,sigmaW,sigmaLT,mixed,nbar,xs,imr,pc,ewma,cusum,series,nel,nelX,stable,cap,hasSpec,unitMismatch,ad,sk,groups,eta2,pareto,defRows,rHA,msa,rX,rY,xOut,pOut,worst,pads,sqDir:st.sqDir==="X"?"X":"Y"};
   A.xv=crossValidate(A);return A;
 }
 function crossValidate(A){
@@ -1378,6 +1738,21 @@ function detectIssues(st){
   const evBars=(title,labels,values,hi,unit,ref)=>({type:"bars",title,labels,values,hi,unit,ref:ref||[]});
   const grpMed=k=>groups.map(x=>med(R.filter(r=>r.group===x).map(r=>r[k]).filter(v=>v!=null)));
 
+  // 單位／尺度不符偵測（M-03）
+  for(const k of MS){const s=st.specs&&st.specs[k];
+    if(s&&isFinite(s.lsl)&&isFinite(s.usl)&&s.usl>s.lsl){
+      const sc=(s.usl+s.lsl)/2,kv=R.map(r=>r[k]).filter(v=>v!=null&&isFinite(v));
+      if(kv.length>=2){
+        const kMu=mean(kv),kSd=sd(kv);
+        if((kSd>0&&Math.abs(sc-kMu)>10*kSd)||(kSd===0&&Math.abs(sc-kMu)>0)){
+          add({lv:"warn",cat:"規格設定",title:`疑似單位不符（規格中心距資料平均 >10σ）`,ents:[`s:${k}`],score:5,
+            facts:[`${lab(k)} 規格中心 ${f(sc,1)} ${u(k)}，資料平均 ${f(kMu,1)} ${u(k)}，相差 >10σ（σ = ${f(kSd,2)}）`],
+            cause:"資料量測單位與規格單位可能不一致（例如 0.5–1.5 vs 100±5），請確認規格設定與匯入單位。",conf:"高",go:{tab:"data"}});
+        }
+      }
+    }
+  }
+
   // 0. 拼板子板位置效應（先算：顯著時，後續單板異常改用扣除子板效應後的值，避免同一原因重複列出）
   const figAdj={};
   const figs=[...new Set(R.map(r=>r.figure).filter(x=>x!=null))];
@@ -1635,8 +2010,8 @@ function runGroupStats(st,m){const R=st.rows;for(const r of R)if(r.height!=null)
     const br=[...bd.values()].map(x=>x.d/x.n);
     out[g]={br,g,n:rs.length,nb:new Set(rs.map(r=>r.board)).size,mu,ppk,te:te.length?mean(te):NaN,cv:te.length>1?sd(te)/mean(te)*100:NaN,bm,d:rs.filter(r=>classify(r,st.specs,st).length).length,
       ar:g==="整體"||!one.length?NaN:Math.min(...one.map(r=>areaRatio(r,st))),thk:g==="整體"||!one.length?NaN:Math.max(...one.map(r=>padThk(r,st)))};out[g].rate=out[g].d/out[g].n}
-  // 機台模式各群組規格不同：整體 Ppk 不能用共用規格把不同群組混算，改取最差群組（與製程能力頁一致）
-  if(st.specSrc==="machine"&&st.specsG&&out["整體"]){const gs=groups.map(g=>out[g]).filter(x=>x&&isFinite(x.ppk));if(gs.length){const w=gs.reduce((a,b)=>b.ppk<a.ppk?b:a);Object.assign(out["整體"],{ppk:w.ppk,nb:w.nb,ppkGroup:w.g})}}
+  // 整體 Ppk 在任何規格模式下都取最差群組（與機台模式、能力頁相同），標籤旁寫出群組名稱 (D-46)
+  if(out["整體"]&&groups.length>1){const gs=groups.map(g=>out[g]).filter(x=>x&&isFinite(x.ppk));if(gs.length){const w=gs.reduce((a,b)=>b.ppk<a.ppk?b:a);Object.assign(out["整體"],{ppk:w.ppk,nb:w.nb,ppkGroup:w.g})}}
   return out}
 function compareRuns(sa,sb,m){const A=runGroupStats(sa,m),B=runGroupStats(sb,m),tgt=sa.specs.volume.tgt;
   return Object.keys(A).filter(k=>B[k]).map(k=>{const a=A[k],b=B[k],t=welch(b.bm,a.bm);
@@ -1997,6 +2372,21 @@ function applyScope(){const on=AN_TABS.has(S.tab);$$("[data-scope=a]").forEach(e
 function tabIntoView(t){const bar=$(".tabs"),el=$(`.tab[data-tab="${t}"]`);if(!bar||!el)return;const l=el.offsetLeft-bar.offsetLeft,r=l+el.offsetWidth;
   if(l<bar.scrollLeft+24)bar.scrollLeft=Math.max(0,l-24);else if(r>bar.scrollLeft+bar.clientWidth-24)bar.scrollLeft=r-bar.clientWidth+24;tabFade()}
 function tabFade(){const bar=$(".tabs");if(!bar)return;bar.classList.toggle("fl",bar.scrollLeft>2);bar.classList.toggle("fr",bar.scrollLeft+bar.clientWidth<bar.scrollWidth-2)}
+function syncMobileTabs(t){
+  const primaryTabs=["issues","overview","control","capability"];
+  $$(".mtab [data-tab]").forEach(b=>{
+    const isSel=b.dataset.tab===t;
+    b.setAttribute("aria-selected",isSel?"true":"false");
+    if(isSel)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");
+  });
+  const moreBtn=$("#mtabMore");
+  if(moreBtn){
+    const inMore=!primaryTabs.includes(t);
+    moreBtn.classList.toggle("active",inMore);
+    moreBtn.setAttribute("aria-selected",inMore?"true":"false");
+    if(inMore)moreBtn.setAttribute("aria-current","page");else moreBtn.removeAttribute("aria-current");
+  }
+}
 const ALL_TABS = ["issues","overview","control","capability","sim3d","cross","adv","compare","dfm","lab","ai","data","share","shares"];
 function setTab(t, fromHistory = false) {
   if (!ALL_TABS.includes(t)) t = "issues";
@@ -2008,6 +2398,7 @@ function setTab(t, fromHistory = false) {
     x.setAttribute("aria-selected", sel);
     x.tabIndex = sel ? 0 : -1;
   });
+  syncMobileTabs(t);
   tabIntoView(t);
   $$(".panel").forEach(p => p.hidden = p.id !== "p-" + t);
   if (t !== "sim3d") stopPlay();
@@ -2037,10 +2428,10 @@ function renderOverview(){const A=S.A,u=METRICS[A.m].unit,xv=A.xv;
   $("#vText").textContent=`${msg[1]} 交叉驗證 ${xv.rows.length} 項中：${xv.ng} 項異常、${xv.wn} 項警示。`+(A.worst&&A.worst.defects?` 最差板 ${A.worst.board}，不良焊墊 ${A.worst.defects} 個。`:"");
   const defTot=A.defRows.length,padTot=S.rows.filter(r=>S.group==="ALL"||r.group===S.group).length;
   $("#kpis").innerHTML=kpi("平均 "+METRICS[A.m].short,f(A.gMean,1)+`<small style="font-size:15px"> ${u}</small>`,`σ 整體 ${f(A.overallSd,2)} · 組內 ${f(A.sigmaW,2)}`)
-    +kpi("CPK"+(A.cap&&A.cap.mixed?"（最差群組）":"")+(A.cap&&A.cap.lowerBound?" ≥":""),A.cap?f(A.cap.cpk):"—",A.cap?(A.stable?"":"製程未穩定，僅供參考 · ")+(A.cap.lowerBound?"機台推估規格，為下限 · ":"")+(A.cap.mixed?`${A.cap.worst} · 規格 ${f(A.cap.lsl,0)} – ${f(A.cap.usl,0)} ${u}`:`規格 ${A.sp.lsl} – ${A.sp.usl} ${u}`):"未設定規格",A.cap?capCls(A.cap.cpk):"")
-    +kpi("PPK"+(A.cap&&A.cap.mixed?"（最差群組）":""),A.cap?f(A.cap.ppk):"—",A.cap?(A.stable?"":"製程未穩定，僅供參考 · ")+"長期 σ":"",A.cap?capCls(A.cap.ppk):"")
+    +kpi("CPK"+(A.cap&&A.cap.mixed?"（最差群組）":"")+(A.cap&&A.cap.lowerBound?" ≥":""),A.cap&&isFinite(A.cap.cpk)?f(A.cap.cpk):"—",A.cap?(A.cap.reason||((A.stable?"":"製程未穩定，僅供參考 · ")+(A.cap.lowerBound?"機台推估規格，為下限 · ":"")+(A.cap.mixed?`${A.cap.worst} · 規格 ${f(A.cap.lsl,0)} – ${f(A.cap.usl,0)} ${u}`:`規格 ${A.sp.lsl} – ${A.sp.usl} ${u}`))):"未設定規格",A.cap?capCls(A.cap.cpk):"")
+    +kpi("PPK"+(A.cap&&A.cap.mixed?"（最差群組）":""),A.cap&&isFinite(A.cap.ppk)?f(A.cap.ppk):"—",A.cap?(A.cap.reason||((A.stable?"":"製程未穩定，僅供參考 · ")+"長期 σ")):"",A.cap?capCls(A.cap.ppk):"")
     +kpi("判異點數",(A.nelX||A.nel).flag.size,`X̄ 圖 ${(A.nelX||A.nel).rules.filter(r=>r.idx.length&&r.id!==7).length} 條 Nelson 規則觸發`,(A.nelX||A.nel).flag.size?"ng":"ok")
-    +kpi("不良焊墊",defTot,`${fmtPpm(defTot/padTot*1e6)} PPM（全部量測項目）`,defTot?"warn":"ok")
+    +kpi("不良 PPM（全部判定項目）",fmtPpm(Math.round(defTot/padTot*1e6)),`不良焊墊 ${defTot} 處（全部判定項目）`,defTot?"warn":"ok")
     +kpi("樣本",A.N.toLocaleString(),`${A.boards.length} 片板 · ${A.pads.length} 個焊墊位置`);
   $("#ovChartSub").textContent=chartName()+" · "+METRICS[A.m].short;
   const acts=S.F.filter(x=>x.lv!=="info").slice(0,4).map(x=>({lv:x.lv,t:`#${x.id} ${x.title}`,d:x.facts[0]+"。推論："+x.cause,btn:GOLAB[x.go&&x.go.tab]||"查看",go:()=>goto(x.go,x)}));
@@ -2091,8 +2482,10 @@ function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
   $("#ctrlTitle").textContent=t[0];$("#ctrl2Title").textContent=t[1];$("#ctrl2Card").hidden=!t[1];$("#ctrlHow").textContent=HOW[c];
   const cl=c==="imr"?A.imr.cl:c==="p"?A.pc.cl*100:A.xs.cl;
   const ewOut=A.ewma.filter(p=>p.v>p.ucl||p.v<p.lcl).map(p=>p.lab),cuOut=A.cusum.pts.filter(p=>p.cp>A.cusum.h||p.cm>A.cusum.h).map(p=>p.lab),cuStart=A.cusum.pts.findIndex(p=>p.cp>A.cusum.h||p.cm>A.cusum.h);
-  $("#ctrlSub").textContent=c==="p"?`P' 圖（Laney）p̄ = ${f(cl,2)} %，σz = ${f(A.pc.sigZ,2)}${A.pc.sigZ>1?"（板間變異大於二項式，界限已放寬）":""}`:c==="ewma"?`CL ${f(A.gMean,2)} ${u} · σ板間 ${f(A.cusum.sB,3)} · 越界 ${ewOut.length?ewOut.join("、"):"無"}`
-    :c==="cusum"?`σ板間 ${f(A.cusum.sB,3)} ${u} · 訊號 ${cuOut.length?cuOut.join("、"):"無"}`:`CL ${f(cl,2)} ${u}`+(c==="xbars"?` · σ板間 ${f(A.xs.sB,3)}（三向法）· n̄ ${f(A.nbar,0)}`:` · MR̄ ${f(A.imr.mrbar,2)}`);
+  const warnText = A.xs.subgroupWarning ? ` · <span class="note">${A.xs.subgroupWarning}</span>` : "";
+  const rejText = A.xs.reason ? ` · <span class="pill warn">${A.xs.reason}</span>` : "";
+  $("#ctrlSub").textContent=c==="p"?`P' 圖（Laney）p̄ = ${f(cl,2)} %，σz = ${f(A.pc.sigZ,2)}${A.pc.sigZ>1?"（板間變異大於二項式，界限已放寬）":""}`:c==="ewma"?`CL ${f(A.gMean,2)} ${u} · σ板間 ${f(A.cusum.sB,3)} · 越界 ${ewOut.length?ewOut.join("、"):"無"}${A.ewma.subgroupWarning?" · "+A.ewma.subgroupWarning:""}${A.ewma.reason?" · "+A.ewma.reason:""}`
+    :c==="cusum"?`σ板間 ${f(A.cusum.sB,3)} ${u} · 訊號 ${cuOut.length?cuOut.join("、"):"無"}${A.cusum.subgroupWarning?" · "+A.cusum.subgroupWarning:""}${A.cusum.reason?" · "+A.cusum.reason:""}`:`CL ${f(cl,2)} ${u}`+(c==="xbars"?` · σ板間 ${f(A.xs.sB,3)}（三向法）· n̄ ${f(A.nbar,0)}${warnText}${rejText}`:` · MR̄ ${f(A.imr.mrbar,2)}${A.imr.subgroupWarning?" · "+A.imr.subgroupWarning:""}${A.imr.reason?" · "+A.imr.reason:""}`);
   $("#ctrlLegend").innerHTML=c==="cusum"?`<span><i style="border-color:${css("--series2")}"></i>C+ 向上累積</span><span><i class="dash" style="border-color:${css("--accent")}"></i>C− 向下累積</span><span><i class="dash" style="border-color:${css("--ng")}"></i>決策界限 ±h</span><span><i class="sq" style="background:${css("--ng")};border-radius:50%"></i>超過界限</span>`
     :c==="ewma"?`<span><i style="border-color:${css("--series2")}"></i>EWMA</span><span><i class="sq" style="background:${css("--muted")};border-radius:50%"></i>每板平均</span><span><i style="border-color:${css("--accent")}"></i>中心線</span><span><i class="dash" style="border-color:${css("--ng")}"></i>UCL / LCL</span>`
     :`<span><i style="border-color:${css("--series2")}"></i>量測值</span><span><i style="border-color:${css("--accent")}"></i>中心線</span><span><i class="dash" style="border-color:${css("--ng")}"></i>UCL / LCL（±3σ）</span><span><i class="dash" style="border-color:${css("--muted")}"></i>±1σ、±2σ 區</span><span><i class="sq" style="background:${css("--ng")};border-radius:50%"></i>判異點</span>`;
@@ -2110,9 +2503,15 @@ function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
 function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
   const pre=cap?(A.stable?"":"製程未穩定，僅供參考 · ")+(cap.lowerBound?"機台推估規格，為下限 · ":"")+(cap.mixed?`最差群組 ${cap.worst} · `:""):"";
   $("#capGrp").hidden=!(cap&&cap.mixed);
-  if(cap&&cap.mixed)$("#capGrpTbl").innerHTML=`<thead><tr><th>元件群組</th><th>n</th><th>平均</th><th>規格${cap.perGroupSpec?"（各群組推估）":""}</th><th>Cp</th><th>Cpk</th><th>Cpk 95% 信賴區間（以板數計）</th><th>Ppk</th><th>預估 PPM</th><th>實測 PPM</th></tr></thead><tbody>`+cap.groups.map(g=>`<tr><td>${esc(g.g)}</td><td class="mono">${g.n}</td><td class="mono">${f(g.mu,1)}</td><td class="mono">${f(g.lsl,0)}–${f(g.usl,0)}</td><td class="mono">${f(g.cp)}</td><td class="mono"><span class="pill ${capCls(g.cpk)}">${f(g.cpk)}</span></td><td class="mono">${f(g.ci[0])} – ${f(g.ci[1])}</td><td class="mono">${f(g.ppk)}</td><td class="mono">${fmtPpm(g.ppmExp)}</td><td class="mono">${fmtPpm(g.ppmObs)}</td></tr>`).join("")+"</tbody>";
-  $("#capKpis").innerHTML=cap?kpi("CP",f(cap.cp),pre+"短期潛在能力",capCls(cap.cp))+kpi("CPK",f(cap.cpk),pre+`短期實際能力 · 95% 信賴區間 ${f(cap.ci[0])} – ${f(cap.ci[1])}（以 ${cap.nb} 片板計）`,capCls(cap.cpk))+kpi("PP",f(cap.pp),"長期潛在能力",capCls(cap.pp))+kpi("PPK",f(cap.ppk),"長期實際能力",capCls(cap.ppk))+kpi("預估 PPM",fmtPpm(cap.ppmExp),cap.mixed?"各群組常態預估加權":"常態假設下超規",cap.ppmExp>2700?"ng":cap.ppmExp>63?"warn":"ok")+kpi("實測 PPM",fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok")
-    :kpi("規格","未設定","請於上方輸入 LSL / USL");
+  const specTitle = METRICS[A.m].short;
+  if(cap&&cap.mixed)$("#capGrpTbl").innerHTML=`<thead><tr><th>元件群組</th><th>n</th><th>平均</th><th>規格${cap.perGroupSpec?"（各群組推估）":""}</th><th>Cp</th><th>Cpk</th><th>Cpk 95% 信賴區間（以板數計）</th><th>Ppk</th><th>預估 PPM</th><th>超規 PPM（${specTitle}）</th></tr></thead><tbody>`+cap.groups.map(g=>`<tr><td>${esc(g.g)}</td><td class="mono">${g.n}</td><td class="mono">${f(g.mu,1)}</td><td class="mono">${f(g.lsl,0)}–${f(g.usl,0)}</td><td class="mono">${isFinite(g.cp)?f(g.cp):"—"}</td><td class="mono"><span class="pill ${capCls(g.cpk)}">${isFinite(g.cpk)?f(g.cpk):"—"}</span></td><td class="mono">${isFinite(g.ci[0])?f(g.ci[0])+" – "+f(g.ci[1]):(g.reason?esc(g.reason):"—")}</td><td class="mono">${isFinite(g.ppk)?f(g.ppk):"—"}</td><td class="mono">${isFinite(g.ppmExp)?fmtPpm(g.ppmExp):"—"}</td><td class="mono">${isFinite(g.ppmObs)?fmtPpm(g.ppmObs):"—"}</td></tr>`).join("")+"</tbody>";
+  const unitWarn = A.unitMismatch ? `<div class="pill warn" style="margin-bottom:8px">⚠️ 疑似單位不符（規格中心距資料平均 >10σ 或 |Cpk|>50）</div>` : "";
+  const capCards = cap && isFinite(cap.cpk) ? (
+    kpi("CP",f(cap.cp),pre+"短期潛在能力",capCls(cap.cp))+kpi("CPK",f(cap.cpk),pre+`短期實際能力 · 95% 信賴區間 ${f(cap.ci[0])} – ${f(cap.ci[1])}（以 ${cap.nb} 片板計）`,capCls(cap.cpk))+kpi("PP",f(cap.pp),"長期潛在能力",capCls(cap.pp))+kpi("PPK",f(cap.ppk),"長期實際能力",capCls(cap.ppk))+kpi("預估 PPM",fmtPpm(cap.ppmExp),cap.mixed?"各群組常態預估加權":"常態假設下超規",cap.ppmExp>2700?"ng":cap.ppmExp>63?"warn":"ok")+kpi(`超規 PPM（${specTitle}）`,fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok")
+  ) : cap && cap.reason ? (
+    kpi("製程能力", "無法定義", cap.reason, "warn") + (isFinite(cap.ppmObs) ? kpi(`超規 PPM（${specTitle}）`,fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok") : "")
+  ) : kpi("規格","未設定","請於上方輸入 LSL / USL");
+  $("#capKpis").innerHTML = unitWarn + capCards;
   const all=A.rows.map(r=>r[A.m]).sort((a,b)=>a-b),n=all.length,iqr=quant(all,.75)-quant(all,.25);
   let bw=2*iqr/Math.cbrt(n)||1;const lo=Math.min(all[0],A.hasSpec?A.sp.lsl:all[0]),hi=Math.max(all[n-1],A.hasSpec?A.sp.usl:all[n-1]);let nb=Math.ceil((all[n-1]-all[0])/bw);if(nb>45){bw=(all[n-1]-all[0])/45;nb=45}if(nb<8){bw=(all[n-1]-all[0])/8||1;nb=8}
   const bins=Array.from({length:nb},(_,i)=>({x:all[0]+bw*(i+.5),y:0}));all.forEach(v=>{const i=Math.min(nb-1,Math.floor((v-all[0])/bw));bins[i].y++});
@@ -2266,8 +2665,9 @@ function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTi
   const ar=(a,b)=>isFinite(a)?`${f(a,2)} → ${f(b,2)}`:"—",pv=p=>p==null||!isFinite(p)?"":` <span class="note">p ${p<.001?"< 0.001":"= "+f(p,3)}</span>`;
   const arrow=(d,good)=>Math.abs(d)<1e-9?"":good?`<span style="color:var(--ok)">▲</span>`:`<span style="color:var(--ng)">▼</span>`;
   const tgt=S.specs.volume.tgt;
-  $("#cmpTbl").innerHTML=`<thead><tr><th>元件群組</th><th class="num">面積比</th><th class="num">轉移效率 %</th><th class="num">錫量 CV %</th><th class="num">${METRICS[S.cmpM].short} Ppk</th><th class="num">不良 PPM</th><th>判定</th></tr></thead><tbody>`+R.map(x=>{const pill={改善:"ok",惡化:"ng",有好有壞:"warn",無顯著差異:"na"}[x.verdict];
-    return`<tr${x.g==="整體"?' style="font-weight:500"':""}><td>${x.g}</td><td class="num mono">${ar(x.a.ar,x.b.ar)}</td>
+  $("#cmpTbl").innerHTML=`<thead><tr><th>元件群組</th><th class="num">面積比</th><th class="num">轉移效率 %</th><th class="num">錫量 CV %</th><th class="num">${METRICS[S.cmpM].short} Ppk</th><th class="num">不良 PPM（全部判定項目）</th><th>判定</th></tr></thead><tbody>`+R.map(x=>{const pill={改善:"ok",惡化:"ng",有好有壞:"warn",無顯著差異:"na"}[x.verdict];
+    const gLabel = x.g === "整體" && (x.b.ppkGroup || x.a.ppkGroup) ? `整體（最差群組 ${x.b.ppkGroup || x.a.ppkGroup}）` : x.g;
+    return`<tr${x.g==="整體"?' style="font-weight:500"':""}><td>${gLabel}</td><td class="num mono">${ar(x.a.ar,x.b.ar)}</td>
     <td class="num mono">${f(x.a.te,1)} → ${f(x.b.te,1)} ${x.sigTE?arrow(1,Math.abs(x.b.te-tgt)<Math.abs(x.a.te-tgt)):""}${pv(x.tTE&&x.tTE.p)}</td>
     <td class="num mono">${f(x.a.cv,1)} → ${f(x.b.cv,1)}</td>
     <td class="num mono">${f(x.a.ppk)} → ${f(x.b.ppk)} ${x.sigC?arrow(1,x.dC>0):""}</td>
@@ -2288,8 +2688,8 @@ function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTi
     <div><div class="fact">B 新出現或仍存在</div><ul style="margin:4px 0;padding-left:18px">${FB.map(x=>`<li>${kA.has(keyOf(x))?"":'<span class="pill warn">新</span> '}${esc(x.title)}</li>`).join("")||'<li class="note">無</li>'}</ul></div></div>`;
 }
 ["cmpA","cmpB","cmpM"].forEach(id=>$("#"+id).onchange=e=>{S[id]=id==="cmpM"?e.target.value:+e.target.value;renderCompare()});
-$("#btnCmpMd").onclick=()=>{if(!CMP)return;const{ra,rb,R,FA,FB}=CMP;save("run-compare.md",`# 試產回合比較\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- A（基準）：${ra.name}\n- B（比較）：${rb.name}\n\n| 元件群組 | 面積比 | 轉移效率 % | Ppk（${METRICS[S.cmpM].short}） | 不良 PPM | 判定 |\n|---|---|---|---|---|---|\n`
-  +R.map(x=>`| ${x.g} | ${isFinite(x.a.ar)?f(x.a.ar,2)+" → "+f(x.b.ar,2):"—"} | ${f(x.a.te,1)} → ${f(x.b.te,1)}${x.tTE?`（p ${f(x.tTE.p,3)}）`:""} | ${f(x.a.ppk)} → ${f(x.b.ppk)} | ${fmtPpm(x.a.rate*1e6)} → ${fmtPpm(x.b.rate*1e6)}（p ${f(x.pD,3)}） | ${x.verdict} |`).join("\n")
+$("#btnCmpMd").onclick=()=>{if(!CMP)return;const{ra,rb,R,FA,FB}=CMP;save("run-compare.md",`# 試產回合比較\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- A（基準）：${ra.name}\n- B（比較）：${rb.name}\n\n| 元件群組 | 面積比 | 轉移效率 % | Ppk（${METRICS[S.cmpM].short}） | 不良 PPM（全部判定項目） | 判定 |\n|---|---|---|---|---|---|\n`
+  +R.map(x=>{const gLabel=x.g==="整體"&&(x.b.ppkGroup||x.a.ppkGroup)?`整體（最差群組 ${x.b.ppkGroup||x.a.ppkGroup}）`:x.g;return`| ${gLabel} | ${isFinite(x.a.ar)?f(x.a.ar,2)+" → "+f(x.b.ar,2):"—"} | ${f(x.a.te,1)} → ${f(x.b.te,1)}${x.tTE?`（p ${f(x.tTE.p,3)}）`:""} | ${f(x.a.ppk)} → ${f(x.b.ppk)} | ${fmtPpm(x.a.rate*1e6)} → ${fmtPpm(x.b.rate*1e6)}（p ${f(x.pD,3)}） | ${x.verdict} |`}).join("\n")
   +`\n\n## 問題偵測\n\n- A：${FA.length} 項（嚴重 ${FA.filter(x=>x.lv==="ng").length}）\n- B：${FB.length} 項（嚴重 ${FB.filter(x=>x.lv==="ng").length}）\n\n### B 仍存在的問題\n\n${FB.map(x=>`- ［${LVL[x.lv]}］${x.title}`).join("\n")||"- 無"}\n`)};
 
 /* ---------- DFM 建議 ---------- */
@@ -2833,7 +3233,11 @@ drop.addEventListener("drop",e=>{const fl=e.dataTransfer.files[0];if(fl)readImpo
 
 /* ---------- 報告 / 匯出 ---------- */
 function reportMd(){const A=S.A,u=METRICS[A.m].unit,lab={ok:"一致/正常",warn:"警示",ng:"異常",na:"—"};
-  return`# SPI·SPC 分析報告\n\n- 產生時間：${new Date().toLocaleString("zh-TW")}\n- 資料來源：${S.source}\n- 量測項目：${METRICS[A.m].label}；元件群組：${S.group==="ALL"?"全部":S.group}；管制圖：${chartName()}\n- 規格：LSL ${A.sp.lsl} / 目標 ${A.sp.tgt} / USL ${A.sp.usl} ${u}\n- 規格來源：${specSrcText()}\n- 刮刀行程方向：沿 ${S.sqDir||"Y"}；擦拭間隔：每 ${S.wipe} 片\n- 鋼板厚度：${S.stencil} µm（高度規格 ${S.htol.lo}%–${S.htol.hi}% 厚度）\n- 階梯鋼板：${S.step.on?S.step.zones.map(z=>`${z.name} ${z.t} µm（${z.mode==="group"?"群組 "+z.group:`X ${z.x0}–${z.x1}, Y ${z.y0}–${z.y1} mm`}）`).join("；"):"未啟用"}\n- 系統版本：${APP.ver} · 系統更新 ${APP.built}\n- 試產回合：${curRun()?curRun().name:""}\n${runSrc(curRun())?`- 資料來源追溯：${srcLine(runSrc(curRun()))}\n- 原始檔 SHA-256：${runSrc(curRun()).sha256}\n`:""}\n## 問題偵測（依嚴重度與佐證排序）\n\n${S.F.map(x=>`- #${x.id}［${LVL[x.lv]}］${x.title}\n  - 事實：${x.facts.join("；")}\n  - 推論（信心 ${x.conf}）：${x.cause}`).join("\n")||"- 未偵測到顯著問題"}\n\n## 一、統計結果（事實）\n\n| 指標 | 數值 |\n|---|---|\n| 樣本數 | ${A.N} |\n| 板數 | ${A.boards.length} |\n| 平均 | ${f(A.gMean,2)} ${u} |\n| σ 組內 / 整體 | ${f(A.sigmaW,3)} / ${f(A.overallSd,3)} |\n${A.cap?`| 能力計算方式 | ${A.cap.mixed?`逐元件群組（組內 σ），以最差群組 ${A.cap.worst} 代表`:"組內 σ"}${A.cap.lowerBound?"；規格窗為機台 PASS 焊墊的實際範圍，真正規格只會更寬，Cp/Cpk 為下限":""}${A.stable?"":"；製程未穩定，僅供參考"} |\n| Cp / Cpk | ${f(A.cap.cp)} / ${f(A.cap.cpk)} |\n| Cpk 95% 信賴區間（以 ${A.cap.nb} 片板計） | ${f(A.cap.ci[0])} – ${f(A.cap.ci[1])} |\n| Pp / Ppk | ${f(A.cap.pp)} / ${f(A.cap.ppk)} |\n| 預估 / 實測 PPM | ${fmtPpm(A.cap.ppmExp)} / ${fmtPpm(A.cap.ppmObs)} |\n`:""}| Anderson-Darling p | ${A.ad.p<.001?"<0.001":f(A.ad.p,3)} |\n| 不良焊墊（全部項目） | ${A.defRows.length} |\n\n${A.cap&&A.cap.mixed?`\n### 逐元件群組製程能力\n\n| 元件群組 | n | 平均 | 規格 | Cpk | Cpk 95% 信賴區間 | Ppk | 預估 PPM | 實測 PPM |\n|---|---|---|---|---|---|---|---|---|\n${A.cap.groups.map(g=>`| ${g.g} | ${g.n} | ${f(g.mu,1)} | ${f(g.lsl,0)}–${f(g.usl,0)} | ${f(g.cpk)} | ${f(g.ci[0])}–${f(g.ci[1])} | ${f(g.ppk)} | ${fmtPpm(g.ppmExp)} | ${fmtPpm(g.ppmObs)} |`).join("\n")}\n`:""}
+  const mShort=METRICS[A.m].short||METRICS[A.m].label;
+  const defTot=A.defRows?A.defRows.length:0;
+  const padTot=A.padTot||A.N||0;
+  const defPpm=padTot?Math.round((defTot/padTot)*1e6):0;
+  return`# SPI·SPC 分析報告\n\n- 產生時間：${new Date().toLocaleString("zh-TW")}\n- 資料來源：${S.source}\n- 量測項目：${METRICS[A.m].label}；元件群組：${S.group==="ALL"?"全部":S.group}；管制圖：${chartName()}\n- 規格：LSL ${A.sp.lsl} / 目標 ${A.sp.tgt} / USL ${A.sp.usl} ${u}\n- 規格來源：${specSrcText()}\n- 刮刀行程方向：沿 ${S.sqDir||"Y"}；擦拭間隔：每 ${S.wipe} 片\n- 鋼板厚度：${S.stencil} µm（高度規格 ${S.htol.lo}%–${S.htol.hi}% 厚度）\n- 階梯鋼板：${S.step.on?S.step.zones.map(z=>`${z.name} ${z.t} µm（${z.mode==="group"?"群組 "+z.group:`X ${z.x0}–${z.x1}, Y ${z.y0}–${z.y1} mm`}）`).join("；"):"未啟用"}\n- 系統版本：${APP.ver} · 系統更新 ${APP.built}\n- 試產回合：${curRun()?curRun().name:""}\n${runSrc(curRun())?`- 資料來源追溯：${srcLine(runSrc(curRun()))}\n- 原始檔 SHA-256：${runSrc(curRun()).sha256}\n`:""}\n## 問題偵測（依嚴重度與佐證排序）\n\n${S.F.map(x=>`- #${x.id}［${LVL[x.lv]}］${x.title}\n  - 事實：${x.facts.join("；")}\n  - 推論（信心 ${x.conf}）：${x.cause}`).join("\n")||"- 未偵測到顯著問題"}\n\n## 一、統計結果（事實）\n\n| 指標 | 數值 |\n|---|---|\n| 樣本數 | ${A.N} |\n| 板數 | ${A.boards.length} |\n| 平均 | ${f(A.gMean,2)} ${u} |\n| σ 組內 / 整體 | ${f(A.sigmaW,3)} / ${f(A.overallSd,3)} |\n${A.cap?`| 能力計算方式 | ${A.cap.mixed?`逐元件群組（組內 σ），以最差群組 ${A.cap.worst} 代表`:"組內 σ"}${A.cap.lowerBound?"；規格窗為機台 PASS 焊墊的實際範圍，真正規格只會更寬，Cp/Cpk 為下限":""}${A.stable?"":"；製程未穩定，僅供參考"} |\n| Cp / Cpk | ${f(A.cap.cp)} / ${f(A.cap.cpk)} |\n| Cpk 95% 信賴區間（以 ${A.cap.nb} 片板計） | ${f(A.cap.ci[0])} – ${f(A.cap.ci[1])} |\n| Pp / Ppk | ${f(A.cap.pp)} / ${f(A.cap.ppk)} |\n| 預估 PPM / 超規 PPM（${mShort}） | ${fmtPpm(A.cap.ppmExp)} / ${fmtPpm(A.cap.ppmObs)} |\n| 不良 PPM（全部判定項目） | ${fmtPpm(defPpm)} |\n`:""}| Anderson-Darling p | ${A.ad.p<.001?"<0.001":f(A.ad.p,3)} |\n| 不良焊墊（全部項目） | ${A.defRows.length} |\n\n${A.cap&&A.cap.mixed?`\n### 逐元件群組製程能力\n\n| 元件群組 | n | 平均 | 規格 | Cpk | Cpk 95% 信賴區間 | Ppk | 預估 PPM | 超規 PPM（${mShort}） |\n|---|---|---|---|---|---|---|---|---|\n${A.cap.groups.map(g=>`| ${g.g} | ${g.n} | ${f(g.mu,1)} | ${f(g.lsl,0)}–${f(g.usl,0)} | ${f(g.cpk)} | ${f(g.ci[0])}–${f(g.ci[1])} | ${f(g.ppk)} | ${fmtPpm(g.ppmExp)} | ${fmtPpm(g.ppmObs)} |`).join("\n")}\n`:""}
 ## 二、Nelson 規則（X̄ 圖，管制狀態判斷依據）\n\n${(A.nelX||A.nel).rules.map(r=>`- 規則 ${r.name}：${r.idx.length?"觸發（"+r.idx.map(i=>A.xs.pts[i].lab).join(", ")+"）":"通過"}`).join("\n")}${S.chart!=="xbars"?`\n\n目前畫面管制圖（${chartName()}）：${A.nel.rules.filter(r=>!r.na).map(r=>`規則 ${r.id} ${r.idx.length?"觸發":"通過"}`).join("、")}`:""}\n\n## 三、交叉驗證\n\n| 面向 | 來源 | 判定 | 依據 |\n|---|---|---|---|\n${A.xv.rows.map(x=>`| ${x.k} | ${x.src} | ${lab[x.st]} | ${x.ev} |`).join("\n")}\n\n${fmMd().trim()||"## 失效模式交叉比對\n\n- 無資料"}\n\n## 進階分析\n\n${(()=>{const W=advSummary(A);return[`- EWMA 越界：${W.EWMA越界.join(", ")||"無"}；CUSUM 訊號：${W.CUSUM訊號.join(", ")||"無"}`,`- 面積比 / 轉移效率：${W.面積比.map(g=>`${g.群組} AR ${g.AR}、TE ${g.轉移效率}%`).join("；")}`,`- 最差焊墊 Cpk：${W.最差焊墊Cpk.map(p=>`${p.焊墊} ${p.Cpk}`).join("、")}`,`- 對位異常板：${W.對位異常板.map(a=>`${a.板}（平移 ${a.平移X}/${a.平移Y} µm，旋轉 ${a.旋轉度}°）`).join("；")||"無"}`,W.刮刀前後?`- 刮刀前後差：${W.刮刀前後.差值}，p = ${W.刮刀前後.p}`:"",`- 擦拭週期（每 ${W.擦拭週期.每幾片} 片）：斜率 ${W.擦拭週期.每片斜率}/片，p = ${W.擦拭週期.p}`].filter(Boolean).join("\n")})()}\n\n## 四、不良柏拉圖\n\n${Object.entries(A.pareto).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`- ${DEFECTS[k]}：${v}`).join("\n")||"- 無"}\n${S.ai?`\n## 五、Claude AI 分析（含推論，需工程驗證）\n\n${S.ai}\n`:""}`}
 /* 下載：在 claude.ai 內用平台下載功能；一般瀏覽器（例如 Netlify 部署）直接下載檔案 */
 function browserDownload(filename,data){const type=/\.csv$/.test(filename)?"text/csv;charset=utf-8":"text/markdown;charset=utf-8",url=URL.createObjectURL(new Blob(["\uFEFF"+data],{type})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
@@ -2849,7 +3253,11 @@ function mdLite(t){const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;","
   return html+(inList?"</ul>":"")}
 /* 報告與 AI 共用：能力細節、X̄ 管制狀態、失效模式交叉比對、多重比較揭露（巢狀層數與字串長度配合 /api/analyze 的限制） */
 function capInfo(A){const c=A.cap;if(!c)return null;const ci=x=>`${f(x.ci[0])}–${f(x.ci[1])}`;
-  return{Cp:+f(c.cp),Cpk:+f(c.cpk),Cpk95信賴區間:ci(c),信賴區間有效板數:c.nb,Pp:+f(c.pp),Ppk:+f(c.ppk),預估PPM:+fmtPpm(c.ppmExp).replace(/,/g,""),實測PPM:+fmtPpm(c.ppmObs).replace(/,/g,""),
+  const mShort=METRICS[A.m].short||METRICS[A.m].label;
+  const defTot=A.defRows?A.defRows.length:0;
+  const padTot=A.padTot||A.N||0;
+  const defPpm=padTot?Math.round((defTot/padTot)*1e6):0;
+  return{Cp:+f(c.cp),Cpk:+f(c.cpk),Cpk95信賴區間:ci(c),信賴區間有效板數:c.nb,Pp:+f(c.pp),Ppk:+f(c.ppk),預估PPM:+fmtPpm(c.ppmExp).replace(/,/g,""),不良PPM_全部判定項目:defPpm,[`超規PPM_${mShort}`]:+fmtPpm(c.ppmObs).replace(/,/g,""),
     製程穩定:A.stable,能力計算方式:(c.mixed?`逐元件群組（組內 σ），以最差群組 ${c.worst} 代表`:"組內 σ")+(c.lowerBound?"；規格窗為機台 PASS 焊墊的實際範圍，真正規格只會更寬，Cp/Cpk 為下限":""),規格窗:`${f(c.lsl!=null?c.lsl:A.sp.lsl,1)}–${f(c.usl!=null?c.usl:A.sp.usl,1)}`,
     逐群組:c.mixed?c.groups.slice(0,15).map(g=>({群組:g.g,n:g.n,規格:`${f(g.lsl,0)}–${f(g.usl,0)}`,Cpk:+f(g.cpk),Cpk95信賴區間:ci(g),Ppk:+f(g.ppk)})):undefined}}
 function ctrlInfo(A){const N=A.nelX||A.nel;return{依據:"X̄ 圖（每板平均，8 條 Nelson 規則）",製程穩定:A.stable,觸發規則:N.rules.filter(r=>r.idx.length).map(r=>({規則:r.name,板:r.idx.map(i=>A.xs.pts[i].lab).join(" ")})),Pprime_sigmaZ:+f(A.pc.sigZ,2)}}
@@ -3018,8 +3426,23 @@ addEventListener("scroll",()=>{const y=scrollY,st=$(".sticky");if(!st)return;if(
   if(Math.abs(y-lastY)>6)lastY=y;$("#toTop").hidden=y<innerHeight*0.6},{passive:true});
 addEventListener("resize",()=>{updateVars();clearTimeout(enhT);enhT=setTimeout(enhancePanel,120)});
 $("#toTop").onclick=()=>scrollTo({top:0,behavior:"smooth"});
-/* 更多選單（帳號、列印、分享、登出） */
-function updateMore(){const any=["#userChip","#btnPrint","#btnShare","#logoutLink"].some(q=>!$(q).hidden);$("#moreWrap").hidden=!any}
+function syncMoreTools() {
+  const map = [
+    ["#btnPrint", "#mBtnPrint"],
+    ["#btnShare", "#mBtnShare"],
+    ["#btnMyShares", "#mBtnMyShares"],
+    ["#logoutLink", "#mLogoutLink"],
+  ];
+  map.forEach(([desk, mob]) => {
+    const d = $(desk), m = $(mob);
+    if (d && m) m.hidden = d.hidden;
+  });
+}
+function updateMore(){
+  const any=["#userChip","#btnPrint","#btnShare","#logoutLink"].some(q=>!$(q).hidden);
+  $("#moreWrap").hidden=!any;
+  syncMoreTools();
+}
 function closeMore(){$("#moreMenu").hidden=true;$("#btnMore").setAttribute("aria-expanded","false")}
 $("#btnMore").onclick=e=>{e.stopPropagation();const open=$("#moreMenu").hidden;$("#moreMenu").hidden=!open;$("#btnMore").setAttribute("aria-expanded",String(open));if(open){const f=$("#moreMenu").querySelector("button:not([hidden]),a:not([hidden])");f&&f.focus()}};
 document.addEventListener("click",e=>{if(!e.target.closest("#moreWrap"))closeMore()});
@@ -3338,8 +3761,75 @@ try {
   window.matchMedia(PHONE_MQ).addEventListener("change", updateLayout);
   window.matchMedia(TABLET_MQ).addEventListener("change", updateLayout);
 } catch(e) {}
+function updateRailSummary(){
+  const chip=$("#railChipSummary");if(!chip)return;
+  const runOpt=$("#selRun");
+  const runText=(runOpt&&runOpt.selectedIndex>=0&&runOpt.options[runOpt.selectedIndex])?runOpt.options[runOpt.selectedIndex].text:(S.runs?.find(r=>String(r.id)===String(S.runId))?.name||"範例資料");
+  const metricText=(METRICS&&METRICS[S.metric])?(METRICS[S.metric].short||METRICS[S.metric].label):"體積";
+  const grpText=S.group==="ALL"?"全部元件":(S.group||"全部元件");
+  chip.textContent=`${runText} · ${metricText} · ${grpText} ▾`;
+}
+function setupModalSheet(sheetId,triggerId,closeId,backdropId){
+  const sheet=$(sheetId),trig=$(triggerId),cls=$(closeId),bd=$(backdropId);
+  if(!sheet||!trig)return null;
+  function open(){
+    sheet.hidden=false;
+    sheet.classList.add("open");
+    trig.setAttribute("aria-expanded","true");
+    const focusable=[...sheet.querySelectorAll("button:not([disabled]):not([hidden]),[href]:not([hidden]),select:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),[tabindex]:not([tabindex='-1'])")];
+    if(focusable.length)focusable[0].focus();
+  }
+  function close(){
+    sheet.classList.remove("open");
+    sheet.hidden=true;
+    trig.setAttribute("aria-expanded","false");
+    trig.focus();
+  }
+  trig.onclick=open;
+  if(cls)cls.onclick=close;
+  if(bd)bd.onclick=close;
+  sheet.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){e.stopPropagation();close();return}
+    if(e.key==="Tab"){
+      const focusable=[...sheet.querySelectorAll("button:not([disabled]):not([hidden]),[href]:not([hidden]),select:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),[tabindex]:not([tabindex='-1'])")];
+      if(!focusable.length)return;
+      const first=focusable[0],last=focusable[focusable.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+    }
+  });
+  return {open,close};
+}
+const moreSheetCtrl=setupModalSheet("#moreSheet","#mtabMore","#moreSheetClose","#moreBackdrop");
+const railSheetCtrl=setupModalSheet("#railSheet","#btnRailChip","#railSheetClose","#railBackdrop");
+$$("#moreSheet [data-mtab]").forEach(b=>{
+  b.onclick=()=>{if(moreSheetCtrl)moreSheetCtrl.close();setTab(b.dataset.mtab)};
+});
+if($("#mBtnPrint")) $("#mBtnPrint").onclick=()=>{if(moreSheetCtrl)moreSheetCtrl.close();$("#btnPrint").click()};
+if($("#mBtnShare")) $("#mBtnShare").onclick=()=>{if(moreSheetCtrl)moreSheetCtrl.close();$("#btnShare").click()};
+if($("#mBtnMyShares")) $("#mBtnMyShares").onclick=()=>{if(moreSheetCtrl)moreSheetCtrl.close();$("#btnMyShares").click()};
+$$(".mtab [data-tab]").forEach(b=>{
+  b.onclick=()=>setTab(b.dataset.tab);
+});
+function applyMobileChartFont(){
+  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:767px)").matches){
+    if(window.Chart&&window.Chart.defaults){
+      if(!window.Chart.defaults.font)window.Chart.defaults.font={};
+      window.Chart.defaults.font.size=12;
+    }
+  }
+}
+applyMobileChartFont();
+if(typeof window!=="undefined"&&window.matchMedia){
+  try{window.matchMedia("(max-width:767px)").addEventListener("change",applyMobileChartFont)}catch(e){}
+}
+$("#selRun").addEventListener("change",updateRailSummary);
+$("#selMetric").addEventListener("change",updateRailSummary);
+$("#selGroup").addEventListener("change",updateRailSummary);
+updateRailSummary();
+syncMoreTools();
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{RecDB,LocalRec,sha256js,reportMd,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();

@@ -2,6 +2,16 @@
 
 版本號與更新時間（UTC+8）同步顯示於系統主頁標題右側。v1–v5 未記錄確切時間，只列日期。
 
+## v9.11.0 — 2026-10-16 22:45:00（iPhone 行動版 UI 改版）
+
+- 登入頁：input 計算字級 ≥16px（17px）防止 iOS Safari 聚焦放大；label 調為 15px；.toggle 顯示密碼按鈕觸控區域達 44×44；≤720px 品牌插圖區高度精簡至 ≤160px，確保登入按鈕頂端 y ≤ 600px 首屏可點擊；移除帳號欄位 autofocus；加入 color-scheme 與 theme-color（淺 #F2F4F0、深 #0F1311）
+- 主頁 Meta 與 Design Tokens：<head> 加入 color-scheme 與 theme-color；:root 與深色模式注入 --tap-min、--tabbar-h、--navbar-h、--safe-*、--r-card、--r-sheet、--c-bar、--c-hairline；Chart.js 在手機寬度下預設字級 12px
+- 底部分頁列：≤767px 新增毛玻璃固定底欄（5 項：問題、總覽、管制圖、能力、更多），連動既有頁籤切換與 aria 狀態；當前分頁在次級頁籤時「更多」顯示作用中
+- 更多 Bottom Sheet：符合 role="dialog" aria-modal="true" 與 focus trap，整合看證據、改善與驗證、設定等全部 12 個分頁導覽，以及列印、分享、我的分享、登出與版本資訊；每列 ≥52px
+- 頂部與分析設定：header.top 精簡為 44px + safe-top 頂欄（標題 17px semibold）；.rail 收合成 44px sticky 摘要 chip（{回合} · {項目} · {群組} ▾），點開 Bottom Sheet 容納原有 select 與規格按鈕，選擇後即時更新摘要；覆寫 ≤720px 對 sticky 的 static 影響
+- 觸控與排版修正：.card .cbtn、.toc button、.how summary 最小高度補足 ≥44px；.subtab 改為 44px 等分 Segmented 樣式；.pmap-cells 每格 min-width:28px、高 ≥44px 且支援容器橫捲；資料表首欄 sticky 固定並加漸層陰影；#toTop 與 #toast 向上避讓底欄
+- 發行閘門與相容性：桌機版（≥1024px）視覺零回歸；未加入 user-scalable=no 或 overflow-x:hidden；通過 release-check 與自動化測試
+
 ## v9.10.2 — 2026-10-14 20:54:16（Codex 第二輪審查修正）
 
 - 沒有結果代碼的資料列，判定也使用各元件群組自己的機台規格窗
