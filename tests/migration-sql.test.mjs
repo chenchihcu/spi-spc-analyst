@@ -997,4 +997,147 @@ test('J-3: applied_at 只在首次 --apply 寫入（重跑不覆寫）且 D_app 
   }
 });
 
+test('K-1: 時鐘檢查（import --remote 與 export 必填 --worker-url、差 90s 中止、30s 繼續、缺 Date/HEAD 失敗中止、本機模式 0 次 HEAD）', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const {
+    checkWorkerClock,
+    exportSnapshot,
+    importSnapshot,
+    parseMigrationArgs,
+  } = await import('../tools/migrate-netlify-blobs.mjs');
+
+  const baseNow = 1700000000000;
+  const workerUrl = 'https://spi-spc-analyst.example.workers.dev';
+
+  // 1. 差 90 秒 -> 中止
+  await assert.rejects(
+    async () => {
+      await checkWorkerClock(workerUrl, {
+        now: () => baseNow,
+        fetch: async () => ({
+          status: 200,
+          headers: new Map([['Date', new Date(baseNow + 90_000).toUTCString()]]),
+        }),
+      });
+    },
+    /相差 90 秒（超過 60 秒上限）/
+  );
+
+  // 2. 差 30 秒 -> 繼續
+  const res30s = await checkWorkerClock(workerUrl, {
+    now: () => baseNow,
+    fetch: async () => ({
+      status: 200,
+      headers: new Map([['Date', new Date(baseNow - 30_000).toUTCString()]]),
+    }),
+  });
+  assert.equal(res30s.diffMs, 30_000);
+
+  // 3. 沒有 Date 標頭 -> 中止
+  await assert.rejects(
+    async () => {
+      await checkWorkerClock(workerUrl, {
+        now: () => baseNow,
+        fetch: async () => ({
+          status: 200,
+          headers: new Map(),
+        }),
+      });
+    },
+    /缺少 Date 標頭/
+  );
+
+  // 4. HEAD 失敗 -> 中止
+  await assert.rejects(
+    async () => {
+      await checkWorkerClock(workerUrl, {
+        now: () => baseNow,
+        fetch: async () => {
+          throw new Error('connect ECONNREFUSED');
+        },
+      });
+    },
+    /HEAD .* 請求失敗/
+  );
+
+  // 5. --remote 而沒有 --worker-url -> 在任何讀寫前中止（目錄甚至不存在也不會讀到 manifest.json）
+  const nonExistentDir = path.join(os.tmpdir(), 'k1-never-read-dir-' + Date.now());
+  await assert.rejects(
+    async () => {
+      await importSnapshot(nonExistentDir, {
+        remote: true,
+      });
+    },
+    /缺少或無效的 --worker-url/
+  );
+
+  // 6. export 差 90 秒 -> 在任何讀寫前中止
+  let storeListCalled = false;
+  await assert.rejects(
+    async () => {
+      await exportSnapshot(nonExistentDir, {
+        workerUrl,
+        now: () => baseNow,
+        fetch: async () => ({
+          status: 200,
+          headers: new Map([['Date', new Date(baseNow - 90_000).toUTCString()]]),
+        }),
+        listStores: async () => {
+          storeListCalled = true;
+          return { stores: ['spi-records'] };
+        },
+      });
+    },
+    /相差 90 秒/
+  );
+  assert.equal(storeListCalled, false, 'export 時鐘檢查失敗時不得讀取來源站');
+
+  // 7. --skip-clock-check 等未知或略過旗標 -> 中止
+  assert.throws(
+    () => parseMigrationArgs(['import', '/tmp/dir', '--remote', '--worker-url', workerUrl, '--skip-clock-check']),
+    /未知或不允許的旗標: --skip-clock-check/
+  );
+  assert.throws(
+    () => parseMigrationArgs(['export', '/tmp/dir', '--worker-url', workerUrl, '--skip-clock-check']),
+    /未知或不允許的旗標: --skip-clock-check/
+  );
+
+  // 8. 本機模式 --apply（不帶 --remote）：在 fetch 一律失敗、假時鐘差數天時照常完成、HEAD 0 次
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'k1-local-apply-'));
+  try {
+    await fs.mkdir(path.join(tmpDir, 'objects'), { recursive: true });
+    const manifest = {
+      exportedAt: new Date(baseNow).toISOString(),
+      entries: [
+        { store: 'spi-records', key: 'index.json', filename: 'objects/index.json' },
+        { store: 'spi-records', key: 'f/rec_k1', filename: 'objects/rec_k1.bin' },
+      ],
+    };
+    await fs.writeFile(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'index.json'), JSON.stringify([{ id: 'rec_k1', lot: 'L1' }]));
+    await fs.writeFile(path.join(tmpDir, 'objects', 'rec_k1.bin'), Buffer.from('k1'));
+
+    let headCalls = 0;
+    const executedSqls = [];
+    await importSnapshot(tmpDir, {
+      apply: true,
+      remote: false,
+      now: () => baseNow + 5 * 86400_000, // 假時鐘差 5 天
+      fetch: async () => {
+        headCalls++;
+        throw new Error('fetch should never be called in local mode');
+      },
+      d1Exec: async (sql) => {
+        executedSqls.push(sql);
+      },
+    });
+
+    assert.equal(headCalls, 0, '本機模式不得發送任何 HEAD 請求');
+    assert.equal(executedSqls.length > 0, true, '本機模式 --apply 應照常執行 SQL');
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
 

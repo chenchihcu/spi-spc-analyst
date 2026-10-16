@@ -43,11 +43,82 @@ const wrangler = (args) => {
   return r.stdout;
 };
 
-export async function exportSnapshot(dir, sinceTime = null) {
-  const siteID = process.env.NETLIFY_SITE_ID;
-  const token = process.env.NETLIFY_AUTH_TOKEN;
-  if (!siteID || !token) die('NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN are required for export');
-  
+export function resolveNow(nowOpt) {
+  if (typeof nowOpt === 'function') return Number(nowOpt());
+  if (typeof nowOpt === 'number') return nowOpt;
+  return Date.now();
+}
+
+// K-1: 時鐘檢查函式（只在 import 帶 --remote 時與每次 export 執行；預設封閉；允許注入 now() 與 fetch）
+export async function checkWorkerClock(workerUrl, options = {}) {
+  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
+    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+  }
+  if (!workerUrl || typeof workerUrl !== 'string' || !workerUrl.startsWith('https://')) {
+    die('時鐘檢查失敗：缺少或無效的 --worker-url（必須為 https:// 網址），請檢查 --worker-url 或校正電腦時鐘');
+  }
+
+  const fetchFn = typeof options.fetch === 'function' ? options.fetch : globalThis.fetch;
+  if (typeof fetchFn !== 'function') {
+    die('時鐘檢查失敗：缺少可用的 fetch 實作');
+  }
+
+  const targetUrl = `${workerUrl.replace(/\/+$/, '')}/__login`;
+  let res;
+  try {
+    res = await fetchFn(targetUrl, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (err) {
+    die(`時鐘檢查失敗：HEAD ${targetUrl} 請求失敗 (${err?.message || err})，請檢查 --worker-url 或校正電腦時鐘`);
+  }
+
+  if (!res || !res.headers) {
+    die('時鐘檢查失敗：Worker 回應缺少標頭，請檢查 --worker-url 或校正電腦時鐘');
+  }
+
+  const dateHdr = typeof res.headers.get === 'function'
+    ? (res.headers.get('date') || res.headers.get('Date'))
+    : (res.headers.date || res.headers.Date);
+
+  if (!dateHdr) {
+    die('時鐘檢查失敗：Worker 回應缺少 Date 標頭，請檢查 --worker-url 或校正電腦時鐘');
+  }
+
+  const workerTime = Date.parse(dateHdr);
+  if (!Number.isFinite(workerTime)) {
+    die(`時鐘檢查失敗：Worker Date 標頭無法解析 (${dateHdr})，請校正電腦時鐘`);
+  }
+
+  const localNow = resolveNow(options.now);
+  const diffMs = Math.abs(workerTime - localNow);
+  if (diffMs > 60_000) {
+    die(`時鐘檢查失敗：本機時鐘與 Worker Date 相差 ${Math.round(diffMs / 1000)} 秒（超過 60 秒上限），請校正電腦時鐘`);
+  }
+
+  return { localNow, workerTime, diffMs };
+}
+
+export async function exportSnapshot(dir, sinceOrOptions = null) {
+  const opts = (sinceOrOptions && typeof sinceOrOptions === 'object')
+    ? sinceOrOptions
+    : { sinceTime: sinceOrOptions };
+
+  if ('skipClockCheck' in opts || 'clockSkewLimitMs' in opts || 'maxClockSkew' in opts) {
+    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+  }
+
+  // K-1 ①: 每次 export 開始時，在讀寫任何資料之前執行時鐘檢查
+  await checkWorkerClock(opts.workerUrl, { now: opts.now, fetch: opts.fetch });
+
+  const sinceTime = opts.since || opts.sinceTime || null;
+  const siteID = opts.siteID || process.env.NETLIFY_SITE_ID;
+  const token = opts.token || process.env.NETLIFY_AUTH_TOKEN;
+  if (!opts.storeFactory && (!siteID || !token)) {
+    die('NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN are required for export');
+  }
+
   try {
     await access(join(dir, 'manifest.json'));
     die('Export already exists; use a new empty directory');
@@ -55,16 +126,20 @@ export async function exportSnapshot(dir, sinceTime = null) {
     if (e.code !== 'ENOENT') throw e;
   }
 
-  const names = new Set((await listStores({ siteID, token })).stores);
+  const listStoresFn = opts.listStores || listStores;
+  const getStoreFn = opts.storeFactory || ((cfg) => getStore(cfg));
+
+  const names = new Set((await listStoresFn({ siteID, token })).stores);
   if (!names.has('spi-records')) die('Source spi-records store is missing');
 
   await mkdir(join(dir, 'objects'), { recursive: true });
   const entries = [];
   const sharesMetadata = [];
+  const exportNow = resolveNow(opts.now);
 
   for (const name of STORES) {
     if (!names.has(name)) continue;
-    const store = getStore({ name, siteID, token, consistency: 'strong' });
+    const store = getStoreFn({ name, siteID, token, consistency: 'strong' });
     for await (const page of store.list({ paginate: true })) {
       for (const { key } of page.blobs) {
         if (name === 'spi-share' && isShareKey(key)) {
@@ -73,7 +148,7 @@ export async function exportSnapshot(dir, sinceTime = null) {
           const meta = hit.metadata || {};
           sharesMetadata.push({
             id: key,
-            created: Number(meta.created) || Date.now(),
+            created: Number(meta.created) || exportNow,
             exp: Number(meta.exp) || 0,
             user: meta.user || '',
             bytes: Number(meta.bytes) || hit.data.byteLength,
@@ -112,14 +187,15 @@ export async function exportSnapshot(dir, sinceTime = null) {
 
   const manifest = {
     format: 'CF-SPI-001/v2',
-    sourceSiteID: siteID,
-    exportedAt: new Date().toISOString(),
+    sourceSiteID: siteID || 'mock-site',
+    exportedAt: new Date(exportNow).toISOString(),
     records: records.length,
     shares: sharesMetadata.length,
     entries,
   };
   await writeFile(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
   console.log(JSON.stringify({ phase: 'export', records: records.length, shares: sharesMetadata.length, directory: dir }));
+  return manifest;
 }
 
 // I-2, J-2 ③: 每次 import（C3 必做）在本次的全部 log/* 都已在 D1 之後重算 done:false 的遷移列（只用 K 中的鍵）
@@ -263,6 +339,13 @@ export function verifyC5Records(d1RecordIds, expectedRecords, dAppRecords = []) 
 }
 
 export async function parseImportPlan(dir, options = {}) {
+  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
+    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+  }
+  if (options.remote && !options._clockChecked) {
+    await checkWorkerClock(options.workerUrl, { now: options.now, fetch: options.fetch });
+  }
+
   const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
   const exportTime = new Date(manifest.exportedAt).getTime();
   const indexEntry = manifest.entries.find((e) => e.store === 'spi-records' && e.key === 'index.json');
@@ -357,7 +440,7 @@ export async function parseImportPlan(dir, options = {}) {
   const expiredAfterExportShares = [];
   const retractedShares = [];
   const existingShareIds = new Set(options.existingShareIds || []);
-  const now = options.now || Date.now();
+  const now = resolveNow(options.now);
 
   for (const s of sharesList) {
     if (s.exp && s.exp <= exportTime) {
@@ -653,7 +736,7 @@ export async function parseImportPlan(dir, options = {}) {
 
 export async function checkShares(r2, db, sharesJson, options = {}) {
   const failures = [];
-  const now = options.now || Date.now();
+  const now = resolveNow(options.now);
   const expiredAfterExport = [];
   const activeShares = [];
 
@@ -696,7 +779,15 @@ export async function checkShares(r2, db, sharesJson, options = {}) {
 }
 
 export async function importSnapshot(dir, options = {}) {
-  const plan = await parseImportPlan(dir, options);
+  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
+    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+  }
+  // K-1 ①④: 只在 import 帶 --remote 時執行時鐘檢查；本機模式（不帶 --remote）不發 HEAD、不需要 --worker-url
+  if (options.remote) {
+    await checkWorkerClock(options.workerUrl, { now: options.now, fetch: options.fetch });
+  }
+
+  const plan = await parseImportPlan(dir, { ...options, _clockChecked: true });
 
   console.log(JSON.stringify({
     phase: options.apply ? 'apply' : 'dry-run',
@@ -812,7 +903,7 @@ export async function importSnapshot(dir, options = {}) {
   } catch {}
   const appliedAt = existingAppliedAt != null
     ? existingAppliedAt
-    : (plan.appliedAt != null ? plan.appliedAt : (options.now || Date.now()));
+    : (plan.appliedAt != null ? plan.appliedAt : resolveNow(options.now));
   const savedOptions = {
     excludeLots: options.excludeLots || [],
     excludeLotPrefixes: options.excludeLotPrefixes || [],
@@ -830,32 +921,101 @@ export async function importSnapshot(dir, options = {}) {
   return plan;
 }
 
-// CLI entry point
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  const args = process.argv.slice(2);
+// K-1 ⑥: 嚴格命令列旗標解析，未知或禁止旗標（如 --skip-clock-check、--source-dir）一律報錯中止
+export function parseMigrationArgs(args) {
   const cmd = args[0];
+  if (!cmd) die('Subcommand required (export | import)');
 
   if (cmd === 'export') {
-    const dir = args[1] || die('Directory required');
-    exportSnapshot(dir).catch((err) => { console.error(err); process.exit(1); });
-  } else if (cmd === 'import') {
-    const dir = args[1] || die('Directory required');
-    const remote = args.includes('--remote');
-    const apply = args.includes('--apply');
-    const sameOptions = args.includes('--same-options');
+    const dir = args[1];
+    if (!dir || dir.startsWith('--')) die('Export directory required');
+    let since = null;
+    let workerUrl = null;
+    for (let i = 2; i < args.length; i++) {
+      const a = args[i];
+      if (a === '--since') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--since requires a value');
+        since = args[++i];
+      } else if (a === '--worker-url') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--worker-url requires a value');
+        workerUrl = args[++i];
+      } else {
+        die(`未知或不允許的旗標: ${a}`);
+      }
+    }
+    return { cmd, dir, since, workerUrl };
+  }
+
+  if (cmd === 'import') {
+    const dir = args[1];
+    if (!dir || dir.startsWith('--')) die('Import directory required');
+    let remote = false;
+    let local = false;
+    let apply = false;
+    let sameOptions = false;
+    let workerUrl = null;
     const excludeLots = [];
     const excludeLotPrefixes = [];
     const excludeIds = [];
     const excludeShares = [];
 
     for (let i = 2; i < args.length; i++) {
-      if (args[i] === '--exclude-lot' && args[i + 1]) excludeLots.push(args[++i]);
-      else if (args[i] === '--exclude-lot-prefix' && args[i + 1]) excludeLotPrefixes.push(args[++i]);
-      else if (args[i] === '--exclude-id' && args[i + 1]) excludeIds.push(args[++i]);
-      else if (args[i] === '--exclude-share' && args[i + 1]) excludeShares.push(args[++i]);
+      const a = args[i];
+      if (a === '--remote') remote = true;
+      else if (a === '--local') local = true;
+      else if (a === '--apply') apply = true;
+      else if (a === '--same-options') sameOptions = true;
+      else if (a === '--worker-url') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--worker-url requires a value');
+        workerUrl = args[++i];
+      } else if (a === '--exclude-lot') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--exclude-lot requires a value');
+        excludeLots.push(args[++i]);
+      } else if (a === '--exclude-lot-prefix') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--exclude-lot-prefix requires a value');
+        excludeLotPrefixes.push(args[++i]);
+      } else if (a === '--exclude-id') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--exclude-id requires a value');
+        excludeIds.push(args[++i]);
+      } else if (a === '--exclude-share') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--exclude-share requires a value');
+        excludeShares.push(args[++i]);
+      } else {
+        die(`未知或不允許的旗標: ${a}`);
+      }
     }
+    return {
+      cmd,
+      dir,
+      remote,
+      local,
+      apply,
+      sameOptions,
+      workerUrl,
+      excludeLots,
+      excludeLotPrefixes,
+      excludeIds,
+      excludeShares,
+    };
+  }
 
-    importSnapshot(dir, { remote, apply, sameOptions, excludeLots, excludeLotPrefixes, excludeIds, excludeShares })
-      .catch((err) => { console.error(err); process.exit(1); });
+  die(`未知的子命令: ${cmd}`);
+}
+
+// CLI entry point
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  try {
+    const parsed = parseMigrationArgs(process.argv.slice(2));
+    if (parsed.cmd === 'export') {
+      exportSnapshot(parsed.dir, { since: parsed.since, workerUrl: parsed.workerUrl })
+        .catch((err) => { console.error(err); process.exit(1); });
+    } else if (parsed.cmd === 'import') {
+      importSnapshot(parsed.dir, parsed)
+        .catch((err) => { console.error(err); process.exit(1); });
+    }
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
   }
 }
+
