@@ -999,7 +999,183 @@ export function parseMigrationArgs(args) {
     };
   }
 
+  // LT-2 ①②: export-cloudflare 一律讀正式 D1（指令列不帶 --remote、不需要 --worker-url、不做時鐘檢查）
+  if (cmd === 'export-cloudflare') {
+    let dir = null;
+    let since = null;
+    for (let i = 1; i < args.length; i++) {
+      const a = args[i];
+      if (a === '--since') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--since requires a value');
+        since = args[++i];
+      } else if (!a.startsWith('--') && !dir) {
+        dir = a;
+      } else {
+        die(`未知或不允許的旗標: ${a}`);
+      }
+    }
+    if (!since) die('export-cloudflare requires --since <ISO time>');
+    return { cmd, dir: dir || '.', since };
+  }
+
+  // LT-2 ②: netlify-sync-deletions 不做時鐘檢查、不需要 --worker-url
+  if (cmd === 'netlify-sync-deletions') {
+    const dir = args[1];
+    if (!dir || dir.startsWith('--')) die('export-cloudflare output directory/file required');
+    let site = null;
+    let apply = false;
+    for (let i = 2; i < args.length; i++) {
+      const a = args[i];
+      if (a === '--site') {
+        if (!args[i + 1] || args[i + 1].startsWith('--')) die('--site requires a value');
+        site = args[++i];
+      } else if (a === '--apply') {
+        apply = true;
+      } else {
+        die(`未知或不允許的旗標: ${a}`);
+      }
+    }
+    if (!site) die('netlify-sync-deletions requires --site <SITE_ID>');
+    return { cmd, dir, site, apply };
+  }
+
   die(`未知的子命令: ${cmd}`);
+}
+
+// LT-2 ①②: export-cloudflare 一律讀正式 D1（工具內部固定以 wrangler --remote 讀取，不做時鐘檢查）
+export async function exportCloudflareSnapshot(dir, options = {}) {
+  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
+    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+  }
+  const sinceStr = options.since;
+  if (!sinceStr) die('export-cloudflare requires since ISO time');
+  const sinceMs = Date.parse(sinceStr);
+  if (!Number.isFinite(sinceMs)) die(`Invalid --since ISO time: ${sinceStr}`);
+
+  // 預設執行器固定加 --remote；測試可透過 options.d1Query 注入替身（並可驗證內部預設目標為 remote）
+  const queryRemoteD1 = async (sql) => {
+    if (typeof options.d1Query === 'function') {
+      return await options.d1Query(sql, { target: 'remote', args: ['d1', 'execute', DB, '--remote', '--json', '--command', sql] });
+    }
+    const out = wrangler(['d1', 'execute', DB, '--remote', '--json', '--command', sql]);
+    const parsed = JSON.parse(out);
+    return Array.isArray(parsed) ? (parsed[0]?.results || []) : (parsed?.results || []);
+  };
+
+  // ① 新增紀錄
+  const createdRecords = await queryRemoteD1(
+    `SELECT * FROM records WHERE created > ${Number(sinceMs)} ORDER BY created ASC;`
+  );
+  // ② 刪除的紀錄（audit_log 的 delete）
+  const deletedAuditRows = await queryRemoteD1(
+    `SELECT target_id, at, by, detail FROM audit_log WHERE action = 'delete' AND target_type = 'record' AND at > ${Number(sinceMs)} ORDER BY seq ASC;`
+  );
+  // ③ 撤銷的分享（audit_log 的 share_revoke 與 shares.revoked_at > 該時間）
+  const revokedShareAuditRows = await queryRemoteD1(
+    `SELECT target_id, at, by FROM audit_log WHERE action = 'share_revoke' AND at > ${Number(sinceMs)} ORDER BY seq ASC;`
+  );
+  const revokedShareRows = await queryRemoteD1(
+    `SELECT id, revoked_at FROM shares WHERE revoked_at IS NOT NULL AND revoked_at > ${Number(sinceMs)};`
+  );
+  // ④ 新建的分享（shares.created > 該時間，與 audit_log 的 share_create 交叉核對）
+  const createdShareRows = await queryRemoteD1(
+    `SELECT id, created, exp, user, bytes FROM shares WHERE created > ${Number(sinceMs)} ORDER BY created ASC;`
+  );
+  const createdShareAuditRows = await queryRemoteD1(
+    `SELECT target_id, at, by FROM audit_log WHERE action = 'share_create' AND at > ${Number(sinceMs)} ORDER BY seq ASC;`
+  );
+
+  const revokedShareIds = new Set([
+    ...revokedShareAuditRows.map((r) => r.target_id),
+    ...revokedShareRows.map((r) => r.id),
+  ]);
+  const deletedRecordIds = [...new Set(deletedAuditRows.map((r) => r.target_id))];
+
+  const delta = {
+    phase: 'export-cloudflare',
+    target: 'remote',
+    since: new Date(sinceMs).toISOString(),
+    sinceMs,
+    createdRecords,
+    deletedRecords: deletedRecordIds,
+    revokedShares: [...revokedShareIds],
+    createdShares: createdShareRows,
+    createdShareAudits: createdShareAuditRows,
+  };
+
+  if (dir) {
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'cloudflare-delta.json'), JSON.stringify(delta, null, 2) + '\n', 'utf8');
+  }
+
+  return delta;
+}
+
+// LT-2 ②: netlify-sync-deletions 不做時鐘檢查、不需要 --worker-url，將刪除的紀錄與撤銷的分享同步回來源站
+export async function netlifySyncDeletions(deltaDirOrFile, options = {}) {
+  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
+    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+  }
+  const siteID = options.site || options.siteID || process.env.NETLIFY_SITE_ID;
+  const token = options.token || process.env.NETLIFY_AUTH_TOKEN;
+  if (!options.storeFactory && (!siteID || !token)) {
+    die('NETLIFY_SITE_ID (--site) and NETLIFY_AUTH_TOKEN are required for netlify-sync-deletions');
+  }
+
+  let deltaPath = deltaDirOrFile;
+  try {
+    const raw = await readFile(join(deltaDirOrFile, 'cloudflare-delta.json'), 'utf8');
+    deltaPath = join(deltaDirOrFile, 'cloudflare-delta.json');
+  } catch {}
+
+  const delta = JSON.parse(await readFile(deltaPath, 'utf8'));
+  const deletedRecords = delta.deletedRecords || [];
+  const revokedShares = delta.revokedShares || [];
+
+  if (!options.apply) {
+    return {
+      phase: 'dry-run',
+      deletedRecords,
+      revokedShares,
+    };
+  }
+
+  const getStoreFn = options.storeFactory || ((cfg) => getStore(cfg));
+  const recStore = getStoreFn({ name: 'spi-records', siteID, token, consistency: 'strong' });
+  const shareStore = getStoreFn({ name: 'spi-share', siteID, token, consistency: 'strong' });
+
+  const syncedDeletedRecords = [];
+  for (const recId of deletedRecords) {
+    if (typeof recStore.delete === 'function') {
+      await recStore.delete(`f/${recId}`);
+    }
+    // 以 etag 條件寫入從 index.json 移除該筆
+    const idxHit = await recStore.getWithMetadata('index.json', { type: 'text' });
+    if (idxHit && idxHit.data != null) {
+      const list = JSON.parse(typeof idxHit.data === 'string' ? idxHit.data : Buffer.from(idxHit.data).toString('utf8'));
+      const nextList = list.filter((item) => item.id !== recId);
+      if (typeof recStore.setJSON === 'function') {
+        await recStore.setJSON('index.json', nextList, idxHit.etag ? { onlyIfMatch: idxHit.etag } : undefined);
+      } else if (typeof recStore.set === 'function') {
+        await recStore.set('index.json', JSON.stringify(nextList), idxHit.etag ? { onlyIfMatch: idxHit.etag } : undefined);
+      }
+    }
+    syncedDeletedRecords.push(recId);
+  }
+
+  const syncedRevokedShares = [];
+  for (const sId of revokedShares) {
+    if (typeof shareStore.delete === 'function') {
+      await shareStore.delete(sId);
+    }
+    syncedRevokedShares.push(sId);
+  }
+
+  return {
+    phase: 'apply',
+    syncedDeletedRecords,
+    syncedRevokedShares,
+  };
 }
 
 // CLI entry point
@@ -1012,10 +1188,17 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     } else if (parsed.cmd === 'import') {
       importSnapshot(parsed.dir, parsed)
         .catch((err) => { console.error(err); process.exit(1); });
+    } else if (parsed.cmd === 'export-cloudflare') {
+      exportCloudflareSnapshot(parsed.dir, parsed)
+        .catch((err) => { console.error(err); process.exit(1); });
+    } else if (parsed.cmd === 'netlify-sync-deletions') {
+      netlifySyncDeletions(parsed.dir, parsed)
+        .catch((err) => { console.error(err); process.exit(1); });
     }
   } catch (err) {
     console.error(err);
     process.exit(1);
   }
 }
+
 
