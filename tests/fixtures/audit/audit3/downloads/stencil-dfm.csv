@@ -1,0 +1,4 @@
+﻿rank,group,aperture_mm,source,stencil_um,area_ratio,aspect_ratio,max_thk_for_AR066_um,transfer_eff_pct,cv_pct,robust_cpk,defect_ppm,risk,actions
+1,C0402,0.700x0.700,同焊墊,120,1.458,5.83,265,98.8,2.5,—,0,低 0.1,維持現有設計（各項指標正常 → —）
+2,BGA-64,0.700x0.700,同焊墊,120,1.458,5.83,265,99.1,1.8,—,0,低 0.1,維持現有設計（各項指標正常 → —）
+3,QFP-100,0.700x0.700,同焊墊,120,1.458,5.83,265,100.0,1.7,—,0,低 0.0,維持現有設計（各項指標正常 → —）
