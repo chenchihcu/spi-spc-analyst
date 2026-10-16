@@ -14,6 +14,7 @@ import {
   buildShareInsertSql,
   buildAuditInsertSql,
   buildDeleteAuditSql,
+  buildDeleteRecordSql,
 } from './migration-sql.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -256,16 +257,62 @@ export async function parseImportPlan(dir, options = {}) {
     }
   }
 
+  // E-2 通則：要寫入的 records/shares 列（D1 沒有、本次也不排除）若本次匯出目錄沒有對應物件，dry-run 一律失敗並提示改用完整匯出
+  const existingRecordIds = new Set(options.existingRecordIds || []);
+  for (const rec of plannedRecords) {
+    if (!existingRecordIds.has(rec.id)) {
+      const hasBin = manifest.entries.some((e) => e.store === 'spi-records' && e.key === `f/${rec.id}`);
+      if (!hasBin) {
+        throw new Error(`缺少原始檔 f/${rec.id}，無法匯入，請改用完整匯出`);
+      }
+    }
+  }
+
+  const existingShareIds = new Set(options.existingShareIds || []);
+  for (const s of plannedShares) {
+    if (!existingShareIds.has(s.id)) {
+      const hasBin = manifest.entries.some((e) => e.store === 'spi-share' && e.key === s.id);
+      if (!hasBin) {
+        throw new Error(`缺少原始檔 ${s.id}，無法匯入，請改用完整匯出`);
+      }
+    }
+  }
+
+  // E-2: Netlify 端刪除 (上次匯入有、本次 index.json 沒有，而且 D1 records 仍有該 id 的紀錄)
+  const syncDelRecords = [];
+  const syncDelAudits = [];
+  if (options.previousManifest && Array.isArray(options.previousManifest.entries)) {
+    const currentRecordIds = new Set(records.map(r => r.id));
+    for (const prev of options.previousManifest.entries) {
+      if (prev.store === 'spi-records' && prev.key.startsWith('f/')) {
+        const id = prev.key.replace('f/', '');
+        if (!currentRecordIds.has(id) && existingRecordIds.has(id)) {
+          syncDelRecords.push(id);
+          syncDelAudits.push({
+            at: exportTime,
+            by: 'migration',
+            action: 'sync-del',
+            target_type: 'record',
+            target_id: id,
+            detail: { reason: 'deleted-on-netlify' },
+            src_key: `sync-del:${id}`,
+          });
+        }
+      }
+    }
+  }
+
   // 計算估算列數 (F-1 雙估算指標)
-  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1 (E-1, D-2)
+  // 本機計法估算：records 5, shares 4, audit_log 4, delete 1 (E-1, D-2, E-2)
   const localRowsWritten =
     plannedRecords.length * 5 +
     plannedShares.length * 4 +
-    (auditLogs.length + excludeAudits.length) * 4 +
-    deletedExcludeKeys.length * 1;
+    (auditLogs.length + excludeAudits.length + syncDelAudits.length) * 4 +
+    deletedExcludeKeys.length * 1 +
+    syncDelRecords.length * 1;
 
   // 額度估算 (DELETE 也按 INSERT 算)
-  const quotaRowsWritten = localRowsWritten + deletedExcludeKeys.length * 3;
+  const quotaRowsWritten = localRowsWritten + (deletedExcludeKeys.length + syncDelRecords.length) * 3;
 
   return {
     plannedRecords,
@@ -276,6 +323,8 @@ export async function parseImportPlan(dir, options = {}) {
     auditLogs,
     excludeAudits,
     deletedExcludeKeys,
+    syncDelRecords,
+    syncDelAudits,
     localRowsWritten,
     quotaRowsWritten,
   };
@@ -291,8 +340,9 @@ export async function importSnapshot(dir, options = {}) {
     excludedRecords: plan.excludedRecords.length,
     plannedShares: plan.plannedShares.length,
     excludedShares: plan.excludedShares.length,
-    auditLogs: plan.auditLogs.length + plan.excludeAudits.length,
+    auditLogs: plan.auditLogs.length + plan.excludeAudits.length + plan.syncDelAudits.length,
     deletedExcludeKeys: plan.deletedExcludeKeys.length,
+    syncDelRecords: plan.syncDelRecords.length,
     localRowsWritten: plan.localRowsWritten,
     quotaRowsWritten: plan.quotaRowsWritten,
   }, null, 2));
@@ -305,12 +355,13 @@ export async function importSnapshot(dir, options = {}) {
 
   // 執行 --apply: 生成 SQL 語句並分批執行
   const deleteExcludeSqls = buildDeleteAuditSql(plan.deletedExcludeKeys);
-  const allAudits = [...plan.auditLogs, ...plan.excludeAudits];
+  const deleteRecordSqls = buildDeleteRecordSql(plan.syncDelRecords);
+  const allAudits = [...plan.auditLogs, ...plan.excludeAudits, ...plan.syncDelAudits];
   const recordSqls = buildRecordInsertSql(plan.plannedRecords);
   const shareSqls = buildShareInsertSql(plan.plannedShares);
   const auditSqls = buildAuditInsertSql(allAudits);
 
-  const allSqls = [...deleteExcludeSqls, ...recordSqls, ...shareSqls, ...auditSqls];
+  const allSqls = [...deleteExcludeSqls, ...deleteRecordSqls, ...recordSqls, ...shareSqls, ...auditSqls];
   const targetFlag = options.remote ? '--remote' : '--local';
 
   for (let i = 0; i < allSqls.length; i++) {
