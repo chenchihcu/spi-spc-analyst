@@ -49,11 +49,25 @@ export function resolveNow(nowOpt) {
   return Date.now();
 }
 
-// K-1: 時鐘檢查函式（只在 import 帶 --remote 時與每次 export 執行；預設封閉；允許注入 now() 與 fetch）
-export async function checkWorkerClock(workerUrl, options = {}) {
-  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
-    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
+// K-1 ⑥, LT-1, MT-1: 嚴格禁止任何略過或放寬時鐘檢查、或指向本機來源的模組參數與環境變數
+export function assertNoForbiddenBypass(options = {}) {
+  const forbiddenOpts = ['skipClockCheck', 'clockSkewLimitMs', 'maxClockSkew', 'sourceDir', 'localSource'];
+  for (const k of forbiddenOpts) {
+    if (options && k in options) {
+      die(`禁止在模組介面傳入略過或放寬時鐘檢查的參數: ${k}`);
+    }
   }
+  const forbiddenEnvs = ['SKIP_CLOCK_CHECK', 'CLOCK_SKEW_LIMIT_MS', 'NETLIFY_SOURCE_DIR'];
+  for (const envKey of forbiddenEnvs) {
+    if (process.env[envKey]) {
+      die(`禁止透過環境變數略過時鐘檢查或指定本機來源: ${envKey}`);
+    }
+  }
+}
+
+// K-1, MT-1: 時鐘檢查函式（只在 import 帶 --remote 時與每次 export 執行；預設封閉；測試只能注入 now() 與 fetch 來控制時鐘檢查）
+export async function checkWorkerClock(workerUrl, options = {}) {
+  assertNoForbiddenBypass(options);
   if (!workerUrl || typeof workerUrl !== 'string' || !workerUrl.startsWith('https://')) {
     die('時鐘檢查失敗：缺少或無效的 --worker-url（必須為 https:// 網址），請檢查 --worker-url 或校正電腦時鐘');
   }
@@ -105,17 +119,16 @@ export async function exportSnapshot(dir, sinceOrOptions = null) {
     ? sinceOrOptions
     : { sinceTime: sinceOrOptions };
 
-  if ('skipClockCheck' in opts || 'clockSkewLimitMs' in opts || 'maxClockSkew' in opts) {
-    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
-  }
+  assertNoForbiddenBypass(opts);
 
-  // K-1 ①: 每次 export 開始時，在讀寫任何資料之前執行時鐘檢查
+  // K-1 ①, LT-1, MT-1: 每次 export 開始時，在讀寫任何資料之前執行時鐘檢查（fetch 與 now() 只控制時鐘檢查）
   await checkWorkerClock(opts.workerUrl, { now: opts.now, fetch: opts.fetch });
 
+  const hasInjectedStore = Boolean(opts.storeFactory || opts.stores || opts.store);
   const sinceTime = opts.since || opts.sinceTime || null;
   const siteID = opts.siteID || process.env.NETLIFY_SITE_ID;
   const token = opts.token || process.env.NETLIFY_AUTH_TOKEN;
-  if (!opts.storeFactory && (!siteID || !token)) {
+  if (!hasInjectedStore && (!siteID || !token)) {
     die('NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN are required for export');
   }
 
@@ -126,8 +139,16 @@ export async function exportSnapshot(dir, sinceOrOptions = null) {
     if (e.code !== 'ENOENT') throw e;
   }
 
-  const listStoresFn = opts.listStores || listStores;
-  const getStoreFn = opts.storeFactory || ((cfg) => getStore(cfg));
+  const getStoreFn = opts.storeFactory
+    || (opts.stores ? ({ name }) => opts.stores[name] : null)
+    || (opts.store ? ({ name }) => (name === 'spi-records' ? opts.store : null) : null)
+    || ((cfg) => getStore(cfg));
+
+  const listStoresFn = opts.listStores
+    || (opts.stores ? async () => ({ stores: Object.keys(opts.stores) }) : null)
+    || (opts.store ? async () => ({ stores: ['spi-records'] }) : null)
+    || (opts.storeFactory ? async () => ({ stores: ['spi-records', 'spi-share'] }) : null)
+    || listStores;
 
   const names = new Set((await listStoresFn({ siteID, token })).stores);
   if (!names.has('spi-records')) die('Source spi-records store is missing');
@@ -140,6 +161,7 @@ export async function exportSnapshot(dir, sinceOrOptions = null) {
   for (const name of STORES) {
     if (!names.has(name)) continue;
     const store = getStoreFn({ name, siteID, token, consistency: 'strong' });
+    if (!store) continue;
     for await (const page of store.list({ paginate: true })) {
       for (const { key } of page.blobs) {
         if (name === 'spi-share' && isShareKey(key)) {
@@ -339,9 +361,7 @@ export function verifyC5Records(d1RecordIds, expectedRecords, dAppRecords = []) 
 }
 
 export async function parseImportPlan(dir, options = {}) {
-  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
-    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
-  }
+  assertNoForbiddenBypass(options);
   if (options.remote && !options._clockChecked) {
     await checkWorkerClock(options.workerUrl, { now: options.now, fetch: options.fetch });
   }
@@ -779,9 +799,7 @@ export async function checkShares(r2, db, sharesJson, options = {}) {
 }
 
 export async function importSnapshot(dir, options = {}) {
-  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
-    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
-  }
+  assertNoForbiddenBypass(options);
   // K-1 ①④: 只在 import 帶 --remote 時執行時鐘檢查；本機模式（不帶 --remote）不發 HEAD、不需要 --worker-url
   if (options.remote) {
     await checkWorkerClock(options.workerUrl, { now: options.now, fetch: options.fetch });
@@ -835,6 +853,43 @@ export async function importSnapshot(dir, options = {}) {
 
   if (!options.apply) return plan;
 
+  // D-2, 9.2 B3: 任何 records / shares 列都只在對應的 R2 物件上傳並核對 SHA-256 之後寫入（若提供 R2 執行器）
+  if (options.r2 && typeof options.r2.put === 'function' && typeof options.r2.get === 'function') {
+    const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
+    const existingRecordIds = new Set(options.existingRecordIds || []);
+    const existingShareIds = new Set(options.existingShareIds || []);
+
+    for (const rec of plan.plannedRecords) {
+      if (existingRecordIds.has(rec.id)) continue;
+      const entry = manifest.entries.find((e) => e.store === 'spi-records' && e.key === `f/${rec.id}`);
+      if (!entry) continue;
+      const bytes = await readFile(join(dir, entry.filename));
+      await options.r2.put(`f/${rec.id}`, bytes);
+      const r2Obj = await options.r2.get(`f/${rec.id}`);
+      if (!r2Obj) die(`R2 寫入後讀回失敗: f/${rec.id}`);
+      const readBuf = Buffer.from(await r2Obj.arrayBuffer());
+      const expectedSha = entry.sha256 || sha(bytes);
+      if (sha(readBuf) !== expectedSha) {
+        die(`R2 物件 SHA-256 核對失敗: f/${rec.id}`);
+      }
+    }
+
+    for (const s of plan.plannedShares) {
+      if (existingShareIds.has(s.id)) continue;
+      const entry = manifest.entries.find((e) => e.store === 'spi-share' && e.key === s.id);
+      if (!entry) continue;
+      const bytes = await readFile(join(dir, entry.filename));
+      await options.r2.put(`shares/${s.id}`, bytes);
+      const r2Obj = await options.r2.get(`shares/${s.id}`);
+      if (!r2Obj) die(`R2 寫入後讀回失敗: shares/${s.id}`);
+      const readBuf = Buffer.from(await r2Obj.arrayBuffer());
+      const expectedSha = entry.sha256 || sha(bytes);
+      if (sha(readBuf) !== expectedSha) {
+        die(`R2 物件 SHA-256 核對失敗: shares/${s.id}`);
+      }
+    }
+  }
+
   // 執行 --apply: 生成 SQL 語句並分批執行
   // H-1 ②, I-4: 先寫完全部 log/*；全部 log/* 在 D1 後才寫簿記列與 done 更新
   const recordSqls = buildRecordInsertSql(plan.plannedRecords);
@@ -874,9 +929,16 @@ export async function importSnapshot(dir, options = {}) {
     }
   }
 
-  // H-4 ②: 刪除 R2 物件，失敗殘留 key 逐筆列出
+  // H-4 ②: 刪除 R2 物件（含撤回分享與來源端刪除紀錄），失敗殘留 key 逐筆列出
   const failedR2Keys = [];
-  if (!plan.postponedBookkeeping && options.r2) {
+  if (!plan.postponedBookkeeping && options.r2 && typeof options.r2.delete === 'function') {
+    for (const recId of plan.syncDelRecords) {
+      try {
+        await options.r2.delete(`f/${recId}`);
+      } catch (err) {
+        failedR2Keys.push(`f/${recId}`);
+      }
+    }
     for (const sId of plan.retractedShares) {
       try {
         await options.r2.delete(`shares/${sId}`);
@@ -1044,9 +1106,7 @@ export function parseMigrationArgs(args) {
 
 // LT-2 ①②: export-cloudflare 一律讀正式 D1（工具內部固定以 wrangler --remote 讀取，不做時鐘檢查）
 export async function exportCloudflareSnapshot(dir, options = {}) {
-  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
-    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
-  }
+  assertNoForbiddenBypass(options);
   const sinceStr = options.since;
   if (!sinceStr) die('export-cloudflare requires since ISO time');
   const sinceMs = Date.parse(sinceStr);
@@ -1111,20 +1171,19 @@ export async function exportCloudflareSnapshot(dir, options = {}) {
   return delta;
 }
 
-// LT-2 ②: netlify-sync-deletions 不做時鐘檢查、不需要 --worker-url，將刪除的紀錄與撤銷的分享同步回來源站
+// LT-2 ②, MT-1: netlify-sync-deletions 不做時鐘檢查、不需要 --worker-url，支援經模組介面注入 storeFactory / stores 替身
 export async function netlifySyncDeletions(deltaDirOrFile, options = {}) {
-  if ('skipClockCheck' in options || 'clockSkewLimitMs' in options || 'maxClockSkew' in options) {
-    die('禁止在模組介面傳入略過或放寬時鐘檢查的參數');
-  }
+  assertNoForbiddenBypass(options);
+  const hasInjectedStore = Boolean(options.storeFactory || options.stores || options.store);
   const siteID = options.site || options.siteID || process.env.NETLIFY_SITE_ID;
   const token = options.token || process.env.NETLIFY_AUTH_TOKEN;
-  if (!options.storeFactory && (!siteID || !token)) {
+  if (!hasInjectedStore && (!siteID || !token)) {
     die('NETLIFY_SITE_ID (--site) and NETLIFY_AUTH_TOKEN are required for netlify-sync-deletions');
   }
 
   let deltaPath = deltaDirOrFile;
   try {
-    const raw = await readFile(join(deltaDirOrFile, 'cloudflare-delta.json'), 'utf8');
+    await readFile(join(deltaDirOrFile, 'cloudflare-delta.json'), 'utf8');
     deltaPath = join(deltaDirOrFile, 'cloudflare-delta.json');
   } catch {}
 
@@ -1140,24 +1199,30 @@ export async function netlifySyncDeletions(deltaDirOrFile, options = {}) {
     };
   }
 
-  const getStoreFn = options.storeFactory || ((cfg) => getStore(cfg));
+  const getStoreFn = options.storeFactory
+    || (options.stores ? ({ name }) => options.stores[name] : null)
+    || (options.store ? ({ name }) => (name === 'spi-records' ? options.store : null) : null)
+    || ((cfg) => getStore(cfg));
+
   const recStore = getStoreFn({ name: 'spi-records', siteID, token, consistency: 'strong' });
   const shareStore = getStoreFn({ name: 'spi-share', siteID, token, consistency: 'strong' });
 
   const syncedDeletedRecords = [];
   for (const recId of deletedRecords) {
-    if (typeof recStore.delete === 'function') {
+    if (recStore && typeof recStore.delete === 'function') {
       await recStore.delete(`f/${recId}`);
     }
     // 以 etag 條件寫入從 index.json 移除該筆
-    const idxHit = await recStore.getWithMetadata('index.json', { type: 'text' });
-    if (idxHit && idxHit.data != null) {
-      const list = JSON.parse(typeof idxHit.data === 'string' ? idxHit.data : Buffer.from(idxHit.data).toString('utf8'));
-      const nextList = list.filter((item) => item.id !== recId);
-      if (typeof recStore.setJSON === 'function') {
-        await recStore.setJSON('index.json', nextList, idxHit.etag ? { onlyIfMatch: idxHit.etag } : undefined);
-      } else if (typeof recStore.set === 'function') {
-        await recStore.set('index.json', JSON.stringify(nextList), idxHit.etag ? { onlyIfMatch: idxHit.etag } : undefined);
+    if (recStore && typeof recStore.getWithMetadata === 'function') {
+      const idxHit = await recStore.getWithMetadata('index.json', { type: 'text' });
+      if (idxHit && idxHit.data != null) {
+        const list = JSON.parse(typeof idxHit.data === 'string' ? idxHit.data : Buffer.from(idxHit.data).toString('utf8'));
+        const nextList = list.filter((item) => item.id !== recId);
+        if (typeof recStore.setJSON === 'function') {
+          await recStore.setJSON('index.json', nextList, idxHit.etag ? { onlyIfMatch: idxHit.etag } : undefined);
+        } else if (typeof recStore.set === 'function') {
+          await recStore.set('index.json', JSON.stringify(nextList), idxHit.etag ? { onlyIfMatch: idxHit.etag } : undefined);
+        }
       }
     }
     syncedDeletedRecords.push(recId);
@@ -1165,7 +1230,7 @@ export async function netlifySyncDeletions(deltaDirOrFile, options = {}) {
 
   const syncedRevokedShares = [];
   for (const sId of revokedShares) {
-    if (typeof shareStore.delete === 'function') {
+    if (shareStore && typeof shareStore.delete === 'function') {
       await shareStore.delete(sId);
     }
     syncedRevokedShares.push(sId);
