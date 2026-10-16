@@ -142,7 +142,7 @@ async function handleShareApi(req, repo, user, env) {
     const share = await repo.getShare(id);
     if (!share) return json({ error: '找不到這個分享連結（可能已被刪除）' }, 404);
     if (share.revoked_at || share.exp < Date.now()) {
-      return json({ error: '這個分享連結已失效或已被撤銷' }, 410);
+      return json({ error: '找不到這個分享連結（已被撤銷或已過期）' }, 404);
     }
     const file = await repo.getShareFile(id);
     if (!file) return json({ error: '分享資料不存在' }, 404);
@@ -164,7 +164,13 @@ async function handleShareApi(req, repo, user, env) {
     if (buf.length > 4 * 1024 * 1024) return json({ error: '分享資料超過上限 4 MB' }, 413);
     if (buf.length < 20 || buf[0] !== 0x1f || buf[1] !== 0x8b) return json({ error: '資料格式不正確（需為 gzip 壓縮）' }, 400);
 
-    const shareName = req.headers.get('x-share-name') || '試產回合分享';
+    let shareName = '試產回合分享';
+    try {
+      const h = req.headers.get('x-share-name');
+      if (h) shareName = decodeURIComponent(h);
+    } catch {
+      shareName = req.headers.get('x-share-name') || '試產回合分享';
+    }
     const id = randomBytes(16).toString('base64url');
     const exp = Date.now() + 30 * 86400_000;
     await repo.createShare(id, shareName, user, buf, exp);
