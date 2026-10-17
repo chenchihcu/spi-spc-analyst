@@ -106,11 +106,23 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 
 ## 發版流程（每次改版必做）
 
-1. 更新版本號與更新時間（UTC+8，`YYYY-MM-DD HH:MM:SS`）：`spi-spc.html` 的 `#appVer`／`#appBuilt`、`lib/version.mjs`、`CHANGELOG.md` 最上方條目，三處相同。
-2. `npm test` 與 `npm run release-check` 皆通過（READY）。
-3. 合併到 `main`，Netlify 自動部署；確認部署狀態為 ready。
-4. **同步 claude.ai 成品**：用同一份 `spi-spc.html` 更新 claude.ai 成品「SPI·SPC 分析台」（同一個網址，附上 `vendor/` 函式庫與字型），讓成品與 Netlify 顯示**相同的版本號與更新時間**。
-5. 核對兩邊頁首的版本與更新時間一致後才算完成。
+1. **版本一致性**：更新版本號與更新時間（UTC+8，`YYYY-MM-DD HH:mm:ss`），確保以下單一來源完全一致：
+   - `spi-spc.html` 內的 `#appVer` 與 `#appBuilt`
+   - `lib/version.mjs` 的 `APP_VERSION` 與 `APP_BUILT`
+   - `CHANGELOG.md` 最上方條目
+   - `package.json` 的 `version`
+2. **本機驗證閘門**：
+   - 執行 `npm test`（全部測試必須通過）
+   - 執行 `node tools/release-check.js`（狀態必須為 `Overall: READY`）
+   - 執行 `npm run build:cloudflare; npx wrangler deploy --dry-run`（建置資產產出且 dry-run 成功）
+3. **部署至 Cloudflare Workers**：
+   - 合併至 `main` 分支，由 Cloudflare Workers Git CI/CD 自動建置部署，或由帳戶持有人執行 `npm run build:cloudflare; npx wrangler deploy` 發布。
+   - 確認 Cloudflare Workers 控制台或部署日誌顯示 Success / Deployed。
+4. **線上版本與功能核對**：
+   - 開啟正式站點 URL，核對頁首顯示的版本號與更新時間與步驟 1 完全相符。
+   - 檢查登入、`/__me`、`/api/records` 正常運作，且瀏覽器 Console 無任何未預期錯誤。
+5. **claude.ai 成品同步（選用）**：
+   - 若同步維護 claude.ai 成品，使用同一份 `spi-spc.html` 更新 claude.ai 成品「SPI·SPC 分析台」，核對頁首版本與更新時間一致。
 
 ## 已知限制
 

@@ -112,7 +112,28 @@ const put = (k, status, messages) => (out[k] = { status, messages });
   const pats = [/sk-ant-[A-Za-z0-9_-]{10,}/, /\bsk-[A-Za-z0-9]{20,}/, /AKIA[0-9A-Z]{16}/, /(API_KEY|_TOKEN|_SECRET)\s*[:=]\s*["'][^"']{8,}/, /x-api-key/i, /api\.anthropic\.com/];
   // 掃描所有會部署的追蹤檔案（排除第三方函式庫、相依套件鎖定檔與二進位測試檔）
   let files = [];
-  try { files = execSync("git ls-files --cached --others --exclude-standard", { cwd: ROOT, encoding: "utf8" }).split("\n").filter((f) => f && !/^(vendor|node_modules)\/|package-lock\.json$|^tools\/release-check\.js$|^tests\/fixtures\/|\.(xlsx|woff2|ttf|png|jpg|pdf)$/.test(f)); /* 本檔含比對樣式本身，略過 */ } catch { files = ["spi-spc.html"]; }
+  try {
+    files = execSync("git ls-files --cached --others --exclude-standard", { cwd: ROOT, encoding: "utf8" }).split("\n").filter((f) => f && !/^(vendor|node_modules)\/|package-lock\.json$|^tools\/release-check\.js$|^tests\/fixtures\/|\.(xlsx|woff2|ttf|png|jpg|pdf)$/.test(f)); /* 本檔含比對樣式本身，略過 */
+  } catch {
+    // D-33: 非 git 目錄時遞迴掃描工作目錄，排除二進位與相依套件，避免靜默降級
+    const scanDir = (dir, base = "") => {
+      let r = [];
+      try {
+        const ents = fs.readdirSync(dir, { withFileTypes: true });
+        for (const e of ents) {
+          const rel = base ? `${base}/${e.name}` : e.name;
+          if (e.isDirectory()) {
+            if (/^(node_modules|\.git|dist|vendor)$/.test(e.name)) continue;
+            r = r.concat(scanDir(path.join(dir, e.name), rel));
+          } else {
+            if (!/package-lock\.json$|^tools\/release-check\.js$|^tests\/fixtures\/|\.(xlsx|woff2|ttf|png|jpg|pdf)$/.test(rel)) r.push(rel);
+          }
+        }
+      } catch {}
+      return r;
+    };
+    files = scanDir(ROOT);
+  }
   const hits = [];
   for (const f of files) { let t = ""; try { t = fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { continue; } for (const re of pats) if (re.test(t)) hits.push(`${f}：${re}`); }
   // 密碼雜湊也不應寫進儲存庫

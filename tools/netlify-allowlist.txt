@@ -1,0 +1,11 @@
+# Netlify 字樣白名單 (tools/netlify-allowlist.txt)
+# 依據規格書 9.2 D3 節，release-check 稽核除此清單外不得包含任何 netlify 字樣
+
+CHANGELOG.md # 歷史更新紀錄條目
+docs/cutover-runbook.md # 切換 Runbook 歷史流程參考
+docs/netlify-teardown.md # Netlify 資源下線清理手冊
+tools/release-check.js # 檢查腳本自身之樣式比對字串
+tools/netlify-allowlist.txt # 白名單設定檔本身
+tests/print.test.mjs # 列印測試斷言 PDF 文字層不含 Powered by Netlify
+tests/cf-routes.test.mjs # 路由測試斷言零 Netlify 端點
+tests/step9.test.mjs # 郵件分享測試斷言零 Netlify 函式依賴
