@@ -55,7 +55,12 @@
           location.replace(res.next || next);
           return;
         }
-        if (errBox) errBox.textContent = res.error || "帳號或密碼不正確";
+        const errMap = {
+          login_db_unavailable: "登入資料庫暫時無法連線或尚未完成結構更新 (login_db_unavailable)，請稍後再試",
+          login_limiter_missing: "伺服器缺少登入限流設定 (login_limiter_missing)，請通知管理員",
+          login_limiter_error: "登入限流服務異常 (login_limiter_error)，請稍後再試",
+        };
+        if (errBox) errBox.textContent = res.message || errMap[res.error] || res.error || "帳號或密碼不正確";
       } catch (err) {
         if (errBox) errBox.textContent = "登入處理發生錯誤：" + (err.message || err);
       } finally {

@@ -37,7 +37,8 @@ test('2. 登入頁行動版規格 (lib/auth-handler.mjs loginPage)', () => {
   
   // 檢查 HTML 內容
   return resp.text().then(html => {
-    // a. color-scheme 與 theme-color
+    // a. color-scheme 與 theme-color 及預設明亮主題
+    assert.match(html, /<html[^>]*data-theme="light"/i, '登入頁需預設 data-theme="light"');
     assert.match(html, /<meta\s+name="color-scheme"\s+content="light dark">/i, '需有 color-scheme meta');
     assert.match(html, /<meta\s+name="theme-color"[^>]*content="#F2F4F0"/i, '需有淺色 theme-color');
     assert.match(html, /<meta\s+name="theme-color"[^>]*content="#0F1311"/i, '需有深色 theme-color');
@@ -59,7 +60,8 @@ test('2. 登入頁行動版規格 (lib/auth-handler.mjs loginPage)', () => {
 });
 
 test('3. 主頁 Head Meta 與 CSS Tokens (spi-spc.html)', () => {
-  // a. Head meta
+  // a. Head meta 與預設明亮主題
+  assert.match(htmlSource, /<html[^>]*data-theme="light"/i, '主頁需預設 data-theme="light"');
   assert.match(htmlSource, /<meta\s+name="color-scheme"\s+content="light dark">/i, '需有 color-scheme');
   assert.match(htmlSource, /<meta\s+name="theme-color"[^>]*content="#F2F4F0"/i, '需有淺色 theme-color');
   assert.match(htmlSource, /<meta\s+name="theme-color"[^>]*content="#0F1311"/i, '需有深色 theme-color');
@@ -126,6 +128,8 @@ test('4. 行動版 DOM 結構與分頁控制 (JSDOM 驗證)', { skip: !JSDOM && 
   assert.deepEqual(subTabs, ['sim3d', 'cross', 'adv', 'compare', 'dfm', 'lab', 'ai', 'data'], '需涵蓋其餘 8 個分頁');
 
   // d. 更多 Sheet 內涵蓋操作與帳號
+  assert.ok($('#mBtnTheme'), '需有行動版主題切換鈕');
+  assert.ok($('#btnTheme'), '需有桌機版主題切換鈕');
   assert.ok($('#mBtnPrint'), '需有行動版列印鈕');
   assert.ok($('#mBtnShare'), '需有行動版分享鈕');
   assert.ok($('#mBtnMyShares'), '需有行動版我的分享鈕');
