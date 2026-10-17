@@ -21,4 +21,10 @@
 - **Node.js VM 沙盒二進位物件相容**：在 `tests/_load.js` 的 `loadCore()` 執行沙盒中，必須完整提供 `TextEncoder`、`TextDecoder`、`Uint8Array`、`DataView` 與 `ArrayBuffer` 等 Web 標準二進位全域物件；核心純 JS 模組若使用二進位編碼，亦應具備防禦性相容回退。
   - 檢查：執行包含二進位解析/匯出測試時（如 `tests/step14.test.mjs`），無 `ReferenceError: TextEncoder is not defined`。
   - 出處：步驟 14 M-20 OpenXML 匯出除錯紀錄 (2026-10-17)。
+- **非同步與 IndexedDB 測試防 Flaky 守衛**：測試中涉及非同步儲存、IndexedDB 交易或非同步 DOM 渲染時，嚴禁使用固定毫秒數的休眠等待（如 `await setTimeout(200)`），必須改用帶有超時門檻的條件輪詢迴圈（Polling with Timeout Guard），防止高併發 CPU 負載下偶發逾時失敗。
+  - 檢查：測試程式碼等待非同步狀態時皆為條件輪詢迴圈，無裸 `setTimeout`。
+  - 出處：步驟 6 實作除錯紀錄 (2026-10-17)。
+- **大數據統計演算法之暫態陣列抑制與前置門檻守衛**：處理萬筆以上資料分析時，嚴禁在每板／每元件巢狀迴圈中反覆建立中間陣列（如 `.map().filter().reduce()`），應使用單趟累加器或預先索引快取（如 `bMeanCache`）；耗時高之模擬運算（如 Bootstrap 自助法或 Monte Carlo）在執行前必須設有顯著性前置門檻（Pre-filter Gate），非必要時採延遲計算（Lazy Evaluation）。
+  - 檢查：執行 `node --test tests/core.test.js` 驗證 5 萬筆資料問題偵測耗時穩定在 1 秒內。
+  - 出處：步驟 6 效能最佳化除錯紀錄 (2026-10-17)。
 
