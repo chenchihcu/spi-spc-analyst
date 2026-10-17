@@ -112,7 +112,7 @@ const put = (k, status, messages) => (out[k] = { status, messages });
   const pats = [/sk-ant-[A-Za-z0-9_-]{10,}/, /\bsk-[A-Za-z0-9]{20,}/, /AKIA[0-9A-Z]{16}/, /(API_KEY|_TOKEN|_SECRET)\s*[:=]\s*["'][^"']{8,}/, /x-api-key/i, /api\.anthropic\.com/];
   // 掃描所有會部署的追蹤檔案（排除第三方函式庫、相依套件鎖定檔與二進位測試檔）
   let files = [];
-  try { files = execSync("git ls-files --cached --others --exclude-standard", { cwd: ROOT, encoding: "utf8" }).split("\n").filter((f) => f && !/^(vendor|node_modules)\/|package-lock\.json$|^tools\/release-check\.js$|^tests\/fixtures\/|\.(xlsx|woff2|png|jpg|pdf)$/.test(f)); /* 本檔含比對樣式本身，略過 */ } catch { files = ["spi-spc.html"]; }
+  try { files = execSync("git ls-files --cached --others --exclude-standard", { cwd: ROOT, encoding: "utf8" }).split("\n").filter((f) => f && !/^(vendor|node_modules)\/|package-lock\.json$|^tools\/release-check\.js$|^tests\/fixtures\/|\.(xlsx|woff2|ttf|png|jpg|pdf)$/.test(f)); /* 本檔含比對樣式本身，略過 */ } catch { files = ["spi-spc.html"]; }
   const hits = [];
   for (const f of files) { let t = ""; try { t = fs.readFileSync(path.join(ROOT, f), "utf8"); } catch { continue; } for (const re of pats) if (re.test(t)) hits.push(`${f}：${re}`); }
   // 密碼雜湊也不應寫進儲存庫

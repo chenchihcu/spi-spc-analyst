@@ -123,9 +123,9 @@ test('4. 行動版 DOM 結構與分頁控制 (JSDOM 驗證)', { skip: !JSDOM && 
   assert.ok($('#moreSheetClose'), '需有 #moreSheetClose 關閉鈕');
   assert.ok(moreSheet.querySelector('.sheet-handle'), '需有拖曳把手 .sheet-handle');
 
-  // c. 更多 Sheet 內涵蓋全部 8 個次要分頁（共 4+8=12 個分頁）
+  // c. 更多 Sheet 內涵蓋全部次要分頁（共 4+9=13 個分頁）
   const subTabs = $$('#moreSheet [data-mtab]').map(b => b.dataset.mtab);
-  assert.deepEqual(subTabs, ['sim3d', 'cross', 'adv', 'compare', 'dfm', 'lab', 'ai', 'data'], '需涵蓋其餘 8 個分頁');
+  assert.deepEqual(subTabs, ['sim3d', 'cross', 'adv', 'compare', 'dfm', 'lab', 'ai', 'report', 'data'], '需涵蓋其餘 9 個分頁');
 
   // d. 更多 Sheet 內涵蓋操作與帳號
   assert.ok($('#mBtnTheme'), '需有行動版主題切換鈕');
