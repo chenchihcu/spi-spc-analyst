@@ -1713,21 +1713,24 @@ function advAnalyze(st,A){const m=A.m,G=st.rows.filter(r=>st.group==="ALL"||r.gr
 }
 /* ============ 問題偵測引擎 ============
    逐面向掃描全部量測項目，輸出「事實 / 推論 / 佐證」結構化的問題清單 */
-function med(a){const s=Float64Array.from(a.filter(v=>isFinite(v)));s.sort();return s.length?quant(s,.5):NaN} /* 型別陣列排序：大量資料時比比較函式排序快數倍，結果相同 */
-function robust(v){const m=med(v);let s=med(v.map(x=>Math.abs(x-m)))*1.4826;if(!(s>1e-9))s=sd(v)||1e-9;return{m,s}}
+function med(a){if(!a||!a.length)return NaN;if(a instanceof Float64Array){const s=a.slice();s.sort();return s.length?quant(s,.5):NaN}let hasBad=false;for(let i=0;i<a.length;i++){const v=a[i];if(v==null||!isFinite(v)){hasBad=true;break}}const s=hasBad?Float64Array.from(a.filter(v=>v!=null&&isFinite(v))):Float64Array.from(a);s.sort();return s.length?quant(s,.5):NaN} /* 型別陣列排序：大量資料時比比較函式排序快數倍，結果相同 */
+function robust(v){const m=med(v);if(!isFinite(m))return{m:NaN,s:NaN};const ad=new Float64Array(v.length);for(let i=0;i<v.length;i++)ad[i]=Math.abs(v[i]-m);ad.sort();let s=(ad.length?quant(ad,.5):NaN)*1.4826;if(!(s>1e-9))s=sd(v)||1e-9;return{m,s}}
 /* 扣除長期趨勢：以長度為週期整數倍的移動平均估計趨勢（各類別權重相同），回傳殘差 */
 function detrend(v,P){const n=v.length;if(n<P+2)return v.slice();const tr=v.map((_,i)=>{const lo=Math.max(0,Math.min(i-Math.floor(P/2),n-P));let s=0;for(let j=lo;j<lo+P;j++)s+=v[j];return s/P});return v.map((x,i)=>x-tr[i])}
 function winsor(v){const{m,s}=robust(v);return v.map(x=>Math.min(m+3*s,Math.max(m-3*s,x)))}
 /* ---- D-30 孤立極端焊墊（6.1）：穩健 z、解析度下限、候選條件 ---- */
-function resolutionOf(v){const s=[...new Set(v)].sort((a,b)=>a-b);let r=Infinity;for(let i=1;i<s.length;i++){const d=s[i]-s[i-1];if(d>1e-9&&d<r)r=d}return isFinite(r)?r:0}
-function isoStat(v){const m=med(v),ad=v.map(x=>Math.abs(x-m)),mad=med(ad),res=resolutionOf(v);let sg=1.4826*mad;if(!(mad>0))sg=1.2533*mean(ad);return{m,res,sg:Math.max(sg,res/Math.sqrt(12))}}
+function resolutionOf(v){const arr=v.length>2000?v.filter((_,i)=>i%Math.ceil(v.length/2000)===0):v;const s=[...new Set(arr)].sort((a,b)=>a-b);let r=Infinity;for(let i=1;i<s.length;i++){const d=s[i]-s[i-1];if(d>1e-9&&d<r)r=d}return isFinite(r)?r:0}
+function isoStat(v){const m=med(v),ad=v.map(x=>Math.abs(x-m)),mad=med(ad),res=resolutionOf(v);let sg=1.4826*mad;if(!(mad>0))sg=1.2533*mean(ad);return{m,mad,res,sg:Math.max(sg,res/Math.sqrt(12))}}
 /* 掃描單一量測項目：回傳各群組統計（n≥10）與候選（超規，或 |z|≥5 且偏離 ≥ max(0.10×規格寬, 3×解析度)） */
 function isoScan(R,st,k){const byG=new Map();for(const r of R){if(r[k]==null||!isFinite(r[k]))continue;let a=byG.get(r.group);if(!a)byG.set(r.group,a=[]);a.push(r)}
-  const cells=[],cands=[];
+  const cells=[],cands=[];const hasStep=k==="height"&&st.step&&st.step.on&&st.specSrc!=="machine";
   for(const[g,rs]of byG){if(rs.length<10)continue;const S=isoStat(rs.map(r=>r[k]));if(!(S.sg>0))continue;cells.push({g,k,n:rs.length,...S});
-    for(const r of rs){const sp=specFor(r,k,st),x=r[k],z=(x-S.m)/S.sg,span=sp&&isFinite(sp.lsl)&&isFinite(sp.usl)&&sp.usl>sp.lsl?sp.usl-sp.lsl:NaN;
-      const over=!!(sp&&((isFinite(sp.lsl)&&x<sp.lsl)||(isFinite(sp.usl)&&x>sp.usl)));
-      if(over||(Math.abs(z)>=5&&Math.abs(x-S.m)>=Math.max(isFinite(span)?.10*span:0,3*S.res)))cands.push({r,g,k,x,z,over,sp,S})}}
+    const defSp=specOfGroup(st,g,k);const span=defSp&&isFinite(defSp.lsl)&&isFinite(defSp.usl)&&defSp.usl>defSp.lsl?defSp.usl-defSp.lsl:NaN;
+    const eff=Math.max(isFinite(span)?.10*span:0,3*S.res),lsl=defSp&&isFinite(defSp.lsl)?defSp.lsl:-Infinity,usl=defSp&&isFinite(defSp.usl)?defSp.usl:Infinity,invSg=1/S.sg;
+    for(const r of rs){const sp=hasStep?specFor(r,k,st):defSp,x=r[k];
+      const over=hasStep?!!(sp&&((isFinite(sp.lsl)&&x<sp.lsl)||(isFinite(sp.usl)&&x>sp.usl))):(x<lsl||x>usl);
+      const diff=x-S.m,z=diff*invSg;
+      if(over||(Math.abs(z)>=5&&Math.abs(diff)>=eff))cands.push({r,g,k,x,z,over,sp,S})}}
   return{cells,cands}}
 function poissonSf(k,l){if(k<=0)return 1;if(!(l>0))return 0;if(k===1)return-Math.expm1(-l);let c=Math.exp(-l),s=0;for(let i=0;i<k;i++){s+=c;c*=l/(i+1)}return Math.max(0,1-s)}
 /* tools/gen-stable-table.json 的內嵌副本（tests 核對兩者一致）：依板數查表，不在表中取較大板數，>200 取 200 */
@@ -1861,7 +1864,7 @@ function detectIssues(st){
         cause:"拼板支撐不足或頂針位置不均、拼板翹曲、刮刀壓力在子板間分布不均",conf:"中",action:ACT.fig,ev:evBars(`各子板平均${lab(k)}`,figs.map(x=>"子板 "+x),figs.map(fg=>{const v=bm.filter(x=>x.fg===fg).map(x=>x.m);return v.length?mean(v):NaN}),[figs.indexOf(lo),figs.indexOf(hi)],u(k)),go:{tab:"adv",metric:k,group:"ALL"}})}}
 
   // 對位先算：已被平移／旋轉／伸縮解釋的板，偏移類單板異常不重複列出
-  const al=boards.map(b=>({b,a:alignFit(boardRows(b))})).filter(x=>x.a);
+  const al=MS.some(isOff)?boards.map(b=>({b,a:alignFit(boardRows(b))})).filter(x=>x.a):[];
   const tr=al.filter(x=>Math.max(Math.abs(x.a.tx),Math.abs(x.a.ty))>25),ro=al.filter(x=>!x.a.noCoords&&x.a.rotEdge>20),sc=al.filter(x=>!x.a.noCoords&&x.a.strEdge>20);
   const alB=new Set([...tr,...ro,...sc].map(x=>x.b));
   // 每板 × 群組不良數，用於判斷「不良是否明顯多於平常」
@@ -1871,15 +1874,16 @@ function detectIssues(st){
   const capCells=[],gIdx0={};for(const r of R)(gIdx0[r.group]=gIdx0[r.group]||[]).push(r);
   for(const k of MS)for(const g of groups){const rs=(gIdx0[g]||[]).filter(r=>r[k]!=null&&isFinite(r[k]));if(rs.length<10)continue;
     const sp=specOfGroup(st,g,k);if(!sp||!isFinite(sp.lsl)||!isFinite(sp.usl)||!(sp.usl>sp.lsl))continue;
-    const v=rs.map(r=>r[k]),mu=mean(v);let ss=0,df=0;const cb=new Map();for(const r of rs){let a=cb.get(r.board);if(!a)cb.set(r.board,a=[]);a.push(r[k])}
-    for(const a of cb.values())if(a.length>1){const m2=mean(a);ss+=a.reduce((s,x)=>s+(x-m2)**2,0);df+=a.length-1}
+    const v=rs.map(r=>r[k]),mu=mean(v);let ss=0,df=0;
+    for(const b of boards){const a=((idx[b]||{})[g]||[]).map(r=>r[k]).filter(v=>v!=null);if(a.length>1){const m2=mean(a);ss+=a.reduce((s,x)=>s+(x-m2)**2,0);df+=a.length-1}}
     const sw=df>0?Math.sqrt(ss/df):sd(v);if(!(sw>0))continue;const cpk=Math.min(sp.usl-mu,mu-sp.lsl)/(3*sw);
     capCells.push({k,g,n:rs.length,mu,sw,cpk,adP:andersonDarling(v.length>4000?v.filter((_,i)=>i%Math.ceil(v.length/4000)===0):v).p})}
   const worstCap=k=>capCells.filter(c=>!k||c.k===k).reduce((w,c)=>!w||c.cpk<w.cpk?c:w,null);
   // 1. 單板異常（整板 / 板 × 元件群組）：以其他板的穩健中位數與 MAD 比較
-  const hits=[];let nT1=0;
+  const hits=[];let nT1=0;const gBm={};
   for(const k of MS)for(const g of groups){
     const bm=boards.map(b=>{if(isOff(k)&&alB.has(b))return NaN;const rs=(idx[b]||{})[g]||[],v=rs.map(r=>r[k]).filter(v=>v!=null);if(!v.length)return NaN;const fa=figAdj[k]&&rs[0]&&rs[0].figure!=null?figAdj[k][rs[0].figure]||0:0;return mean(v)-fa});
+    (gBm[k]=gBm[k]||{})[g]=bm;
     const vals=bm.filter(isFinite);if(vals.length<5)continue;const{m,s}=robust(vals),sp=spanOf(k);
     bm.forEach((v,i)=>{if(!isFinite(v))return;nT1++;const z=(v-m)/s,d=v-m,ex=excess(g,boards[i]);
       if(Math.abs(z)>=3.5&&(!isFinite(sp)||Math.abs(d)>=sp*.08)&&(Math.abs(z)>=5.5||ex>=3))hits.push({k,g,b:boards[i],z,d,v,m,ex})})}
@@ -1887,9 +1891,12 @@ function detectIssues(st){
   const ISO={cells:[],cands:[],explained:[],left:[]};
   {for(const k of MS){const s=isoScan(R,st,k);ISO.cells.push(...s.cells);ISO.cands.push(...s.cands)}
     const wholeOf=(b,k)=>{const hk=hits.filter(h=>h.b===b&&h.k===k),gs=groups.filter(g=>((idx[b]||{})[g]||[]).some(r=>r[k]!=null));return hk.length>=Math.max(2,Math.ceil(gs.length*.6))&&(hk.every(h=>h.d>0)||hk.every(h=>h.d<0))};
-    const hitNow=(b,g,k,excl)=>{const bmv=boards.map(bb=>{if(isOff(k)&&alB.has(bb))return NaN;let rs=(idx[bb]||{})[g]||[];if(bb===b&&excl.size)rs=rs.filter(r=>!excl.has(r));const v=rs.map(r=>r[k]).filter(v=>v!=null);if(!v.length)return NaN;const fa=figAdj[k]&&rs[0]&&rs[0].figure!=null?figAdj[k][rs[0].figure]||0:0;return mean(v)-fa});
-      const vals=bmv.filter(isFinite);if(vals.length<5)return null;const{m,s}=robust(vals),sp=spanOf(k),i=boards.indexOf(b),v=bmv[i];if(!isFinite(v))return null;
-      const z=(v-m)/s,d=v-m,dgv=dg[g].slice();dgv[i]=((idx[b]||{})[g]||[]).filter(r=>!excl.has(r)&&bad(r)).length;const ex=dgv[i]-med(dgv);
+    const hitNow=(b,g,k,excl)=>{const bmv=gBm[k][g].slice(),bi=boards.indexOf(b);
+      let rs=(idx[b]||{})[g]||[];if(excl.size)rs=rs.filter(r=>!excl.has(r));const rv=rs.map(r=>r[k]).filter(v=>v!=null);
+      const fa=figAdj[k]&&rs[0]&&rs[0].figure!=null?figAdj[k][rs[0].figure]||0:0;
+      bmv[bi]=rv.length?mean(rv)-fa:NaN;
+      const vals=bmv.filter(isFinite);if(vals.length<5)return null;const{m,s}=robust(vals),sp=spanOf(k),v=bmv[bi];if(!isFinite(v))return null;
+      const z=(v-m)/s,d=v-m,dgv=dg[g].slice();dgv[bi]=rs.filter(bad).length;const ex=dgv[bi]-med(dgv);
       return(Math.abs(z)>=3.5&&(!isFinite(sp)||Math.abs(d)>=sp*.08)&&(Math.abs(z)>=5.5||ex>=3))?{k,g,b,z,d,v,m,ex}:null};
     const grp=new Map();for(const c of ISO.cands){const key=c.r.board+"\u0001"+c.g+"\u0001"+c.k;let a=grp.get(key);if(!a)grp.set(key,a=[]);a.push(c)}
     for(const Cs of grp.values()){const b=Cs[0].r.board,g=Cs[0].g,k=Cs[0].k,hi=hits.findIndex(h=>h.b===b&&h.g===g&&h.k===k),wh=wholeOf(b,k);
@@ -1945,8 +1952,9 @@ function detectIssues(st){
 
   // 2. 系統性問題：元件群組整體能力不足 / 個別焊墊位置長期偏離（焊墊位置穩健 Cpk，排除單板突發，D-62、N7-5）
   const gIdx={};for(const r of R)(gIdx[r.group]=gIdx[r.group]||[]).push(r);
-  for(const k of MS)for(const g of groups){const pads={};(gIdx[g]||[]).forEach(r=>{if(r[k]!=null)(pads[r.pad]=pads[r.pad]||{r,v:[]}).v.push(r[k])});
-    const P=Object.entries(pads).filter(([,p])=>p.v.length>=5).map(([pad,p])=>{const sp=specFor(p.r,k,st),{m,s}=robust(p.v);return{pad,r:p.r,n:p.v.length,m,s,cpk:sp&&sp.usl>sp.lsl?Math.min(sp.usl-m,m-sp.lsl)/(3*s):NaN}}).filter(p=>isFinite(p.cpk));
+  const gPads={};for(const g of groups){const pads={};(gIdx[g]||[]).forEach(r=>{const p=pads[r.pad]||(pads[r.pad]={r,rows:[]});p.rows.push(r)});gPads[g]=Object.values(pads).filter(p=>p.rows.length>=5)}
+  for(const k of MS)for(const g of groups){
+    const P=gPads[g].map(p=>{const vals=p.rows.map(r=>r[k]).filter(v=>v!=null);if(vals.length<5)return null;const sp=specFor(p.r,k,st),{m,s}=robust(vals);return{pad:p.r.pad,r:p.r,n:vals.length,m,s,cpk:sp&&sp.usl>sp.lsl?Math.min(sp.usl-m,m-sp.lsl)/(3*s):NaN}}).filter(p=>p&&isFinite(p.cpk));
     if(P.length<2)continue;const mc=med(P.map(p=>p.cpk)),sp=specOfGroup(st,g,k);
     if(mc<1){
       const worstP=[...P].sort((a,b)=>a.cpk-b.cpk),cc=capCells.find(c=>c.k===k&&c.g===g),nB=P[0]?P[0].n:nb;
@@ -2071,7 +2079,7 @@ function detectIssues(st){
   for(const k of mShape){const raw=boardMeans(k);if(nb<8||raw.some(v=>!isFinite(v)))continue;const bm=winsor(raw);
     const rs2=detrend(bm,4),n0=SK.cls.filter(c=>c===0).length,n1=SK.cls.filter(c=>c===1).length;
     const t=SK.insufficient||(!SK.fromField&&figs.length>=2)?null:welch(rs2.filter((_,i)=>SK.cls[i]===0),rs2.filter((_,i)=>SK.cls[i]===1));
-    const calS=t?strokeCalP(bm,SK.cls):null,pCal=calS&&isFinite(calS.p)?calS.p:(t?t.p:NaN);
+    const calS=t&&t.p<0.1?strokeCalP(bm,SK.cls):null,pCal=calS&&isFinite(calS.p)?calS.p:(t?t.p:NaN);
     if(t&&isFinite(pCal)&&pCal<aB){
       // D-61：沒有方向欄位（SK.fromField===false）時，最高只到資訊，標題加「（方向為推定）」，不影響 6.1 整體判定
       const lv=!SK.fromField?"info":(pCal<aB/5?"warn":"info");
@@ -2088,7 +2096,7 @@ function detectIssues(st){
           SK.fromField?"行程方向取自資料欄位":"資料沒有刮刀方向欄，依板序奇偶推定；請在匯入時對應方向欄或在規格設定指定印刷方式"
         ],
         cause:"前後刮刀壓力、角度或磨耗不一致",conf:SK.fromField?"中":"低",action:ACT.stroke,ev:evBars(`刮刀方向平均${lab(k)}`,SK.label,[mean(bm.filter((_,i)=>SK.cls[i]===0)),mean(bm.filter((_,i)=>SK.cls[i]===1))],[],u(k)),go:{tab:"adv",metric:k,group:"ALL"}})}
-    const rw=detrend(bm,N),WS=wipeScan(rw,N);if(!WS)continue;const{r,p:pBonf,p0,ph,slope:sl}=WS,pos=WS.pos;
+    const rw=detrend(bm,N),WS=wipeScan(rw,N);if(!WS||WS.pBonf>0.1)continue;const{r,p:pBonf,p0,ph,slope:sl}=WS,pos=WS.pos;
     const pWipe=wipeCalP(bm,N);if(!(isFinite(pWipe)&&pWipe<aB))continue;
     add({lv:pWipe<aB/5?"warn":"info",cat:"擦拭週期",sig:{t:"wipe",k,sl,ph},title:`${lab(k)}隨擦拭後片數${sl>0?"上升":"下降"}（每 ${N} 片擦拭）`,ents:["s:wipe"],score:1.5+(pWipe<.01?1:0),
       rule_id:"擦拭週期檢定（D-64 自助法校準）",rule_name:`板平均縮尾去趨勢後對 ${N} 個擦拭起點取最大 |r|（參數式自助法 B=${CAL_B} 校準）`,metric:lab(k),

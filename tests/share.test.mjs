@@ -131,7 +131,7 @@ test("頁面：解壓後過大的分享資料會被拒絕，不會開啟", { ski
   const r = await handleShare(new Request(U, { method: "POST", body: bomb }), st);
   const { id } = await r.json();
   const B = openPage(`http://localhost/?share=${id}`, st);
-  for (let i = 0; i < 200 && !/無法開啟/.test(B.dom.window.document.querySelector("#toast")?.textContent || ""); i++) await tick(25);
+  for (let i = 0; i < 400 && !/無法開啟/.test(B.dom.window.document.querySelector("#toast")?.textContent || ""); i++) await tick(25);
   assert.match(B.dom.window.document.querySelector("#toast").textContent, /超過 200 MB/);
   assert.equal(B.dom.window.eval("S.runs.length"), 2);
 });

@@ -1,0 +1,6734 @@
+{
+  "25_shift0": {
+    "summary": {
+      "okCount": 178,
+      "total": 200,
+      "okRate": 0.89
+    },
+    "seeds": [
+      {
+        "seed": 1,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 2,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 3,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 4,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 5,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 6,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 7,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 8,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 9,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 10,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 11,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 12,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 13,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 14,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 15,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 16,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 17,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 18,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 19,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 20,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 21,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 22,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 23,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 24,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 25,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 26,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 27,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊"
+        ]
+      },
+      {
+        "seed": 28,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 29,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 30,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 31,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 32,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 33,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 34,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 35,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 36,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 37,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 38,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 39,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 40,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 41,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 42,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 43,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 44,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 45,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 46,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 47,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 48,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 49,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 50,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 51,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 52,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 53,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 54,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 55,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 56,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 57,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 58,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 59,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 60,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 61,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 62,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 63,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 64,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 65,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 66,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 67,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 68,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 69,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 70,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 71,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 72,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 73,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 74,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 75,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 76,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 77,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 78,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 79,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 80,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 81,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "刮刀方向",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 82,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 83,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 84,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 85,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 86,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 87,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 88,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 89,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 90,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 91,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 92,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 93,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 94,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 95,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 96,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 97,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 98,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "擦拭週期",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 99,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 100,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 101,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 102,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 103,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 104,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 105,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 106,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 107,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 108,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 109,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 110,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 111,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 112,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 113,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 114,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 115,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 116,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 117,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 118,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 119,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 120,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 121,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常"
+        ]
+      },
+      {
+        "seed": 122,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 123,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 124,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 125,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 126,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 127,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 128,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 129,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 130,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 131,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 132,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 133,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 134,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 135,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 136,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "單板異常"
+        ]
+      },
+      {
+        "seed": 137,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 138,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 139,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 140,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 141,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 142,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 143,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 144,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 145,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 146,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 147,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 148,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 149,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 150,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 151,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 152,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 153,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "刮刀方向"
+        ]
+      },
+      {
+        "seed": 154,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 155,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 156,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 157,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 158,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 159,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 160,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 161,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 162,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 163,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 164,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常"
+        ]
+      },
+      {
+        "seed": 165,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 166,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 167,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 168,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 169,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 170,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 171,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 172,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 173,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 174,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 175,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 176,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 177,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 178,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 179,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 180,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 181,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 182,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 183,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 184,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 185,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 186,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 187,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 188,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 189,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 190,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 191,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 192,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 193,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 194,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 195,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 196,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 197,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 198,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 199,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 200,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      }
+    ]
+  },
+  "50_shift0": {
+    "summary": {
+      "okCount": 180,
+      "total": 200,
+      "okRate": 0.9
+    },
+    "seeds": [
+      {
+        "seed": 1,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "刮刀方向",
+          "空間分布",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 2,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 3,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 4,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 5,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 6,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 7,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 8,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 9,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 10,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 11,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 12,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 13,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 14,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 15,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 16,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 17,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 18,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 19,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 20,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 21,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 22,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 23,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 24,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 25,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 26,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 27,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "空間分布"
+        ]
+      },
+      {
+        "seed": 28,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 29,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 30,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 31,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 32,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 33,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 34,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 35,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 36,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 37,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 38,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 39,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 40,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 41,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 42,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 43,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 44,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 45,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 46,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 47,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 48,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 49,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 50,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 51,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 52,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 53,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 54,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 55,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 56,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 57,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 58,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 59,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 60,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 61,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 62,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 63,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 64,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 65,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 66,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 67,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 68,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 69,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 70,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 71,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 72,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 73,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 74,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 75,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 76,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 77,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 78,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 79,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 80,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 81,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 82,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 83,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 84,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 85,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 86,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 87,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 88,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 89,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 90,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 91,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 92,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 93,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 94,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 95,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 96,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 97,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 98,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "擦拭週期",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 99,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 100,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 101,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 102,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 103,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 104,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 105,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 106,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 107,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 108,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 109,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 110,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 111,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 112,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 113,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 114,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 115,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 116,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 117,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 118,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 119,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 120,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 121,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 122,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 123,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 124,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 125,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 126,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 127,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 128,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 129,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 130,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 131,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 132,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 133,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 134,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 135,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 136,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 137,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 138,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 139,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 140,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 141,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 142,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 143,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 144,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 145,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 146,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 147,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 148,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 149,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 150,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 151,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 152,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 153,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 154,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 155,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 156,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 157,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 158,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "空間分布",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 159,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 160,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 161,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 162,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 163,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 164,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 165,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 166,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 167,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 168,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 169,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 170,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 171,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 172,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 173,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 174,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 175,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 176,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 177,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 178,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 179,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 180,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": []
+      },
+      {
+        "seed": 181,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 182,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 183,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 184,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 185,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 186,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 187,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 188,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 189,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 190,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 191,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 192,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 193,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 194,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 195,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 196,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 197,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 198,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 199,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 200,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      }
+    ]
+  },
+  "25_shift3": {
+    "summary": {
+      "okCount": 2,
+      "total": 200,
+      "okRate": 0.01
+    },
+    "seeds": [
+      {
+        "seed": 1,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 2,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 3,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 4,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 5,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 6,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 7,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 8,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 9,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 10,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 11,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 12,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 13,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 14,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 15,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 16,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 17,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 18,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 19,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 20,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 21,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 22,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 23,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 24,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 25,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 26,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 27,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 28,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 29,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 30,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 31,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 32,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 33,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 34,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 35,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 36,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 37,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 38,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 39,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 40,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 41,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 42,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 43,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 44,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 45,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 46,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 47,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 48,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 49,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 50,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 51,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 52,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 53,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 54,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 55,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 56,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 57,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 58,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 59,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 60,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 61,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 62,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 63,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 64,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 65,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 66,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 67,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 68,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 69,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 70,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 71,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 72,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 73,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 74,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 75,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 76,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 77,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 78,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 79,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 80,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 81,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 82,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 83,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 84,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 85,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 86,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 87,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 88,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 89,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 90,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 91,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 92,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 93,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 94,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 95,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 96,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 97,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 98,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 99,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 100,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 101,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 102,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 103,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 104,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 105,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 106,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 107,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 108,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 109,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 110,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 111,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 112,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 113,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 114,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 115,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 116,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 117,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 118,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 119,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 120,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 121,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 122,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 123,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 124,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 125,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 126,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 127,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 128,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 129,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 130,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 131,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 132,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 133,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 134,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 135,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 136,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 137,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 138,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 139,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 140,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 141,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 142,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 143,
+        "verdict": "正常",
+        "level": "ok",
+        "cats": [
+          "管制圖規則"
+        ]
+      },
+      {
+        "seed": 144,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 145,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 146,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 147,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 148,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 149,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 150,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 151,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 152,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 153,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "刮刀方向",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 154,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 155,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 156,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 157,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 158,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 159,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 160,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 161,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 162,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 163,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 164,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 165,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 166,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 167,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 168,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 169,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 170,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 171,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 172,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 173,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 174,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 175,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 176,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 177,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 178,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 179,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 180,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 181,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 182,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 183,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 184,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 185,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 186,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 187,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 188,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 189,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 190,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 191,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 192,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 193,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 194,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 195,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 196,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 197,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 198,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 199,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 200,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      }
+    ]
+  },
+  "50_shift3": {
+    "summary": {
+      "okCount": 0,
+      "total": 200,
+      "okRate": 0
+    },
+    "seeds": [
+      {
+        "seed": 1,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "刮刀方向",
+          "空間分布",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 2,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 3,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 4,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 5,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 6,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 7,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 8,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 9,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 10,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 11,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 12,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 13,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 14,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 15,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 16,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 17,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 18,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 19,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 20,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 21,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 22,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 23,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 24,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 25,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 26,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 27,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "空間分布",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 28,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 29,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 30,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 31,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 32,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 33,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 34,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 35,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 36,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 37,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 38,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 39,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 40,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 41,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 42,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 43,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 44,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 45,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 46,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 47,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 48,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 49,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 50,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 51,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 52,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 53,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 54,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 55,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 56,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 57,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 58,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 59,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 60,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 61,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 62,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 63,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 64,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 65,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 66,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 67,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 68,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 69,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 70,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "刮刀方向",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 71,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 72,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 73,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 74,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 75,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 76,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 77,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 78,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 79,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 80,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 81,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 82,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 83,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 84,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 85,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 86,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 87,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 88,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 89,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 90,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 91,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 92,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 93,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 94,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 95,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 96,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 97,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 98,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 99,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 100,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 101,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 102,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 103,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 104,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 105,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 106,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 107,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 108,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 109,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 110,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 111,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 112,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 113,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 114,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 115,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 116,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 117,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 118,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 119,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 120,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 121,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 122,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 123,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 124,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 125,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 126,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 127,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 128,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 129,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 130,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 131,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 132,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 133,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 134,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 135,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 136,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 137,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 138,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 139,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 140,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 141,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 142,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 143,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 144,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 145,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 146,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 147,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 148,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 149,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 150,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 151,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 152,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 153,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 154,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 155,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 156,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 157,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 158,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "空間分布",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 159,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 160,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 161,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 162,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 163,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 164,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 165,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 166,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 167,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 168,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 169,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 170,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 171,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 172,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 173,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 174,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 175,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 176,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "擦拭週期",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 177,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 178,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 179,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "單板異常",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 180,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 181,
+        "verdict": "警示",
+        "level": "warn",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 182,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 183,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 184,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 185,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 186,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 187,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 188,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 189,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 190,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "孤立極端焊墊",
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 191,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 192,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 193,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 194,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 195,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 196,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 197,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 198,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 199,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      },
+      {
+        "seed": 200,
+        "verdict": "異常",
+        "level": "ng",
+        "cats": [
+          "管制圖規則",
+          "趨勢漂移"
+        ]
+      }
+    ]
+  }
+}
