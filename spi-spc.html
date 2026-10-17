@@ -1027,6 +1027,75 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     </div>
   </div>
 </section>
+<section class="panel" id="p-mail" role="tabpanel" hidden>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3>以 Email 轉寄分析報告 <small>瀏覽器端產生附件並叫用郵件客戶端</small></h3>
+      <button type="button" class="linkbtn" id="btnMailBack">← 返回報告</button>
+    </div>
+    <p class="note" style="margin:8px 0;color:var(--ink)">
+      <b>安全與隱私聲明：</b>郵件由您的郵件 App 寄出，本系統不寄信、不保存收件人。
+    </p>
+
+    <div class="row" style="margin:16px 0 8px;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <label for="mailTo" class="lbl" style="font-weight:600">收件人 (To)：</label>
+        <input type="text" id="mailTo" placeholder="選填，多筆以半形逗號或分號分隔 (只用於 mailto)" style="width:100%;box-sizing:border-box;margin-top:4px">
+        <span class="note" id="mailToErr" style="color:var(--bad);display:none;font-size:12px">收件人 Email 格式不正確</span>
+      </div>
+      <div style="flex:1;min-width:240px">
+        <label for="mailCc" class="lbl" style="font-weight:600">副本 (Cc)：</label>
+        <input type="text" id="mailCc" placeholder="選填，多筆以半形逗號或分號分隔" style="width:100%;box-sizing:border-box;margin-top:4px">
+        <span class="note" id="mailCcErr" style="color:var(--bad);display:none;font-size:12px">副本 Email 格式不正確</span>
+      </div>
+    </div>
+
+    <div style="margin:8px 0">
+      <label for="mailSubject" class="lbl" style="font-weight:600">郵件主旨：</label>
+      <input type="text" id="mailSubject" style="width:100%;box-sizing:border-box;margin-top:4px;font-weight:600">
+    </div>
+
+    <div style="margin:12px 0">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px">
+        <label for="mailBody" class="lbl" style="font-weight:600">郵件內文／摘要：</label>
+        <button type="button" class="linkbtn" id="btnMailCopySummary">複製摘要</button>
+      </div>
+      <textarea id="mailBody" rows="7" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:13px;line-height:1.5;padding:8px"></textarea>
+      <div class="row" style="justify-content:space-between;margin-top:4px">
+        <span class="note" id="mailBodyLen">字數：0 字</span>
+        <span class="note" id="mailUrlLen">mailto 網址長度：0 / 1800 字元</span>
+      </div>
+    </div>
+
+    <div style="margin:16px 0;padding:12px;background:var(--card-sub);border-radius:6px;border:1px solid var(--border)">
+      <div class="lbl" style="font-weight:600;margin-bottom:8px">包含章節：</div>
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <label><input type="checkbox" id="chkMailRep1" checked> 封面</label>
+        <label><input type="checkbox" id="chkMailRep2" checked> 摘要</label>
+        <label><input type="checkbox" id="chkMailRep3" checked> 問題</label>
+        <label><input type="checkbox" id="chkMailRep4" checked> 管制圖</label>
+        <label><input type="checkbox" id="chkMailRep5" checked> 能力</label>
+        <label><input type="checkbox" id="chkMailRep6" checked> 柏拉圖</label>
+        <label><input type="checkbox" id="chkMailRep7" checked> 交叉/3D</label>
+        <label><input type="checkbox" id="chkMailRep8" checked> DFM</label>
+        <label><input type="checkbox" id="chkMailRep9" checked> 揭露</label>
+        <label><input type="checkbox" id="chkMailRep10" checked> 附錄</label>
+      </div>
+    </div>
+
+    <div id="mailStatus" role="status" style="margin:12px 0;font-size:13px;min-height:20px;color:var(--ink)">
+      <span id="mailStatusText">正在產生 PDF…</span>
+    </div>
+
+    <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px">
+      <button type="button" class="primary" id="btnSharePdf" disabled>分享 PDF 到郵件…</button>
+      <button type="button" id="btnSharePdfWithSummary" disabled>連同摘要分享</button>
+      <span class="note" id="lblAppleNote" style="font-size:12px;color:var(--dim);display:none">（部分 iPhone 版本此方式不會出現「儲存到檔案」）</span>
+      <button type="button" id="btnMailDlPdf" disabled>下載 PDF</button>
+      <button type="button" id="btnMailOpenMailto">開啟郵件 (mailto)</button>
+    </div>
+  </div>
+</section>
 </div>
 
 <nav class="mtab" aria-label="主要分頁">
@@ -2870,7 +2939,7 @@ $("#btnIssMd").onclick=()=>save("spi-issues.md",issuesMd());
 $("#btnIssCsv").onclick=()=>save("spi-issues.csv",issuesCsv(S.F));
 const nextFrame=f=>window.requestAnimationFrame?requestAnimationFrame(f):setTimeout(f,16);
 function renderTab(){renderTabInner();nextFrame(enhancePanel)}
-function renderTabInner(){({issues:renderIssues,overview:renderOverview,compare:renderCompare,dfm:renderDfm,lab:renderLab,control:renderControl,capability:renderCap,sim3d:render3D,cross:renderCross,adv:renderAdv,ai:()=>{},report:renderReport,data:()=>{renderSpecTbl();renderZones();renderAperture();renderRuns();renderResults();if(S.sub==="records")renderRecords()}})[S.tab]()}
+function renderTabInner(){const fn=({issues:renderIssues,overview:renderOverview,compare:renderCompare,dfm:renderDfm,lab:renderLab,control:renderControl,capability:renderCap,sim3d:render3D,cross:renderCross,adv:renderAdv,ai:()=>{},report:renderReport,data:()=>{renderSpecTbl();renderZones();renderAperture();renderRuns();renderResults();if(S.sub==="records")renderRecords()}})[S.tab];if(fn)fn()}
 
 $("#selMetric").onchange=e=>{S.metric=e.target.value;syncControls();recompute()};
 $("#selGroup").onchange=e=>{S.group=e.target.value;recompute()};
@@ -2904,7 +2973,7 @@ function syncMobileTabs(t){
     if(inMore)moreBtn.setAttribute("aria-current","page");else moreBtn.removeAttribute("aria-current");
   }
 }
-const ALL_TABS = ["issues","overview","control","capability","sim3d","cross","adv","compare","dfm","lab","ai","report","data","share","shares"];
+const ALL_TABS = ["issues","overview","control","capability","sim3d","cross","adv","compare","dfm","lab","ai","report","mail","data","share","shares"];
 function setTab(t, fromHistory = false) {
   if (!ALL_TABS.includes(t)) t = "issues";
   if (S.tab && S.tab !== t) SCROLL[S.tab] = scrollY;
@@ -2923,6 +2992,7 @@ function setTab(t, fromHistory = false) {
   showCtx();
   if (t === "share") initSharePage();
   else if (t === "shares") loadMyShares();
+  else if (t === "mail") initMailPage();
   else if (t === "ai") initAiPage();
   else renderTab();
   if (changed) scrollTo(0, Math.min(SCROLL[t] || 0, document.documentElement.scrollHeight));
@@ -5069,11 +5139,254 @@ if($("#btnRepPdf")){
 if($("#btnRepPrint")){
   $("#btnRepPrint").onclick=()=>{setTab("report");triggerAppPrint()};
 }
+function isAppleDevice(){
+  if(typeof navigator==="undefined")return false;
+  const ua=navigator.userAgent||"";
+  const pt=navigator.platform||"";
+  return /iPad|iPhone|iPod/.test(ua)||(pt==="MacIntel"&&navigator.maxTouchPoints>1);
+}
+
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function validateEmailList(str){
+  if(!str||!str.trim())return true;
+  const parts=str.split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
+  return parts.every(p=>EMAIL_RE.test(p));
+}
+
+function buildMailSummary(s){
+  const ov=overallVerdict(s,s.F);
+  const nowStr=formatUtc8Date(new Date(),"YYYY/MM/DD HH:mm:ss");
+  const issues=(s.F||[]).slice(0,3);
+  const lines=[];
+  lines.push("【SPI·SPC 製程分析報告摘要】");
+  lines.push(`• 試產回合：${s.source||"—"}`);
+  lines.push(`• 整體判定：${ov.label}（${ov.level==="ok"?"正常":ov.level==="warn"?"警示":"異常"}）`);
+  lines.push(`• 產生時間：${nowStr} (UTC+8)`);
+  if(issues.length>0){
+    lines.push(`• 主要問題（前 ${issues.length} 項）：`);
+    issues.forEach((x,idx)=>lines.push(`  ${idx+1}. [${x.cat}] ${x.title} (${x.lv==="ng"?"異常":"警示"})`));
+  }else{
+    lines.push("• 製程穩定且能力充足，無異常問題。");
+  }
+  if(s.shareUrl){
+    lines.push(`• 線上分享連結：${s.shareUrl}（30 天有效，需登入）`);
+  }
+  lines.push("");
+  lines.push("（完整 10 章節結構化圖表與數據請參閱附件 PDF 報告）");
+  return lines.join("\n");
+}
+
+function buildMailtoUrl(to, cc, subject, body){
+  const toClean=String(to||"").trim();
+  const ccClean=String(cc||"").trim();
+  const base=`mailto:${encodeURIComponent(toClean).replace(/%40/g,"@").replace(/%2C/g,",")}`;
+  const params=[];
+  if(ccClean)params.push(`cc=${encodeURIComponent(ccClean).replace(/%40/g,"@").replace(/%2C/g,",")}`);
+  if(subject)params.push(`subject=${encodeURIComponent(subject)}`);
+  const prefix=base+(params.length?"?"+params.join("&")+"&body=":"?body=");
+  const limit=1800;
+  const full=prefix+encodeURIComponent(body||"");
+  if(full.length<=limit)return full;
+
+  const truncMsg="\n\n（內容過長已截斷，完整內容見 PDF 或分享連結）";
+  let cur=String(body||"");
+  while(cur.length>0){
+    const candidate=prefix+encodeURIComponent(cur+truncMsg);
+    if(candidate.length<=limit)return candidate;
+    const lastBreak=Math.max(cur.lastIndexOf("\n"),cur.lastIndexOf("。"),cur.lastIndexOf("."),cur.lastIndexOf(";"),cur.lastIndexOf("；"));
+    if(lastBreak>0&&lastBreak<cur.length-1){
+      cur=cur.slice(0,lastBreak);
+    }else{
+      cur=cur.slice(0,Math.max(0,cur.length-25));
+    }
+  }
+  return prefix+encodeURIComponent(truncMsg.trim());
+}
+
+function getMailChapters(){
+  const chs={};
+  for(let i=1;i<=10;i++){
+    const el=$("#chkMailRep"+i);
+    chs[i]=el?el.checked:true;
+  }
+  return chs;
+}
+
+let mailBlob=null, mailFile=null, mailIsGenerating=false;
+async function updateMailPdf(){
+  if(mailIsGenerating)return;
+  mailIsGenerating=true;
+  if($("#btnSharePdf"))$("#btnSharePdf").disabled=true;
+  if($("#btnSharePdfWithSummary"))$("#btnSharePdfWithSummary").disabled=true;
+  if($("#btnMailDlPdf"))$("#btnMailDlPdf").disabled=true;
+  const stText=$("#mailStatusText");
+  if(stText)stText.innerHTML='<span style="color:var(--ink)">正在產生 PDF…</span>';
+  try{
+    const res=await generateReportPdfBlob({chapters:getMailChapters()});
+    mailBlob=res.blob;
+    const fn=pdfFileName();
+    try{mailFile=new File([mailBlob],fn,{type:"application/pdf"})}catch(e){mailFile=mailBlob}
+    const mb=mailBlob.size/(1024*1024);
+
+    const canShareFiles=(typeof navigator!=="undefined"&&navigator.canShare)?navigator.canShare({files:[mailFile]}):false;
+    if(canShareFiles){
+      if($("#btnSharePdf"))$("#btnSharePdf").disabled=false;
+      if($("#btnSharePdfWithSummary"))$("#btnSharePdfWithSummary").disabled=false;
+    }else{
+      if($("#btnSharePdf"))$("#btnSharePdf").disabled=true;
+      if($("#btnSharePdfWithSummary"))$("#btnSharePdfWithSummary").disabled=true;
+    }
+    if($("#btnMailDlPdf"))$("#btnMailDlPdf").disabled=false;
+
+    if(stText){
+      if(mb>5){
+        stText.innerHTML=`<span class="warn">PDF 大小為 ${mb.toFixed(1)} MB（超過 5 MB），附件可能過大，可減少勾選章節或匯出精簡版。</span>`;
+      }else{
+        stText.innerHTML=`<span style="color:var(--ok)">PDF 已產生 (${mb.toFixed(2)} MB)，已就緒。</span>`;
+      }
+    }
+  }catch(err){
+    if(stText)stText.innerHTML=`<span class="bad">產生 PDF 失敗：${esc(err.message||String(err))}</span>`;
+  }finally{
+    mailIsGenerating=false;
+  }
+}
+
+function syncMailLength(){
+  const body=$("#mailBody")?$("#mailBody").value:"";
+  const to=$("#mailTo")?$("#mailTo").value:"";
+  const cc=$("#mailCc")?$("#mailCc").value:"";
+  const sub=$("#mailSubject")?$("#mailSubject").value:"";
+  if($("#mailBodyLen"))$("#mailBodyLen").textContent=`字數：${body.length} 字`;
+  const url=buildMailtoUrl(to,cc,sub,body);
+  if($("#mailUrlLen")){
+    $("#mailUrlLen").textContent=`mailto 網址長度：${url.length} / 1800 字元`;
+    $("#mailUrlLen").style.color=url.length>1800?"var(--bad)":"var(--dim)";
+  }
+  if($("#mailToErr")){
+    const okTo=validateEmailList(to);
+    $("#mailToErr").style.display=okTo?"none":"block";
+  }
+  if($("#mailCcErr")){
+    const okCc=validateEmailList(cc);
+    $("#mailCcErr").style.display=okCc?"none":"block";
+  }
+}
+
+function initMailPage(){
+  const src=runSrc(curRun());
+  const part=(src&&src.part)||S.part||"SAMPLE";
+  const lot=(src&&src.lot)||S.lot||S.source||"LOT";
+  const verdict=overallVerdict(S,S.F).label;
+  if($("#mailSubject"))$("#mailSubject").value=`SPI·SPC 分析報告｜${part} ${lot}｜${verdict}`;
+  if($("#mailBody"))$("#mailBody").value=buildMailSummary(S);
+  for(let i=1;i<=10;i++){
+    const rChk=$("#chkRep"+i),mChk=$("#chkMailRep"+i);
+    if(rChk&&mChk)mChk.checked=rChk.checked;
+  }
+  const apple=isAppleDevice();
+  if($("#lblAppleNote"))$("#lblAppleNote").style.display=apple?"inline":"none";
+  syncMailLength();
+  updateMailPdf();
+}
+
 if($("#btnRepMail")){
-  $("#btnRepMail").onclick=()=>{
-    const subject=encodeURIComponent(`SPI·SPC 製程分析報告摘要 - ${S.source}`);
-    const body=encodeURIComponent(`請參閱 SPI·SPC 分析報告：\n回合：${S.source}\n整體判定：${overallVerdict(S,S.F).label}\n問題數：${(S.F||[]).length} 項\n\n（完整結構化報告請見附件或匯出 PDF）`);
-    location.href=`mailto:?subject=${subject}&body=${body}`;
+  $("#btnRepMail").onclick=()=>setTab("mail");
+}
+if($("#btnMailBack")){
+  $("#btnMailBack").onclick=()=>{
+    if(history.length>1)history.back();
+    else setTab("report");
+  };
+}
+if($("#mailBody")){
+  $("#mailBody").addEventListener("input",syncMailLength);
+}
+if($("#mailTo")){
+  $("#mailTo").addEventListener("input",syncMailLength);
+}
+if($("#mailCc")){
+  $("#mailCc").addEventListener("input",syncMailLength);
+}
+if($("#mailSubject")){
+  $("#mailSubject").addEventListener("input",syncMailLength);
+}
+for(let i=1;i<=10;i++){
+  const c=$("#chkMailRep"+i);
+  if(c)c.addEventListener("change",updateMailPdf);
+}
+if($("#btnMailCopySummary")){
+  $("#btnMailCopySummary").onclick=async()=>{
+    const el=$("#mailBody");
+    if(!el)return;
+    try{
+      await navigator.clipboard.writeText(el.value);
+      $("#btnMailCopySummary").textContent="已複製";
+    }catch(e){
+      el.select();
+      document.execCommand&&document.execCommand("copy");
+      $("#btnMailCopySummary").textContent="已複製";
+    }
+    setTimeout(()=>{$("#btnMailCopySummary").textContent="複製摘要"},1800);
+  };
+}
+if($("#btnSharePdf")){
+  $("#btnSharePdf").onclick=()=>{
+    if(!mailFile)return;
+    const isApple=isAppleDevice();
+    const shareData=isApple?{files:[mailFile]}:{
+      files:[mailFile],
+      title:$("#mailSubject")?$("#mailSubject").value:"",
+      text:$("#mailBody")?$("#mailBody").value:""
+    };
+    if(navigator.share){
+      navigator.share(shareData).catch(err=>{
+        if(err&&err.name==="AbortError")return;
+        const stText=$("#mailStatusText");
+        if(stText)stText.innerHTML=`<span class="bad">分享失敗：${esc(err.message||String(err))}，可改用下方「下載 PDF」或「開啟郵件」。</span>`;
+      });
+    }
+  };
+}
+if($("#btnSharePdfWithSummary")){
+  $("#btnSharePdfWithSummary").onclick=()=>{
+    if(!mailFile)return;
+    const shareData={
+      files:[mailFile],
+      title:$("#mailSubject")?$("#mailSubject").value:"",
+      text:$("#mailBody")?$("#mailBody").value:""
+    };
+    if(navigator.share){
+      navigator.share(shareData).catch(err=>{
+        if(err&&err.name==="AbortError")return;
+        const stText=$("#mailStatusText");
+        if(stText)stText.innerHTML=`<span class="bad">分享失敗：${esc(err.message||String(err))}，可改用下方「下載 PDF」或「開啟郵件」。</span>`;
+      });
+    }
+  };
+}
+if($("#btnMailDlPdf")){
+  $("#btnMailDlPdf").onclick=()=>{
+    if(!mailBlob)return;
+    const fn=pdfFileName();
+    const url=URL.createObjectURL(mailBlob);
+    const a=document.createElement("a");
+    a.href=url;a.download=fn;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+    toast(`已下載 PDF 報告 ${fn}`);
+  };
+}
+if($("#btnMailOpenMailto")){
+  $("#btnMailOpenMailto").onclick=()=>{
+    const to=$("#mailTo")?$("#mailTo").value:"";
+    const cc=$("#mailCc")?$("#mailCc").value:"";
+    const sub=$("#mailSubject")?$("#mailSubject").value:"";
+    const body=$("#mailBody")?$("#mailBody").value:"";
+    if(!validateEmailList(to)){toast("收件人 Email 格式不正確");return}
+    if(!validateEmailList(cc)){toast("副本 Email 格式不正確");return}
+    const url=buildMailtoUrl(to,cc,sub,body);
+    location.href=url;
   };
 }
 if(HAS_API&&window.CompressionStream){
@@ -5213,7 +5526,7 @@ try{const svT=localStorage.getItem("spi-theme");applyTheme(svT==="dark"?"dark":"
 if($("#btnTheme"))$("#btnTheme").onclick=toggleTheme;
 if($("#mBtnTheme"))$("#mBtnTheme").onclick=()=>{if(typeof moreSheetCtrl!=="undefined"&&moreSheetCtrl)moreSheetCtrl.close();toggleTheme()};
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();
