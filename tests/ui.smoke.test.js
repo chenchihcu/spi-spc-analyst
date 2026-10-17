@@ -100,7 +100,7 @@ test("匯入資料中的 HTML 不會被執行（XSS）", { skip: !JSDOM && "未�
   for (let i = 0; i < 100 && w.eval("S.runs.length") < 3; i++) await new Promise((r) => setTimeout(r, 20));
   assert.equal(w.eval("S.runs.length"), 3, "存入資料庫後建立回合");
   $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $('.subtab[data-sub="runs"]').click(); $('.subtab[data-sub="records"]').click();
-  await new Promise((r) => setTimeout(r, 200));
+  for (let i = 0; i < 100 && !/L1/.test($("#recSpi").textContent); i++) await new Promise((r) => setTimeout(r, 50));
   assert.match($("#recSpi").textContent, /L1/);
   for (const t of ["issues", "overview", "compare", "dfm", "control", "capability", "sim3d", "cross", "adv", "lab", "data"]) $(`[data-tab=${t}]`).click();
   assert.equal(d.querySelectorAll("img[onerror],svg[onload]").length, 0, "不應出現注入的 img／svg");
