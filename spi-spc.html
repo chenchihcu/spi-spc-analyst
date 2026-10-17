@@ -1719,10 +1719,10 @@ function robust(v){const m=med(v);if(!isFinite(m))return{m:NaN,s:NaN};const ad=n
 function detrend(v,P){const n=v.length;if(n<P+2)return v.slice();const tr=v.map((_,i)=>{const lo=Math.max(0,Math.min(i-Math.floor(P/2),n-P));let s=0;for(let j=lo;j<lo+P;j++)s+=v[j];return s/P});return v.map((x,i)=>x-tr[i])}
 function winsor(v){const{m,s}=robust(v);return v.map(x=>Math.min(m+3*s,Math.max(m-3*s,x)))}
 /* ---- D-30 孤立極端焊墊（6.1）：穩健 z、解析度下限、候選條件 ---- */
-function resolutionOf(v){const arr=v.length>2000?v.filter((_,i)=>i%Math.ceil(v.length/2000)===0):v;const s=[...new Set(arr)].sort((a,b)=>a-b);let r=Infinity;for(let i=1;i<s.length;i++){const d=s[i]-s[i-1];if(d>1e-9&&d<r)r=d}return isFinite(r)?r:0}
-function isoStat(v){const m=med(v),n=v.length,ad=new Float64Array(n);let sum=0;for(let i=0;i<n;i++){const d=Math.abs(v[i]-m);ad[i]=d;sum+=d}const mad=med(ad),res=resolutionOf(v);let sg=1.4826*mad;if(!(mad>0))sg=1.2533*(n?sum/n:0);return{m,mad,res,sg:Math.max(sg,res/Math.sqrt(12))}}
+function resolutionOf(v){const arr=v.length>2000?v.filter((_,i)=>i%Math.ceil(v.length/2000)===0):v;const s=Float64Array.from(new Set(arr));s.sort();let r=Infinity;for(let i=1;i<s.length;i++){const d=s[i]-s[i-1];if(d>1e-9&&d<r)r=d}return isFinite(r)?r:0}
+function isoStat(v){const m=med(v),n=v.length,ad=new Float64Array(n);let sum=0;for(let i=0;i<n;i++){const d=Math.abs(v[i]-m);ad[i]=d;sum+=d}ad.sort();const mad=n?quant(ad,.5):NaN,res=resolutionOf(v);let sg=1.4826*mad;if(!(mad>0))sg=1.2533*(n?sum/n:0);return{m,mad,res,sg:Math.max(sg,res/Math.sqrt(12))}}
 /* 掃描單一量測項目：回傳各群組統計（n≥10）與候選（超規，或 |z|≥5 且偏離 ≥ max(0.10×規格寬, 3×解析度)） */
-function isoScan(R,st,k){const byG=new Map();for(const r of R){if(r[k]==null||!isFinite(r[k]))continue;let a=byG.get(r.group);if(!a)byG.set(r.group,a=[]);a.push(r)}
+function isoScan(R,st,k,gIdx){const byG=new Map();if(gIdx){for(const g of Object.keys(gIdx)){const a=gIdx[g].filter(r=>r[k]!=null&&isFinite(r[k]));if(a.length)byG.set(g,a)}}else{for(const r of R){if(r[k]==null||!isFinite(r[k]))continue;let a=byG.get(r.group);if(!a)byG.set(r.group,a=[]);a.push(r)}}
   const cells=[],cands=[];const hasStep=k==="height"&&st.step&&st.step.on&&st.specSrc!=="machine";
   for(const[g,rs]of byG){if(rs.length<10)continue;const S=isoStat(rs.map(r=>r[k]));if(!(S.sg>0))continue;cells.push({g,k,n:rs.length,...S});
     const defSp=specOfGroup(st,g,k);const span=defSp&&isFinite(defSp.lsl)&&isFinite(defSp.usl)&&defSp.usl>defSp.lsl?defSp.usl-defSp.lsl:NaN;
@@ -1893,7 +1893,7 @@ function detectIssues(st){
       if(Math.abs(z)>=3.5&&(!isFinite(sp)||Math.abs(d)>=sp*.08)&&(Math.abs(z)>=5.5||ex>=3))hits.push({k,g,b:boards[i],z,d,v,m,ex})})}
   // D-30 孤立極端焊墊：候選掃描與 (a) 板級現象排除（先於單板卡組裝：≤2 個候選移除該值重判，>2 個一律視為板級現象）
   const ISO={cells:[],cands:[],explained:[],left:[]};
-  {for(const k of MS){const s=isoScan(R,st,k);ISO.cells.push(...s.cells);ISO.cands.push(...s.cands)}
+  {for(const k of MS){const s=isoScan(R,st,k,gIdx);ISO.cells.push(...s.cells);ISO.cands.push(...s.cands)}
     const wholeOf=(b,k)=>{const hk=hits.filter(h=>h.b===b&&h.k===k),gs=groups.filter(g=>((idx[b]||{})[g]||[]).some(r=>r[k]!=null));return hk.length>=Math.max(2,Math.ceil(gs.length*.6))&&(hk.every(h=>h.d>0)||hk.every(h=>h.d<0))};
     const hitNow=(b,g,k,excl)=>{const bmv=gBm[k][g].slice(),bi=boards.indexOf(b);
       let rs=(idx[b]||{})[g]||[];if(excl.size)rs=rs.filter(r=>!excl.has(r));const rv=rs.map(r=>r[k]).filter(v=>v!=null);
@@ -2125,21 +2125,21 @@ function detectIssues(st){
   addAl(sc,`${sc.map(x=>x.b).join("、")} 伸縮（漲縮）`,x=>`${x.b}：伸縮 X ${f(x.a.ex*1000,0)} / Y ${f(x.a.ey*1000,0)} ppm，板邊約 ${f(x.a.strEdge,0)} µm`,"鋼板張力不足或 PCB 批次漲縮，需鋼板補償",a=>a.strEdge,"各板伸縮造成的板邊位移 µm","sc","對位分解：伸縮板邊位移 >20 µm","剛體對位最小平方法分解（伸縮板邊位移 max(|ex|,|ey|)·R > 20 µm）","伸縮板邊位移 ≤ 20 µm",ACT.align_sc);
 
   // 8. 設計（DFM）：面積比、寬厚比、轉移效率
-  for(const g of groups){const rs=padReps(R.filter(r=>r.group===g));if(!rs.length)continue;
+  for(const g of groups){const grs=gIdx[g]||[],rs=padReps(grs);if(!rs.length)continue;
     const ar=Math.min(...rs.map(r=>areaRatio(r,st))),asp=Math.min(...rs.map(r=>aspectRatio(r,st))),tmax=Math.min(...rs.map(r=>maxThkForAR(r,st))),thk=Math.max(...rs.map(r=>padThk(r,st)));
-    const tv=R.filter(r=>r.group===g&&r.volume!=null).map(r=>r.volume),te=tv.length?mean(tv):NaN,vt=st.specs.volume.tgt,dimNote=rs.some(r=>r.dimAssumed)?"（焊墊尺寸為估算值）":"";
+    const tv=grs.filter(r=>r.volume!=null).map(r=>r.volume),te=tv.length?mean(tv):NaN,vt=st.specs.volume.tgt,dimNote=rs.some(r=>r.dimAssumed)?"（焊墊尺寸為估算值）":"";
     const worstPads=[...rs].sort((a,b)=>areaRatio(a,st)-areaRatio(b,st));
     if(ar<.66||asp<1.5)add({lv:"ng",cat:"設計 DFM",sig:{t:"dfm",g,ar,asp,te},title:`${g} 開孔設計不符 IPC-7525（${ar<.66?"面積比 "+f(ar,2):"寬厚比 "+f(asp,2)}）`,ents:["g:"+g],score:4,
       rule_id:"IPC-7525 開孔幾何（AR<0.66 或 AspR<1.5）",rule_name:"面積比 AR = L·W/(2(L+W)t) ≥ 0.66 且寬厚比 W/t ≥ 1.5",metric:"體積; 面積",
       boards:"全部板",subboard:subOf(rs),group:g,refdes:refOf(rs),pads:topList(worstPads.map(r=>r.pad),10),
       observed:`最小面積比 ${f(ar,2)}、寬厚比 ${f(asp,2)}（目前鋼板 ${thk} µm）`,limit:"IPC-7525 面積比 ≥ 0.66、寬厚比 ≥ 1.5",z:"不適用（幾何設計規則）",p:"不適用（幾何設計規則）",
-      facts:[`全部板（${g} 代表焊墊 ${worstPads.slice(0,5).map(r=>r.pad).join("、")}${worstPads.length>5?` 等 ${worstPads.length} 個`:""}）：最小面積比 ${f(ar,2)}（建議 ≥ 0.66）、寬厚比 ${f(asp,2)}（建議 ≥ 1.5）${dimNote}`,`目前鋼板 ${thk} µm；要達 AR 0.66 需 ≤ ${f(tmax,0)} µm`],cause:"設計因素：開孔過小或鋼板過厚，錫膏脫模困難",conf:"高",action:ACT.dfm,ev:evBars("各元件群組最小面積比",groups,groups.map(x=>{const q=padReps(R.filter(r=>r.group===x));return q.length?Math.min(...q.map(r=>areaRatio(r,st))):NaN}),[groups.indexOf(g)],"",[.66]),go:{tab:"dfm",group:"ALL"}});
+      facts:[`全部板（${g} 代表焊墊 ${worstPads.slice(0,5).map(r=>r.pad).join("、")}${worstPads.length>5?` 等 ${worstPads.length} 個`:""}）：最小面積比 ${f(ar,2)}（建議 ≥ 0.66）、寬厚比 ${f(asp,2)}（建議 ≥ 1.5）${dimNote}`,`目前鋼板 ${thk} µm；要達 AR 0.66 需 ≤ ${f(tmax,0)} µm`],cause:"設計因素：開孔過小或鋼板過厚，錫膏脫模困難",conf:"高",action:ACT.dfm,ev:evBars("各元件群組最小面積比",groups,groups.map(x=>{const q=padReps(gIdx[x]||[]);return q.length?Math.min(...q.map(r=>areaRatio(r,st))):NaN}),[groups.indexOf(g)],"",[.66]),go:{tab:"dfm",group:"ALL"}});
     else if(isFinite(te)&&te<vt*.9)add({lv:"warn",cat:"設計 DFM",sig:{t:"lowte",g,ar,te},title:`${g} 面積比合格但轉移效率偏低（${f(te,1)}%）`,ents:["g:"+g],score:2.5,
       rule_id:"轉移效率 <90% 目標（AR≥0.66）",rule_name:"面積比 ≥ 0.66 且群組平均體積轉移效率 < 0.90 × 目標值",metric:"體積",
       boards:"全部板",subboard:subOf(rs),group:g,refdes:refOf(rs),pads:topList(worstPads.map(r=>r.pad),10),
       observed:`平均轉移效率 ${f(te,1)}%（最小面積比 ${f(ar,2)}）`,limit:`目標 ${vt}%（門檻 ≥ ${f(vt*.9,1)}%）`,z:"不適用（群組平均效率）",p:"不適用（群組平均效率）",
       facts:[`全部板（${g} 焊墊 ${worstPads.slice(0,5).map(r=>r.pad).join("、")}${worstPads.length>5?` 等 ${worstPads.length} 個`:""}）：平均轉移效率 ${f(te,1)}%（目標 ${vt}%，門檻 ${f(vt*.9,1)}%），最小面積比 ${f(ar,2)}${dimNote}`,`AR 0.66 下最大可用厚度 ${f(tmax,0)} µm，目前 ${thk} µm`],
-      cause:"非幾何因素：孔壁粗糙（未拋光或未塗層）、錫膏粒徑過大、開孔角落殘留；可評估奈米塗層、電鑄鋼板或 Type 4/5 錫膏",conf:"中",action:ACT.lowte,ev:evBars("各元件群組平均轉移效率",groups,groups.map(x=>{const v=R.filter(r=>r.group===x&&r.volume!=null).map(r=>r.volume);return v.length?mean(v):NaN}),[groups.indexOf(g)],"%",[vt]),go:{tab:"dfm",group:"ALL",metric:"volume"}})}
+      cause:"非幾何因素：孔壁粗糙（未拋光或未塗層）、錫膏粒徑過大、開孔角落殘留；可評估奈米塗層、電鑄鋼板或 Type 4/5 錫膏",conf:"中",action:ACT.lowte,ev:evBars("各元件群組平均轉移效率",groups,groups.map(x=>{const v=(gIdx[x]||[]).filter(r=>r.volume!=null).map(r=>r.volume);return v.length?mean(v):NaN}),[groups.indexOf(g)],"%",[vt]),go:{tab:"dfm",group:"ALL",metric:"volume"}})}
 
   // 9. 量測一致性（N7-5：寫「全部板／全部焊墊」並附體積÷預測值偏離最大的 5 個焊墊）
   const MC=msaCheck(R,st);
@@ -2256,18 +2256,18 @@ function detectIssues(st){
   const verdictLabel={ok:"正常",warn:"警示",ng:"異常"}[vLevel];
   // 多重比較揭露：單板異常每個「板 × 元件群組 × 量測項目」各做一次檢定；全無異常時依 |z| ≥ 3.5 門檻預期的誤報數（另有效果量與不良數門檻，實際更少）
   const alpha=2*(1-Phi(3.5));
-  F.meta={tests:nT1,alpha,expFA:nT1*alpha,verdict:{level:vLevel,label:verdictLabel,worstCap:wAll,reasons},modes:failureModes(st,F,{R,boards,groups,MS,MC,nb,boardMeans,idx})};
+  F.meta={tests:nT1,alpha,expFA:nT1*alpha,verdict:{level:vLevel,label:verdictLabel,worstCap:wAll,reasons},modes:failureModes(st,F,{R,boards,groups,MS,MC,nb,boardMeans,idx,gIdx})};
   return F}
 /* ============ 失效模式交叉比對 ============
    錫膏印刷的失效通常是多因素的：每個候選失效模式列出「支持」與「矛盾」的證據，證據分屬六個獨立面向
    （形狀＝體積／面積／高度的組合、時間＝板序、空間＝座標、設計＝開孔、對位、量測）。
    至少兩個面向支持且無矛盾才判「可能」；只有一個面向為「待確認」；同時有支持與矛盾為「證據矛盾」 */
 const FM_DIMS=["形狀","時間","空間","設計","對位","量測"];
-function failureModes(st,F,c){const{R,boards,groups,MS,nb}=c,sg=t=>F.filter(x=>x.sig&&x.sig.t===t).map(x=>({...x.sig,id:x.id}));
-  const tg=st.specs,has=k=>MS.includes(k),hasXY=R.some(realXY),f1=v=>f(v,1),gmed=(g,k)=>{const v=R.filter(r=>r.group===g&&r[k]!=null).map(r=>r[k]);return v.length?med(v):NaN};
-  const ar={};for(const g of groups){const rs=padReps(R.filter(r=>r.group===g));ar[g]=rs.length?Math.min(...rs.map(r=>areaRatio(r,st))):NaN}
+function failureModes(st,F,c){const{R,boards,groups,MS,nb}=c,sg=t=>F.filter(x=>x.sig&&x.sig.t===t).map(x=>({...x.sig,id:x.id})),gRows=g=>(c.gIdx&&c.gIdx[g])||R.filter(r=>r.group===g);
+  const tg=st.specs,has=k=>MS.includes(k),hasXY=R.some(realXY),f1=v=>f(v,1),gmed=(g,k)=>{const v=gRows(g).filter(r=>r[k]!=null).map(r=>r[k]);return v.length?med(v):NaN};
+  const ar={};for(const g of groups){const rs=padReps(gRows(g));ar[g]=rs.length?Math.min(...rs.map(r=>areaRatio(r,st))):NaN}
   const lowAR=groups.filter(g=>ar[g]<.66),tightAR=groups.filter(g=>ar[g]<.75);
-  const GM={};for(const g of groups)GM[g]={v:gmed(g,"volume"),a:gmed(g,"area"),h:gmed(g,"hpct"),n:R.filter(r=>r.group===g).length};
+  const GM={};for(const g of groups)GM[g]={v:gmed(g,"volume"),a:gmed(g,"area"),h:gmed(g,"hpct"),n:gRows(g).length};
   const tv=tg.volume?tg.volume.tgt:100,ta=tg.area?tg.area.tgt:100;
   // C4 坍塌外擴：面積 ≥ 110%、高度 ≤ 92% 厚度、體積在目標 ±10 內（錫量正常但攤開）
   const slump=groups.filter(g=>GM[g].a>=ta+10&&GM[g].h<=92&&Math.abs(GM[g].v-tv)<=10);
