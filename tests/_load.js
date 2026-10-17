@@ -8,7 +8,7 @@ const HTML = path.join(__dirname, "..", "spi-spc.html");
 function loadCore() {
   const html = fs.readFileSync(HTML, "utf8");
   const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-  const sandbox = { module: { exports: {} }, Math, Date, JSON, console };
+  const sandbox = { module: { exports: {} }, Math, Date, JSON, console, TextEncoder, TextDecoder, Uint8Array, DataView, ArrayBuffer };
   vm.runInNewContext(core, sandbox, { filename: "core.js" });
   return sandbox.module.exports;
 }

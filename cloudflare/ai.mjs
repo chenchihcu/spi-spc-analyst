@@ -7,7 +7,7 @@ export async function handleAnalyze(req, env) {
   if (env && env.AI_ENABLED === 'false') {
     return json({ error: '管理員已停用 AI 分析功能' }, 403);
   }
-  const model = env.AI_MODEL || 'claude-sonnet-5-5';
+  const model = env.AI_MODEL || 'claude-3-5-sonnet-latest';
   const gateway = Boolean(env.CF_ACCOUNT_ID && env.CF_AI_GATEWAY_ID && env.CF_AI_GATEWAY_TOKEN && (env.ANTHROPIC_API_KEY || env.CF_AI_BYOK === 'true'));
   const logPayload = env.AI_LOG_PAYLOAD === 'true';
   if (req.method === 'GET') return json({ ok: true, gateway, model, logPayload });

@@ -640,7 +640,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       <p class="note" id="issSub" style="margin:4px 0 0;max-width:80ch"></p>
       <p id="fmLine" style="margin:6px 0 0;max-width:80ch"></p>
     </div>
-    <div class="row"><button id="btnIssMd">匯出問題清單 .md</button><button id="btnIssCsv">.csv</button></div>
+    <div class="row"><button id="btnIssMd">匯出問題清單 .md</button><button id="btnIssCsv">.csv</button><button id="btnIssXlsx">.xlsx</button></div>
   </div>
   <details class="how"><summary>偵測邏輯</summary><p>系統自動掃描全部量測項目（體積、高度佔鋼板厚%、面積、X/Y 偏移），不受上方「量測項目」選擇影響，依十個面向找問題：單板突發（整板／局部元件群組）、拼板子板位置效應、系統性能力不足、焊墊位置長期偏離、持續漂移（CUSUM 回推起點）、空間梯度、刮刀前後差、擦拭週期、對位（平移／旋轉／伸縮）、設計 DFM（面積比、寬厚比、轉移效率），以及量測一致性。統計量採中位數與 MAD 等穩健方法，避免單一異常板拉偏基準。多個發現指向同一板、同一元件群組或同一焊墊時，互相列為佐證，佐證越多信心越高。再依形狀、時間、空間、設計、對位、量測六個獨立面向做失效模式交叉比對（交叉驗證頁），至少兩個面向支持且無矛盾才判為「可能」原因。「事實」為資料計算結果；「推論」為可能原因，需現場驗證。</p></details>
   <div class="card"><h3>問題地圖 <small id="pmapSub">每格一片板，顏色為該板最嚴重的問題；點格子只看該板相關問題</small></h3><div class="pmap" id="pmap"></div>
@@ -982,12 +982,24 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       </div>
       <p class="note" id="stencilNote" style="margin-top:0"></p>
       <div class="row" style="margin-bottom:10px">
-        <div class="field"><label for="selSpecSrc">規格來源</label><select id="selSpecSrc"><option value="machine">與機台判定一致</option><option value="custom">自訂規格</option></select></div>
+        <div class="field"><label for="selSpecSrc">規格來源</label><select id="selSpecSrc"><option value="machine">與機台判定一致</option><option value="custom">自訂規格</option><option value="workorder">工單規格</option><option value="aoi">AOI 建議窗</option></select></div>
         <div class="field"><label for="selSqDir">刮刀行程方向</label><select id="selSqDir"><option value="Y">沿 PCB Y 方向</option><option value="X">沿 PCB X 方向</option></select></div>
         <div class="field"><label for="inWipe2">每幾片擦拭一次</label><input type="number" id="inWipe2" min="2" max="50" step="1"></div>
       </div>
+      <div class="row" style="margin-bottom:10px">
+        <label class="row" style="cursor:pointer;align-self:flex-end"><input type="file" id="woSpecIn" accept=".csv,.json,.txt" class="sr"><span class="chipbtn" style="border:1px solid var(--line);display:inline-flex;align-items:center">匯入工單規格</span></label>
+        <span class="note" id="woSpecState" style="align-self:center"></span>
+      </div>
       <p class="note" id="specSrcNote" style="margin-top:0"></p>
       <div class="tbl"><table id="specTbl"></table></div>
+      <h3 style="margin-top:18px">時間區間篩選 <small>依時間欄位篩選特定時段（UTC+8 閉區間）</small></h3>
+      <div class="row" style="margin-bottom:10px">
+        <div class="field"><label for="inTimeStart">起始時間</label><input type="text" id="inTimeStart" placeholder="例：08:00:00 或 2026-03-01 08:00:00" style="width:180px"></div>
+        <div class="field"><label for="inTimeEnd">結束時間</label><input type="text" id="inTimeEnd" placeholder="例：17:00:00 或 2026-03-01 17:00:00" style="width:180px"></div>
+        <button id="btnTimeFilter" style="align-self:flex-end">套用篩選</button>
+        <button id="btnTimeFilterClear" style="align-self:flex-end">清除篩選</button>
+      </div>
+      <p class="note" id="timeFilterState" style="margin-top:0"></p>
       <h3 style="margin-top:18px">匯出</h3>
       <div class="row"><button id="btnExpMd">分析報告 .md</button><button id="btnExpBoard">各板統計 .csv</button><button id="btnExpDef">不良焊墊清單 .csv</button></div>
       <p class="note" id="expState"></p>
@@ -1566,9 +1578,9 @@ function analyze(st){
   const sigmaLT=mixed?Math.sqrt(gStat.reduce((s,x)=>s+x.v.reduce((t,y)=>t+(y-x.mu)**2,0),0)/Math.max(1,N-gList.length)):overallSd;
   // 三向管制圖：X̄ 界限以板平均的移動全距估計板間 σ（每板焊墊多且元件混合時，板內 σ 會讓界限過窄而大量誤報）
   const isZeroSd=overallSd===0;
-  const bmr0=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB0=isZeroSd?NaN:(bmr0.length?mean(bmr0):0)/1.128||sigmaW/Math.sqrt(nbar);
+  const bmr=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB=isZeroSd?NaN:(bmr.length?mean(bmr):0)/1.128||sigmaW/Math.sqrt(nbar);
   // S 圖：每板的組內合併標準差；中心線 c4(n)·σ̂、界限 ±3σ̂√(1−c4²)，依每板自由度調整
-  const xs={cl:gMean,sB:sB0,rejected:false,reason:"",subgroupWarning:"",pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:isZeroSd?NaN:gMean+3*sB0,lcl:isZeroSd?NaN:gMean-3*sB0,z:isZeroSd?0:(b.mean-gMean)/sB0})),
+  const xs={cl:gMean,sB,rejected:false,reason:"",subgroupWarning:"",pts:byBoard.map(b=>({lab:b.board,v:b.mean,ucl:isZeroSd?NaN:gMean+3*sB,lcl:isZeroSd?NaN:gMean-3*sB,z:isZeroSd?0:(b.mean-gMean)/sB})),
     s:byBoard.map(b=>{const bp=bPool.get(b.board)||{s:b.sd,df:b.n-1};if(!(bp.df>=1)||isZeroSd)return{lab:b.board,v:isZeroSd?0:NaN,cl:NaN,ucl:NaN,lcl:NaN};const c=c4(bp.df+1),cl=c*sigmaW,h=3*sigmaW*Math.sqrt(Math.max(1-c*c,0));return{lab:b.board,v:bp.s,cl,ucl:cl+h,lcl:Math.max(0,cl-h)}})};
   if(boards.length<5){
     xs.rejected=true;xs.reason=`子群組（板數）不足（需 ≥5，本資料 n=${boards.length}）`;
@@ -1603,7 +1615,6 @@ function analyze(st){
   const pc={cl:pbar,sigZ,pts:byBoard.map(b=>{const sg=(Math.sqrt(pbar*(1-pbar)/b.n)||1e-9)*(sigZ||1);return{lab:b.board,v:b.p,ucl:Math.min(1,pbar+3*sg),lcl:Math.max(0,pbar-3*sg),z:(b.p-pbar)/sg}})};
   // EWMA（λ=0.2, L=3）與 CUSUM（k=0.5σx̄, h=5σx̄），以每板平均為輸入
   // σ 取自板平均的移動全距（三向管制圖法），避免每板上百焊墊時界限過窄
-  const bmr=byBoard.slice(1).map((b,i)=>Math.abs(b.mean-byBoard[i].mean)),sB=isZeroSd?NaN:(bmr.length?mean(bmr):0)/1.128||sigmaW/Math.sqrt(nbar);
   const lam=0.2;let zp=gMean;
   const ewma=byBoard.map((b,i)=>{const z=lam*b.mean+(1-lam)*zp;zp=z;const s=isZeroSd?NaN:sB*Math.sqrt(lam/(2-lam)*(1-(1-lam)**(2*(i+1))));return{lab:b.board,raw:b.mean,v:z,ucl:isZeroSd?NaN:gMean+3*s,lcl:isZeroSd?NaN:gMean-3*s,z:isZeroSd?0:(z-gMean)/s}});
   if(boards.length<5){ewma.rejected=true;ewma.reason=xs.reason;ewma.forEach(p=>{p.ucl=NaN;p.lcl=NaN;});}
@@ -1692,7 +1703,10 @@ function analyze(st){
 
   const specCenter=hasSpec?(sp.usl+sp.lsl)/2:NaN;
   const unitMismatch=Boolean(hasSpec&&((cap&&isFinite(cap.cpk)&&Math.abs(cap.cpk)>50)||(overallSd>0&&Math.abs(specCenter-gMean)>10*overallSd)||(overallSd===0&&Math.abs(specCenter-gMean)>0)));
-  const ad=andersonDarling(all.length>4000?all.filter((_,i)=>i%Math.ceil(all.length/4000)===0):all),sk=skewKurt(all);
+  const adSampled=all.length>4000?Math.ceil(all.length/Math.ceil(all.length/4000)):null;
+  const ad=andersonDarling(all.length>4000?all.filter((_,i)=>i%Math.ceil(all.length/4000)===0):all);
+  ad.sampled=adSampled;
+  const sk=skewKurt(all);
   const sw=(all.length>=3&&all.length<=5000)?shapiroWilk(all):{W:NaN,p:NaN};
   // 群組
   const groups=[...new Set(rows.map(r=>r.group))].map(g=>{const v=rows.filter(r=>r.group===g).map(r=>r[m]);return{g,n:v.length,mean:mean(v),sd:sd(v)}});
@@ -1742,6 +1756,129 @@ function crossValidate(A){
 }
 const fmtPpm=v=>!isFinite(v)?"—":v>=1000?Math.round(v).toLocaleString():v>=1?v.toFixed(0):v.toFixed(2);
 const f=(v,d=2)=>v==null||!isFinite(v)?"—":(+v).toFixed(d);
+
+function formatUtc8Date(date, fmt="YYYY/MM/DD HH:mm:ss"){
+  const t = typeof date === "number" ? date : (date ? date.getTime() : Date.now());
+  const d = new Date(t + 8 * 3600 * 1000);
+  const YYYY=String(d.getUTCFullYear()),MM=String(d.getUTCMonth()+1).padStart(2,"0"),DD=String(d.getUTCDate()).padStart(2,"0");
+  const HH=String(d.getUTCHours()).padStart(2,"0"),mm=String(d.getUTCMinutes()).padStart(2,"0"),ss=String(d.getUTCSeconds()).padStart(2,"0");
+  return fmt.replace("YYYY",YYYY).replace("MM",MM).replace("DD",DD).replace("HH",HH).replace("mm",mm).replace("ss",ss);
+}
+function fmtNowUtc8(d=new Date()){
+  return formatUtc8Date(d, "YYYY-MM-DD HH:mm:ss") + " UTC+8";
+}
+function parseWorkorderSpec(text, fileName="workorder_spec.json"){
+  const data = typeof text === "string" ? JSON.parse(text) : text;
+  const res = { specs: {}, part: data.part || data.partNo || null };
+  const src = data.specs || data;
+  for(const k of ["volume", "area", "height"]){
+    if(src[k]){
+      const s = src[k];
+      res.specs[k] = {
+        lsl: s.lsl != null ? +s.lsl : (DEF_SPECS[k] ? DEF_SPECS[k].lsl : NaN),
+        tgt: s.target != null ? +s.target : (s.tgt != null ? +s.tgt : (DEF_SPECS[k] ? DEF_SPECS[k].tgt : NaN)),
+        usl: s.usl != null ? +s.usl : (DEF_SPECS[k] ? DEF_SPECS[k].usl : NaN)
+      };
+    }
+  }
+  return { ...res, fileName };
+}
+function applyWorkorderSpec(parsed){
+  if(!parsed||!parsed.specs)return;
+  for(const k of Object.keys(parsed.specs)){
+    if(S.specs[k])Object.assign(S.specs[k], parsed.specs[k]);
+  }
+  S.specSrc="workorder";
+  S.woSpecFile=parsed.fileName||"workorder_spec.json";
+  if(parsed.part)S.part=parsed.part;
+  if(typeof syncControls==="function")syncControls();
+  if(typeof recompute==="function")recompute();
+}
+
+function applyTimeFilter(startStr, endStr){
+  let raw = S._rawRows || (typeof curRun==="function"&&curRun()&&curRun()._rawRows);
+  if(!raw){
+    raw = S.rows;
+    S._rawRows = raw;
+    if(typeof curRun==="function"&&curRun()) curRun()._rawRows = raw;
+  }
+  if(!startStr && !endStr){
+    S.rows = raw;
+    if(typeof curRun==="function"&&curRun()) curRun().rows = raw;
+    S.timeFilter = null;
+    S.partialBoards = null;
+    if(typeof $ === "function" && $("#timeFilterState")) $("#timeFilterState").textContent = "已清除時間篩選（顯示全部資料）";
+    if(typeof syncControls==="function") syncControls();
+    if(typeof recompute==="function") recompute();
+    return;
+  }
+
+  const fullBoardPads = new Map();
+  for(const r of raw){
+    fullBoardPads.set(r.board, (fullBoardPads.get(r.board) || 0) + 1);
+  }
+
+  const parseT = (s, isEnd) => {
+    if(!s || !String(s).trim()) return null;
+    const trimmed = String(s).trim();
+    if(/^\d+$/.test(trimmed)) return +trimmed;
+    const mTime = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if(mTime){
+      const firstRowWithTs = raw.find(r => r.ts != null);
+      let datePrefix = "1970-01-01";
+      if(firstRowWithTs && firstRowWithTs.ts){
+        datePrefix = formatUtc8Date(firstRowWithTs.ts, "YYYY-MM-DD");
+      }
+      const hh = mTime[1].padStart(2, "0");
+      const mm = mTime[2];
+      const ss = mTime[3] ? mTime[3] : (isEnd ? "59" : "00");
+      return Date.parse(`${datePrefix}T${hh}:${mm}:${ss}`);
+    }
+    const iso = trimmed.replace(" ", "T");
+    const parsed = Date.parse(iso);
+    return isFinite(parsed) ? parsed : null;
+  };
+
+  const startTs = parseT(startStr, false);
+  const endTs = parseT(endStr, true);
+
+  const filtered = raw.filter(r => {
+    if(r.ts == null) return false;
+    if(startTs != null && r.ts < startTs) return false;
+    if(endTs != null && r.ts > endTs) return false;
+    return true;
+  });
+
+  if(!filtered.length){
+    if(typeof toast==="function") toast("所選時間區間內無符合資料");
+    if(typeof $ === "function" && $("#timeFilterState")) $("#timeFilterState").textContent = "篩選後無符合資料";
+    return;
+  }
+
+  const filteredBoardPads = new Map();
+  for(const r of filtered){
+    filteredBoardPads.set(r.board, (filteredBoardPads.get(r.board) || 0) + 1);
+  }
+
+  const partialBoards = [];
+  for(const [b, count] of filteredBoardPads.entries()){
+    const fullCount = fullBoardPads.get(b) || 0;
+    if(count < fullCount){
+      partialBoards.push(b);
+    }
+  }
+
+  S.rows = filtered;
+  if(typeof curRun==="function"&&curRun()) curRun().rows = filtered;
+  S.timeFilter = { start: startStr, end: endStr };
+  S.partialBoards = partialBoards;
+
+  const msg = `已篩選時間 ${startStr || "起"} ～ ${endStr || "迄"}（共 ${filtered.length} 筆，${filteredBoardPads.size} 片板${partialBoards.length ? `，其中 ${partialBoards.length} 片為部分焊墊` : ""}）`;
+  if(typeof toast==="function") toast(msg);
+  if(typeof $ === "function" && $("#timeFilterState")) $("#timeFilterState").textContent = msg;
+  if(typeof syncControls==="function") syncControls();
+  if(typeof recompute==="function") recompute();
+}
 
 /* ============ CSV ============ */
 /* ============ 匯入：欄位對應與機台格式設定 ============ */
@@ -1979,6 +2116,12 @@ function buildRows(tab,map,opts={},sub=5){
       r.board="B"+String(curB).padStart(2,"0")+"（推定）";
       r.boardInferred=true;
     }
+    const nPerBoard = curB > 0 ? Math.round(rawRows.length / curB) : rawRows.length;
+    rawRows.forEach(r => { r.boardInferredN = nPerBoard; });
+    if(typeof curRun === "function" && curRun()) curRun().boardInferred = nPerBoard;
+    S.boardInferred = nPerBoard;
+  } else {
+    S.boardInferred = null;
   }
 
   let rows=rawRows;
@@ -3204,20 +3347,44 @@ function parseGRR(text){const tab=csvTable(text),n=tab.head.map(normH),fi=al=>n.
 function sampleGRR(st){const r=rng(9090),R=st.rows,b0=R[0].board,ps=[...new Set(R.filter(x=>x.board===b0).map(x=>x.group))].flatMap(g=>R.filter(x=>x.board===b0&&x.group===g).slice(0,3)).slice(0,10);
   const ops=["A","B","C"],bias={A:0,B:.6,C:-.4},out=["Board,Pad,Operator,Trial,Volume,Height,Area"];
   ps.forEach(p=>ops.forEach(o=>{for(let t=1;t<=3;t++){out.push([b0,p.pad,o,t,(p.volume+bias[o]+gauss(r)*1.1).toFixed(2),(p.height+bias[o]*.5+gauss(r)*.9).toFixed(2),(p.area+bias[o]*.6+gauss(r)*1).toFixed(2)].join(","))}}));return out.join("\n")}
-function grrAnalyze(rows,m,tol){const R=rows.filter(r=>r[m]!=null),parts=[...new Set(R.map(r=>r.part))],ops=[...new Set(R.map(r=>r.op))];
+function grrAnalyze(rows,m,tol,opts={}){const R=rows.filter(r=>r[m]!=null),parts=[...new Set(R.map(r=>r.part))],ops=[...new Set(R.map(r=>r.op))];
   const cell={};R.forEach(r=>(cell[r.part+"§"+r.op]=cell[r.part+"§"+r.op]||[]).push(r[m]));
   const n=Math.min(...parts.flatMap(p=>ops.map(o=>(cell[p+"§"+o]||[]).length)));const a=parts.length,b=ops.length;
   if(a<2||n<2)return{err:"需要至少 2 個焊墊、每個焊墊（每位操作員）至少重複 2 次，且資料需平衡"};
+  let truncated=0,truncCells=[];
+  parts.forEach(p=>ops.forEach(o=>{const l=(cell[p+"§"+o]||[]).length;if(l>n){truncated+=l-n;truncCells.push({part:p,op:o,dropped:l-n})}}));
   const y=parts.map(p=>ops.map(o=>cell[p+"§"+o].slice(0,n))),gm=mean(y.flat(2));
   const pm=y.map(row=>mean(row.flat())),om=ops.map((_,j)=>mean(y.map(row=>row[j]).flat())),cm=y.map(row=>row.map(c=>mean(c)));
   const SSP=b*n*pm.reduce((s,v)=>s+(v-gm)**2,0),SSO=a*n*om.reduce((s,v)=>s+(v-gm)**2,0);
   let SSPO=0,SSE=0;y.forEach((row,i)=>row.forEach((c,j)=>{SSPO+=n*(cm[i][j]-pm[i]-om[j]+gm)**2;c.forEach(v=>SSE+=(v-cm[i][j])**2)}));
-  let vRep,vOp=0,vInt=0,vPart,pInt=NaN;
-  if(b>=2){const MSP=SSP/(a-1),MSO=SSO/(b-1),MSPO=SSPO/((a-1)*(b-1)),MSE=SSE/(a*b*(n-1));const Fi=MSPO/MSE,d1=(a-1)*(b-1),d2=a*b*(n-1);pInt=ibeta(d2/2,d1/2,d2/(d2+d1*Fi));
-    vRep=MSE;vInt=Math.max(0,(MSPO-MSE)/n);vOp=Math.max(0,(MSO-MSPO)/(a*n));vPart=Math.max(0,(MSP-MSPO)/(b*n))}
-  else{const MSP=SSP/(a-1),MSE=SSE/(a*(n-1));vRep=MSE;vPart=Math.max(0,(MSP-MSE)/n)}
+  let vRep,vOp=0,vInt=0,vPart,pInt=NaN,pooled=false,model="含交互作用模型";
+  const alphaPool=opts.alphaPool!=null?opts.alphaPool:0.25;
+  if(b>=2){
+    const MSP=SSP/(a-1),MSO=SSO/(b-1),MSPO=SSPO/((a-1)*(b-1)),MSE=SSE/(a*b*(n-1));
+    const Fi=MSPO/MSE,d1=(a-1)*(b-1),d2=a*b*(n-1);
+    pInt=ibeta(d2/2,d1/2,d2/(d2+d1*Fi));
+    if(opts.forceNoPool){
+      vRep=MSE;vInt=Math.max(0,(MSPO-MSE)/n);vOp=Math.max(0,(MSO-MSPO)/(a*n));vPart=Math.max(0,(MSP-MSPO)/(b*n));
+    }else if(pInt>alphaPool||opts.forcePool){
+      pooled=true;
+      model="合併交互作用模型（p > 0.25）";
+      const SS_pool=SSPO+SSE,df_pool=d1+d2,MSE_pool=SS_pool/df_pool;
+      vRep=MSE_pool;vInt=0;
+      vOp=Math.max(0,(MSO-MSE_pool)/(a*n));
+      vPart=Math.max(0,(MSP-MSE_pool)/(b*n));
+    }else{
+      vRep=MSE;vInt=Math.max(0,(MSPO-MSE)/n);vOp=Math.max(0,(MSO-MSPO)/(a*n));vPart=Math.max(0,(MSP-MSPO)/(b*n));
+    }
+  }else{
+    const MSP=SSP/(a-1),MSE=SSE/(a*(n-1));
+    vRep=MSE;vPart=Math.max(0,(MSP-MSE)/n);
+    model="單因子模型（單一操作員）";
+  }
   const vGRR=vRep+vOp+vInt,vTV=vGRR+vPart,s=Math.sqrt;
-  return{a,b,n,ev:s(vRep),av:s(vOp),inter:s(vInt),grr:s(vGRR),pv:s(vPart),tv:s(vTV),pctTV:100*s(vGRR/vTV),pctTol:tol>0?100*6*s(vGRR)/tol:NaN,ndc:Math.floor(1.41*s(vPart/vGRR)),pInt}}
+  return{a,b,n,ev:s(vRep),av:s(vOp),inter:s(vInt),grr:s(vGRR),pv:s(vPart),tv:s(vTV),
+    pctTV:100*s(vGRR/vTV),pctTol:tol>0?100*6*s(vGRR)/tol:NaN,ndc:Math.floor(1.41*s(vPart/vGRR)),
+    pInt,pooled,model,truncated,truncCells};
+}
 /* 匯出 CSV：文字以 = + - @ 或定位／換行字元開頭時前面加 '，避免在 Excel 開啟時被當成公式執行；純數值（含 -1.5、+3%）維持數值 */
 function toCSV(rows){return rows.map(r=>r.map(v=>{let s=v==null?"":String(v);if(typeof v==="string"&&/^[=+\-@\t\r]/.test(s)&&!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?%?$/i.test(s))s="'"+s;return/[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(",")).join("\n")}
 
@@ -3268,7 +3435,162 @@ function issuesCsv(F){
   ]);
 }
 
-if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES};
+const CRC32_TABLE = new Uint32Array(256);
+for(let i=0; i<256; i++){
+  let c = i;
+  for(let k=0; k<8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+  CRC32_TABLE[i] = c >>> 0;
+}
+function crc32(bytes){
+  let c = 0xFFFFFFFF;
+  for(let i=0; i<bytes.length; i++) c = (c >>> 8) ^ CRC32_TABLE[(c ^ bytes[i]) & 0xFF];
+  return ((c ^ 0xFFFFFFFF) >>> 0);
+}
+function createZipStored(files){
+  const te = typeof TextEncoder !== "undefined" ? new TextEncoder() : { encode: s => new Uint8Array(Buffer.from(s, "utf8")) };
+  const entries = files.map(f => {
+    const data = typeof f.data === "string" ? te.encode(f.data) : f.data;
+    const name = te.encode(f.name);
+    const crc = crc32(data);
+    return { name, data, crc, len: data.length };
+  });
+  let totalLocal = 0;
+  for(const e of entries) totalLocal += 30 + e.name.length + e.len;
+  let totalCD = 0;
+  for(const e of entries) totalCD += 46 + e.name.length;
+  const out = new Uint8Array(totalLocal + totalCD + 22);
+  const dv = new DataView(out.buffer);
+  let p = 0;
+  const offsets = [];
+  for(const e of entries){
+    offsets.push(p);
+    dv.setUint32(p, 0x04034b50, true); p += 4;
+    dv.setUint16(p, 20, true); p += 2;
+    dv.setUint16(p, 0x0800, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint32(p, e.crc, true); p += 4;
+    dv.setUint32(p, e.len, true); p += 4;
+    dv.setUint32(p, e.len, true); p += 4;
+    dv.setUint16(p, e.name.length, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    out.set(e.name, p); p += e.name.length;
+    out.set(e.data, p); p += e.len;
+  }
+  const cdStart = p;
+  for(let i=0; i<entries.length; i++){
+    const e = entries[i];
+    dv.setUint32(p, 0x02014b50, true); p += 4;
+    dv.setUint16(p, 20, true); p += 2;
+    dv.setUint16(p, 20, true); p += 2;
+    dv.setUint16(p, 0x0800, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint32(p, e.crc, true); p += 4;
+    dv.setUint32(p, e.len, true); p += 4;
+    dv.setUint32(p, e.len, true); p += 4;
+    dv.setUint16(p, e.name.length, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint16(p, 0, true); p += 2;
+    dv.setUint32(p, 0, true); p += 4;
+    dv.setUint32(p, offsets[i], true); p += 4;
+    out.set(e.name, p); p += e.name.length;
+  }
+  const cdSize = p - cdStart;
+  dv.setUint32(p, 0x06054b50, true); p += 4;
+  dv.setUint16(p, 0, true); p += 2;
+  dv.setUint16(p, 0, true); p += 2;
+  dv.setUint16(p, entries.length, true); p += 2;
+  dv.setUint16(p, entries.length, true); p += 2;
+  dv.setUint32(p, cdSize, true); p += 4;
+  dv.setUint32(p, cdStart, true); p += 4;
+  dv.setUint16(p, 0, true); p += 2;
+  return out;
+}
+function issuesXlsx(F){
+  const toS=v=>v==null?"":Array.isArray(v)?v.join("; "):String(v);
+  const rows = [
+    ISS_CSV_COLS,
+    ...F.map(x=>[
+      x.no!=null?x.no:x.id,
+      x.level||(LVL_MAP&&LVL_MAP[x.lv])||x.lv,
+      x.category||x.cat,
+      x.title,
+      x.rule_id||"不適用",
+      x.rule_name||"不適用",
+      x.metric||"不適用",
+      toS(x.boards)||"不適用",
+      toS(x.subboard)||"不適用",
+      toS(x.group)||"不適用",
+      toS(x.refdes)||"不適用",
+      toS(x.pads)||"不適用",
+      toS(x.observed)||"不適用",
+      toS(x.limit)||"不適用",
+      x.z!=null?x.z:"不適用",
+      x.p!=null?x.p:"不適用",
+      toS(x.facts)||"不適用",
+      x.inference||x.cause||"不適用",
+      x.confidence||x.conf||"不適用",
+      x.action||"不適用",
+      toS(x.corroborated_by!=null?x.corroborated_by:x.corrob),
+      toS(x.same_phenomenon),
+      toS(x.explained_pads)
+    ])
+  ];
+  function colRef(idx){
+    let s = "";
+    idx++;
+    while(idx > 0){
+      const m = (idx - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      idx = Math.floor((idx - m) / 26);
+    }
+    return s;
+  }
+  const escXml = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  let sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`;
+  for(let r=0; r<rows.length; r++){
+    const rowNum = r + 1;
+    sheetXml += `<row r="${rowNum}">`;
+    const row = rows[r];
+    for(let c=0; c<row.length; c++){
+      const val = row[c];
+      const cellRef = colRef(c) + rowNum;
+      if(val == null || val === ""){
+      } else if(r > 0 && typeof val === "string" && /^[+-]?\d+(?:\.\d+)?%$/.test(val.trim())){
+        const num = parseFloat(val) / 100;
+        sheetXml += `<c r="${cellRef}" s="1"><v>${num}</v></c>`;
+      } else if(typeof val === "number" && isFinite(val)){
+        sheetXml += `<c r="${cellRef}"><v>${val}</v></c>`;
+      } else {
+        sheetXml += `<c r="${cellRef}" t="inlineStr"><is><t>${escXml(val)}</t></is></c>`;
+      }
+    }
+    sheetXml += `</row>`;
+  }
+  sheetXml += `</sheetData></worksheet>`;
+
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="10" formatCode="0.00%"/></numFmts><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>`;
+  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const wbRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const wbXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Issues" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+
+  return createZipStored([
+    { name: "[Content_Types].xml", data: contentTypesXml },
+    { name: "_rels/.rels", data: relsXml },
+    { name: "xl/_rels/workbook.xml.rels", data: wbRelsXml },
+    { name: "xl/workbook.xml", data: wbXml },
+    { name: "xl/styles.xml", data: stylesXml },
+    { name: "xl/worksheets/sheet1.xml", data: sheetXml }
+  ]);
+}
+
+if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter};
 </script>
 <script>
 "use strict";
@@ -3462,7 +3784,7 @@ function evSvg(ev,lv){if(!ev||!ev.values||!ev.values.some(isFinite))return"";con
   return`<div class="ev-cap">${esc(ev.title)}${ev.unit?`（${esc(ev.unit)}）`:""}</div><svg class="ev" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(ev.title)}">${g}</svg>`}
 function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set(S.rows.map(r=>r.group))],rank={ng:0,warn:1,info:2};
   const worst=list=>list.reduce((w,x)=>w==null||rank[x.lv]<rank[w]?x.lv:w,null);
-  const cell=(ent,lab,list)=>{const lv=worst(list);return`<button data-ent="${esc(ent)}" class="${lv||""}" aria-pressed="${S.issEnt===ent}" title="${esc(lab)}：${list.length?list.length+" 項問題":"無問題"}">${esc(lab.replace(/^[A-Za-z]+0?/,""))}</button>`};
+  const cell=(ent,lab,list)=>{const lv=worst(list);const isPart=S.partialBoards&&S.partialBoards.includes(lab);return`<button data-ent="${esc(ent)}" class="${lv||""}" aria-pressed="${S.issEnt===ent}" title="${esc(lab)}${isPart?"（部分焊墊）":""}：${list.length?list.length+" 項問題":"無問題"}">${esc(lab.replace(/^[A-Za-z]+0?/,""))}${isPart?'<span class="subpill" style="font-size:9px;color:var(--warn);display:block;line-height:1">部分</span>':""}</button>`};
   const sys=S.F.filter(x=>!x.ents.some(e=>e.startsWith("b:")||e.startsWith("g:")||e.startsWith("drift:")));
   $("#pmap").innerHTML=`<div class="pmap-row"><span class="pmap-lab">各板（依印刷順序）</span><div class="pmap-cells">${B.map(b=>cell("b:"+b,b,S.F.filter(x=>issueBoards(x).has(b)))).join("")}</div></div>
     <div class="pmap-row"><span class="pmap-lab">元件群組</span><div class="pmap-cells">${G.map(g=>`<button data-ent="g:${esc(g)}" class="${worst(S.F.filter(x=>x.ents.includes("g:"+g)))||""}" aria-pressed="${S.issEnt==="g:"+g}" title="${esc(g)}" style="font-size:11px">${esc(g)}</button>`).join("")}</div></div>
@@ -3491,12 +3813,14 @@ function renderIssues(){const F=S.F,c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]+
   /* 卡片預設收合成一行：嚴重度、標題、關鍵數字、迷你趨勢圖；點一下展開事實、推論、佐證與前往按鈕 */
   const keyFact=x=>{const t=String(x.facts[0]||"");const c=t.split(/[，,；;]/)[0];const p=x.pads&&x.pads!=="不適用"?` · 焊墊 ${x.pads.split("; ").slice(0,2).join(", ")}${x.pads.split("; ").length>2?"…":""}`:"";return (c.length>42?c.slice(0,42)+"…":c)+p};
   const spark=x=>{const v=evSvg(x.ev,x.lv);return v?v.replace(/^<div class="ev-cap">[\s\S]*?<\/div>/,"").replace('<svg class="ev"','<svg class="iss-spark" aria-hidden="true"').replace(/ role="img" aria-label="[^"]*"/,""):""};
+  const isBoardInf = Boolean(S.boardInferred || (S.rows && S.rows.some(r=>r.boardInferred)));
+  const isBoardCard = x => Boolean(isBoardInf && ((x.cat && (x.cat.includes("X̄") || x.cat.includes("板"))) || (x.boards && x.boards !== "全部" && x.boards !== "—")));
   const card=x=>`<details class="iss-card" id="iss-${x.id}" data-id="${x.id}"${ISS_OPEN.has(x.id)?" open":""}>
     <summary><span class="iss-sum-l"><span class="no">#${x.id}</span><span class="pill ${x.lv}">${LVL[x.lv]}</span></span>
-      <span class="iss-sum-t"><b>${esc(x.title)}</b><span>${esc(x.cat)}｜${esc(keyFact(x))}${x.corrob.length?`｜佐證 ${x.corrob.length}`:""}</span></span>
+      <span class="iss-sum-t"><b>${esc(x.title)}</b><span>${isBoardCard(x)?'<span class="pill warn" style="font-size:10.5px;padding:1px 4px;margin-right:4px">推定子群組，僅供參考</span>':""}${esc(x.cat)}｜${esc(keyFact(x))}${x.corrob.length?`｜佐證 ${x.corrob.length}`:""}</span></span>
       ${spark(x)}<span class="iss-chev" aria-hidden="true">▾</span></summary>
     <div class="iss-detail">
-    <div class="iss-head"><span class="cat">${esc(x.cat)}</span><span class="pill na">${esc(x.rule_id||"")} · ${esc(x.rule_name||"")}</span>${x.corrob.length?`<span class="pill na">佐證 ${x.corrob.length}</span>`:""}${x.same_phenomenon&&x.same_phenomenon.length?`<span class="pill na">同一現象 ${x.same_phenomenon.length}</span>`:""}<span class="pill na">信心 ${esc(x.conf)}</span></div>
+    <div class="iss-head"><span class="cat">${esc(x.cat)}</span><span class="pill na">${esc(x.rule_id||"")} · ${esc(x.rule_name||"")}</span>${isBoardCard(x)?'<span class="pill warn">推定子群組，僅供參考</span>':""}${x.corrob.length?`<span class="pill na">佐證 ${x.corrob.length}</span>`:""}${x.same_phenomenon&&x.same_phenomenon.length?`<span class="pill na">同一現象 ${x.same_phenomenon.length}</span>`:""}<span class="pill na">信心 ${esc(x.conf)}</span></div>
     <div class="note" style="margin:4px 0 6px;display:flex;flex-wrap:wrap;gap:6px 14px"><span><b>量測項目：</b>${esc(x.metric)}</span><span><b>板號：</b>${esc(x.boards)}</span><span><b>子板：</b>${esc(x.subboard)}</span><span><b>元件群組：</b>${esc(x.group)}</span><span><b>元件位號：</b>${esc(x.refdes)}</span><span><b>焊墊：</b>${esc(x.pads)}</span><span><b>觀測值：</b>${esc(x.observed)}</span><span><b>界限／規格：</b>${esc(x.limit)}</span><span><b>z／統計量：</b>${esc(x.z)}</span><span><b>p 值：</b>${esc(x.p)}</span></div>
     <div class="iss-body"><div style="display:grid;gap:6px;min-width:0"><div><span class="lbl">事實</span><ul>${x.facts.map(t=>`<li>${esc(t)}</li>`).join("")}</ul></div>
       <p class="inf"><span class="lbl">推論</span>${esc(x.cause)}</p>
@@ -3532,11 +3856,12 @@ function renderFM(){const Me=S.F&&S.F.meta,box=$("#fmCard");if(!box)return;box.h
       <div class="fm-body"><p class="note" style="margin:0 0 4px">可能原因：${esc(m.cause)}${m.key?`　｜　必要面向：${m.key}`:""}</p><ul>${m.sup.map(e=>ev(e,1)).join("")}${m.con.map(e=>ev(e,0)).join("")}</ul>${kbDetails}</div></details>`;
   }).join("");
   $$("#fmTbl [data-fmjump]").forEach(b=>b.onclick=()=>{setTab("issues");setTimeout(()=>flashIssue(+b.dataset.fmjump),60)})}
-function issuesMd(){return`# SPI 問題偵測清單\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- 資料來源：${S.source}；鋼板 ${S.stencil} µm${S.step.on?"（階梯）":""}\n\n`+S.F.map(x=>`## #${x.no}［${x.level}］${x.title}\n\n- 面向：${x.category}｜規則：${x.rule_id}（${x.rule_name}）｜量測項目：${x.metric}\n- 板號：${x.boards}｜子板：${x.subboard}｜元件群組：${x.group}｜元件位號：${x.refdes}｜焊墊：${x.pads}\n- 觀測值：${x.observed}｜界限／規格：${x.limit}｜z：${x.z}｜p：${x.p}\n- 事實：\n${x.facts.map(t=>"  - "+t).join("\n")}\n- 推論（信心 ${x.confidence}）：${x.inference}\n- 建議動作：${x.action}\n- 跨面向佐證：${x.corroborated_by.length?x.corroborated_by.map(i=>"#"+i).join("、"):"無"}${x.same_phenomenon.length?`；同一現象：${x.same_phenomenon.map(i=>"#"+i).join("、")}`:""}${x.explained_pads.length?`；已解釋焊墊：${x.explained_pads.join("；")}`:""}\n`).join("\n")+fmMd()}
+function issuesMd(){return`# SPI 問題偵測清單\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${fmtNowUtc8()}\n- 資料來源：${S.source}；鋼板 ${S.stencil} µm${S.step.on?"（階梯）":""}\n\n`+S.F.map(x=>`## #${x.no}［${x.level}］${x.title}\n\n- 面向：${x.category}｜規則：${x.rule_id}（${x.rule_name}）｜量測項目：${x.metric}\n- 板號：${x.boards}｜子板：${x.subboard}｜元件群組：${x.group}｜元件位號：${x.refdes}｜焊墊：${x.pads}\n- 觀測值：${x.observed}｜界限／規格：${x.limit}｜z：${x.z}｜p：${x.p}\n- 事實：\n${x.facts.map(t=>"  - "+t).join("\n")}\n- 推論（信心 ${x.confidence}）：${x.inference}\n- 建議動作：${x.action}\n- 跨面向佐證：${x.corroborated_by.length?x.corroborated_by.map(i=>"#"+i).join("、"):"無"}${x.same_phenomenon.length?`；同一現象：${x.same_phenomenon.map(i=>"#"+i).join("、")}`:""}${x.explained_pads.length?`；已解釋焊墊：${x.explained_pads.join("；")}`:""}\n`).join("\n")+fmMd()}
 function fmMd(){const Me=S.F&&S.F.meta;if(!Me||!Me.modes)return"";
   return`\n## 失效模式交叉比對\n\n規則：至少兩個獨立面向支持、含必要面向且無矛盾，才判「可能」。單板異常共 ${Me.tests} 次檢定，全無異常時預期約 ${f(Me.expFA,1)} 次誤報。\n\n| 候選失效模式 | 判讀 | 支持面向 | 證據與製程知識庫規則 |\n|---|---|---|---|\n`+Me.modes.map(m=>`| ${m.name} | ${m.verdict} | ${m.dims.join("、")||"—"} | ${[m.need||"",...m.sup.map(e=>"✓ "+e.d+"："+e.txt),...m.con.map(e=>"✗ "+e.d+"："+e.txt),...(m.rules&&m.rules.length?[`規則來源：${m.rules.join("、")}`]:[])].filter(Boolean).join("<br>").replace(/\|/g,"／")} |`).join("\n")+"\n"}
 $("#btnIssMd").onclick=()=>save("spi-issues.md",issuesMd());
 $("#btnIssCsv").onclick=()=>save("spi-issues.csv",issuesCsv(S.F));
+if($("#btnIssXlsx"))$("#btnIssXlsx").onclick=()=>save("spi-issues.xlsx",issuesXlsx(S.F));
 function renderStats(){
   const data=buildStatsData(S);
   if($("#statsSub"))$("#statsSub").textContent=`共 ${data.length} 個異常點`;
@@ -3728,7 +4053,7 @@ const HOW={xbars:"每點是一片板所有焊墊的平均，S 圖看板內離散
   imr:"追蹤單一焊墊位置跨板的變化，適合追蹤問題焊墊（例如堵孔的 BGA 球）。可從熱圖或「焊墊 Cpk 排行」點選焊墊直接進入。",
   p:"每板任一量測項目超出規格的焊墊比例。採 Laney P′ 圖：界限隨每板焊墊數變動，並以 σz 修正板間額外變異（每板焊墊多時，傳統 P 圖界限過窄會大量誤報）。P′ 圖反映「不良結果」，X̄ 圖反映「平均偏移」，兩者一起看可判斷是系統性偏移還是局部缺陷。",
   ewma:"指數加權移動平均，每點融合過去資料（λ = 0.2），對 0.5–1.5σ 的小幅持續漂移比 X̄ 圖敏感，適合抓錫膏乾化、刮刀磨耗造成的緩慢衰退。σ 取自板平均的移動全距（三向管制圖法）。灰點為每板原始平均。",
-  cusum:"累積和管制圖。C+ 累積向上偏移、C− 累積向下偏移（單位 σ），超過 h = 5 即判定偏移已持續發生；曲線開始爬升的那片板，通常就是變化起點，可對照換線、加錫膏或擦拭紀錄。注意：本圖以整批平均為基準，若後段上升，前段會先出現向下累積（反之亦然）；變化起點請以「問題偵測」的趨勢漂移（上下兩向分別回推）為準。"};
+  cusum:"累積和管制圖。C+ 累積向上偏移、C− 累積向下偏移（單位 σ），超過 h = 5 即判定偏移已持續發生；曲線開始爬升的那片板，通常就是變化起點，可對照換線、加錫膏或擦拭紀錄。注意：本圖基準為規格目標或整批平均（依設定），若後段上升，前段會先出現向下累積（反之亦然）；變化起點請以「問題偵測」的趨勢漂移（上下兩向分別回推）為準。"};
 function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
   const t={xbars:["X̄ 圖（每板平均）","S 圖（板內標準差）"],
     xbarr:[`X̄ 圖（子群平均，n=${(A.xr&&A.xr.n)||S.xrSize||4}）`,`R 圖（子群全距，n=${(A.xr&&A.xr.n)||S.xrSize||4}）`],
@@ -3741,10 +4066,12 @@ function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
   const ewOut=A.ewma.filter(p=>p.v>p.ucl||p.v<p.lcl).map(p=>p.lab),cuOut=A.cusum.pts.filter(p=>p.cp>A.cusum.h||p.cm>A.cusum.h).map(p=>p.lab),cuStart=A.cusum.pts.findIndex(p=>p.cp>A.cusum.h||p.cm>A.cusum.h);
   const warnText = A.xs.subgroupWarning ? ` · <span class="note">${A.xs.subgroupWarning}</span>` : "";
   const rejText = A.xs.reason ? ` · <span class="pill warn">${A.xs.reason}</span>` : "";
-  $("#ctrlSub").textContent=c==="p"?`P' 圖（Laney）p̄ = ${f(cl,2)} %，σz = ${f(A.pc.sigZ,2)}${A.pc.sigZ>1?"（板間變異大於二項式，界限已放寬）":""}`:c==="ewma"?`CL ${f(A.gMean,2)} ${u} · σ板間 ${f(A.cusum.sB,3)} · 越界 ${ewOut.length?ewOut.join("、"):"無"}${A.ewma.subgroupWarning?" · "+A.ewma.subgroupWarning:""}${A.ewma.reason?" · "+A.ewma.reason:""}`
-    :c==="cusum"?`σ板間 ${f(A.cusum.sB,3)} ${u} · 訊號 ${cuOut.length?cuOut.join("、"):"無"}${A.cusum.subgroupWarning?" · "+A.cusum.subgroupWarning:""}${A.cusum.reason?" · "+A.cusum.reason:""}`
+  const sBStr = `σ̂(板平均) ${f(A.xs.sB,3)} ${u}（＝板平均 MR̄ ${f(A.xs.sB*1.128,3)} ÷ 1.128，三向法）`;
+  $("#ctrlSub").textContent=c==="p"?`P' 圖（Laney）p̄ = ${f(cl,2)} %，σz = ${f(A.pc.sigZ,2)}${A.pc.sigZ>1?"（板間變異大於二項式，界限已放寬）":A.pc.sigZ<1?"（σz < 1：板間變異小於二項式預期，界限已收窄）":""}`
+    :c==="ewma"?`CL ${f(A.gMean,2)} ${u} · ${sBStr} · 越界 ${ewOut.length?ewOut.join("、"):"無"}${A.ewma.subgroupWarning?" · "+A.ewma.subgroupWarning:""}${A.ewma.reason?" · "+A.ewma.reason:""}`
+    :c==="cusum"?`${sBStr} · 訊號 ${cuOut.length?cuOut.join("、"):"無"}${A.cusum.subgroupWarning?" · "+A.cusum.subgroupWarning:""}${A.cusum.reason?" · "+A.cusum.reason:""}`
     :c==="xbarr"?`CL ${f(A.xr.cl,2)} ${u} · R̄ ${f(A.xr.rbar,2)} · σ̂ ${f(A.xr.sigmaHat,3)} · 子群數 k=${A.xr.k}（n=${A.xr.n}）${A.xr.reason?" · "+A.xr.reason:""}`
-    :`CL ${f(cl,2)} ${u}`+(c==="xbars"?` · σ板間 ${f(A.xs.sB,3)}（三向法）· n̄ ${f(A.nbar,0)}${warnText}${rejText}`:` · MR̄ ${f(A.imr.mrbar,2)}${A.imr.subgroupWarning?" · "+A.imr.subgroupWarning:""}${A.imr.reason?" · "+A.imr.reason:""}`);
+    :`CL ${f(cl,2)} ${u}`+(c==="xbars"?` · ${sBStr} · n̄ ${f(A.nbar,0)}${warnText}${rejText}`:` · 焊墊 ${esc(A.imr.pad||"")} 的 MR̄ ${f(A.imr.mrbar,2)} ${u}${A.imr.subgroupWarning?" · "+A.imr.subgroupWarning:""}${A.imr.reason?" · "+A.imr.reason:""}`);
   $("#ctrlLegend").innerHTML=c==="cusum"?`<span><i style="border-color:${css("--series2")}"></i>C+ 向上累積</span><span><i class="dash" style="border-color:${css("--accent")}"></i>C− 向下累積</span><span><i class="dash" style="border-color:${css("--ng")}"></i>決策界限 ±h</span><span><i class="sq" style="background:${css("--ng")};border-radius:50%"></i>超過界限</span>`
     :c==="ewma"?`<span><i style="border-color:${css("--series2")}"></i>EWMA</span><span><i class="sq" style="background:${css("--muted")};border-radius:50%"></i>每板平均</span><span><i style="border-color:${css("--accent")}"></i>中心線</span><span><i class="dash" style="border-color:${css("--ng")}"></i>UCL / LCL</span>`
     :`<span><i style="border-color:${css("--series2")}"></i>量測值</span><span><i style="border-color:${css("--accent")}"></i>中心線</span><span><i class="dash" style="border-color:${css("--ng")}"></i>UCL / LCL（±3σ）</span><span><i class="dash" style="border-color:${css("--muted")}"></i>±1σ、±2σ 區</span><span><i class="sq" style="background:${css("--ng")};border-radius:50%"></i>判異點</span>`;
@@ -3785,6 +4112,7 @@ function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
   const specTitle = METRICS[A.m].short;
   if(cap&&cap.mixed)$("#capGrpTbl").innerHTML=`<thead><tr><th>元件群組</th><th>n</th><th>平均</th><th>規格${cap.perGroupSpec?"（各群組推估）":""}</th><th>Cp</th><th>Cpk</th><th>Cpk 95% 信賴區間（以板數計）</th><th>Ppk</th><th>預估 PPM</th><th>超規 PPM（${specTitle}）</th></tr></thead><tbody>`+cap.groups.map(g=>`<tr><td>${esc(g.g)}</td><td class="mono">${g.n}</td><td class="mono">${f(g.mu,1)}</td><td class="mono">${f(g.lsl,0)}–${f(g.usl,0)}</td><td class="mono">${isFinite(g.cp)?f(g.cp):"—"}</td><td class="mono"><span class="pill ${capCls(g.cpk)}">${isFinite(g.cpk)?f(g.cpk):"—"}</span></td><td class="mono">${isFinite(g.ci[0])?f(g.ci[0])+" – "+f(g.ci[1]):(g.reason?esc(g.reason):"—")}</td><td class="mono">${isFinite(g.ppk)?f(g.ppk):"—"}</td><td class="mono">${isFinite(g.ppmExp)?fmtPpm(g.ppmExp):"—"}</td><td class="mono">${isFinite(g.ppmObs)?fmtPpm(g.ppmObs):"—"}</td></tr>`).join("")+"</tbody>";
   const unitWarn = A.unitMismatch ? `<div class="pill warn" style="margin-bottom:8px">⚠️ 疑似單位不符（規格中心距資料平均 >10σ 或 |Cpk|>50）</div>` : "";
+  const cpkPpkNotice = (A.sigmaW > A.overallSd) ? `<div class="note" style="margin-bottom:8px">ℹ️ 組內變異大於整體變異（Cpk < Ppk）：板間差異很小，或子群組內混了不同元件（請確認元件群組欄）。</div>` : "";
   const capCards = cap && isFinite(cap.cpk) ? (
     kpi("CP",f(cap.cp),pre+"短期潛在能力",capCls(cap.cp))+kpi("CPK",f(cap.cpk),pre+`短期實際能力 · 95% 信賴區間 ${f(cap.ci[0])} – ${f(cap.ci[1])}（以 ${cap.nb} 片板計）`,capCls(cap.cpk))+kpi("PP",f(cap.pp),"長期潛在能力",capCls(cap.pp))+kpi("PPK",f(cap.ppk),"長期實際能力",capCls(cap.ppk))+kpi("預估 PPM",fmtPpm(cap.ppmExp),cap.mixed?"各群組常態預估加權":"常態假設下超規",cap.ppmExp>2700?"ng":cap.ppmExp>63?"warn":"ok")+kpi(`超規 PPM（${specTitle}）`,fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok")
   ) : cap && cap.reason === "無規格" ? (
@@ -3792,7 +4120,7 @@ function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
   ) : cap && cap.reason ? (
     kpi("製程能力", "無法定義", cap.reason, "warn") + (isFinite(cap.ppmObs) ? kpi(`超規 PPM（${specTitle}）`,fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok") : "")
   ) : kpi("規格","未設定","請於上方輸入 LSL / USL");
-  $("#capKpis").innerHTML = unitWarn + capCards;
+  $("#capKpis").innerHTML = unitWarn + cpkPpkNotice + capCards;
   const all=A.rows.map(r=>r[A.m]).sort((a,b)=>a-b),n=all.length,iqr=quant(all,.75)-quant(all,.25);
   let bw=2*iqr/Math.cbrt(n)||1;const lo=Math.min(all[0],A.hasSpec?A.sp.lsl:all[0]),hi=Math.max(all[n-1],A.hasSpec?A.sp.usl:all[n-1]);let nb=Math.ceil((all[n-1]-all[0])/bw);if(nb>45){bw=(all[n-1]-all[0])/45;nb=45}if(nb<8){bw=(all[n-1]-all[0])/8||1;nb=8}
   const bins=Array.from({length:nb},(_,i)=>({x:all[0]+bw*(i+.5),y:0}));all.forEach(v=>{const i=Math.min(nb-1,Math.floor((v-all[0])/bw));bins[i].y++});
@@ -3805,8 +4133,9 @@ function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
       plugins:{legend:{display:false},vlines:{lines:A.hasSpec?[{v:A.sp.lsl,c:ng,t:"LSL"},{v:A.sp.usl,c:ng,t:"USL"},{v:A.sp.tgt,c:css("--muted"),t:"T",dash:[2,3]}]:[]},tooltip:{callbacks:{title:i=>f(i[0].raw.x,2)+" "+u,label:i=>i.datasetIndex===0?i.raw.y+" 點":"常態 "+f(i.raw.y,1)}}}})});
   const step=Math.max(1,Math.floor(n/500)),qq=[];for(let i=0;i<n;i+=step)qq.push({x:invPhi((i+.5)/n),y:all[i]});
   const zr=[-3.5,3.5];
+  const adSampledTxt = A.ad && A.ad.sampled ? `（抽樣 n=${A.ad.sampled}）` : "";
   const swTxt = A.sw && A.sw.valid ? ` · SW W ${f(A.sw.w,4)}，p ${A.sw.p<.001?"< 0.001":"= "+f(A.sw.p,3)}` : (A.sw && A.sw.reason ? ` · SW: ${esc(A.sw.reason)}` : "");
-  $("#qqSub").textContent=mixN?"元件群組混合，常態性不具意義；請選單一群組":`AD p ${A.ad.p<.001?"< 0.001":"= "+f(A.ad.p,3)} · ${A.ad.p>=.05?"未拒絕常態":"偏離常態"}${swTxt}`;
+  $("#qqSub").textContent=mixN?"元件群組混合，常態性不具意義；請選單一群組":`AD ${adSampledTxt}p ${A.ad.p<.001?"< 0.001":"= "+f(A.ad.p,3)} · ${A.ad.p>=.05?"未拒絕常態":"偏離常態"}${swTxt}`;
   mk("cQQ",{type:"scatter",data:{datasets:[{data:qq,pointRadius:2,backgroundColor:css("--series2")},{type:"line",data:zr.map(z=>({x:z,y:A.gMean+z*A.overallSd})),borderColor:css("--accent"),borderWidth:1.6,pointRadius:0}]},
     options:baseOpts({scales:{x:{type:"linear",min:-3.6,max:3.6,title:{display:true,text:"理論常態分位數 z",color:css("--muted"),font:{size:11}},ticks:{color:css("--muted"),font:{family:"IBM Plex Mono",size:10}},grid:{color:css("--grid")}},y:{title:{display:true,text:METRICS[A.m].short+" ("+u+")",color:css("--muted"),font:{size:11}},ticks:{color:css("--muted"),font:{family:"IBM Plex Mono",size:10}},grid:{color:css("--grid")}}}})});
   const boxGroup = (document.getElementById("selBoxGroup") && document.getElementById("selBoxGroup").value) || S.boxGroup || "board";
@@ -4179,8 +4508,11 @@ function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTi
     <div><div class="fact">B 新出現或仍存在</div><ul style="margin:4px 0;padding-left:18px">${FB.map(x=>`<li>${kA.has(keyOf(x))?"":'<span class="pill warn">新</span> '}${esc(x.title)}</li>`).join("")||'<li class="note">無</li>'}</ul></div></div>`;
 }
 ["cmpA","cmpB","cmpM"].forEach(id=>$("#"+id).onchange=e=>{S[id]=id==="cmpM"?e.target.value:+e.target.value;renderCompare()});
-$("#btnCmpMd").onclick=()=>{if(!CMP)return;const{ra,rb,R,FA,FB}=CMP;save("run-compare.md",`# 試產回合比較\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- A（基準）：${ra.name}\n- B（比較）：${rb.name}\n\n| 元件群組 | 面積比 | 轉移效率 % | Ppk（${METRICS[S.cmpM].short}） | 不良 PPM（全部判定項目） | 判定 |\n|---|---|---|---|---|---|\n`
-  +R.map(x=>{const gLabel=x.g==="整體"&&(x.b.ppkGroup||x.a.ppkGroup)?`整體（最差群組 ${x.b.ppkGroup||x.a.ppkGroup}）`:x.g;return`| ${gLabel} | ${isFinite(x.a.ar)?f(x.a.ar,2)+" → "+f(x.b.ar,2):"—"} | ${f(x.a.te,1)} → ${f(x.b.te,1)}${x.tTE?`（p ${f(x.tTE.p,3)}）`:""} | ${f(x.a.ppk)} → ${f(x.b.ppk)} | ${fmtPpm(x.a.rate*1e6)} → ${fmtPpm(x.b.rate*1e6)}（p ${f(x.pD,3)}） | ${x.verdict} |`}).join("\n")
+$("#btnCmpMd").onclick=()=>{if(!CMP)return;const{ra,rb,R,FA,FB}=CMP;save("run-compare.md",`# 試產回合比較\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${fmtNowUtc8()}\n- A（基準）：${ra.name}\n- B（比較）：${rb.name}\n\n| 元件群組 | 面積比 | 轉移效率 % | 錫量 CV % | Ppk（${METRICS[S.cmpM].short}） | 不良 PPM（全部判定項目） | 判定 |\n|---|---|---|---|---|---|---|\n`
+  +R.map(x=>{const gLabel=x.g==="整體"&&(x.b.ppkGroup||x.a.ppkGroup)?`整體（最差群組 ${x.b.ppkGroup||x.a.ppkGroup}）`:x.g;
+    const detail=(x.better&&x.better.length?"改善："+x.better.join("、"):"")+(x.better&&x.better.length&&x.worse&&x.worse.length?"；":"")+(x.worse&&x.worse.length?"惡化："+x.worse.join("、"):"");
+    const verdictCell=detail?`${x.verdict}（${detail}）`:x.verdict;
+    return`| ${gLabel} | ${isFinite(x.a.ar)?f(x.a.ar,2)+" → "+f(x.b.ar,2):"—"} | ${f(x.a.te,1)} → ${f(x.b.te,1)}${x.tTE?`（p ${f(x.tTE.p,3)}）`:""} | ${f(x.a.cv,1)} → ${f(x.b.cv,1)} | ${f(x.a.ppk)} → ${f(x.b.ppk)} | ${fmtPpm(x.a.rate*1e6)} → ${fmtPpm(x.b.rate*1e6)}（p ${f(x.pD,3)}） | ${verdictCell} |`}).join("\n")
   +`\n\n## 問題偵測\n\n- A：${FA.length} 項（嚴重 ${FA.filter(x=>x.lv==="ng").length}）\n- B：${FB.length} 項（嚴重 ${FB.filter(x=>x.lv==="ng").length}）\n\n### B 仍存在的問題\n\n${FB.map(x=>`- ［${LVL[x.lv]}］${x.title}`).join("\n")||"- 無"}\n`)};
 
 /* ---------- DFM 建議 ---------- */
@@ -4204,7 +4536,7 @@ function renderDfm(){const D=dfmTable(S);DFM=D;const r=curRun();
 function dfmRows(){return DFM||dfmTable(S)}
 $("#btnDfmCsv").onclick=()=>save("stencil-dfm.csv",toCSV([["rank","group","aperture_mm","source","stencil_um","area_ratio","aspect_ratio","max_thk_for_AR066_um","transfer_eff_pct","cv_pct","robust_cpk","defect_ppm","risk","actions"],
   ...dfmRows().map((x,i)=>[i+1,x.g,x.ap.shape==="round"?"D"+f(x.ap.L,3):f(x.ap.L,3)+"x"+f(x.ap.W,3),x.ap.src,x.thk,f(x.ar,3),f(x.asp,2),f(x.tmax,0),f(x.te,1),f(x.cv,1),f(x.cpk),Math.round(x.ppm),x.lvl+" "+f(x.score,1),x.acts.map(a=>`${a.act}（${a.why} → ${a.exp}）`).join(" | ")])]));
-$("#btnDfmMd").onclick=()=>{const r=curRun();save("stencil-dfm.md",`# 鋼板開孔修改建議表\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${new Date().toLocaleString("zh-TW",{hour12:false})}\n- 回合：${r?r.name:""}；鋼板 ${S.stencil} µm${S.step.on?"（階梯："+S.step.zones.map(z=>z.name+" "+z.t+" µm").join("、")+"）":""}\n- 判定依據：IPC-7525 面積比 ≥ 0.66、寬厚比 ≥ 1.5；數值為依 SPI 資料推算的估計，開鋼板前請與鋼板廠確認。\n\n`
+$("#btnDfmMd").onclick=()=>{const r=curRun();save("stencil-dfm.md",`# 鋼板開孔修改建議表\n\n- 版本：${APP.ver} · 系統更新 ${APP.built} · 產生時間：${fmtNowUtc8()}\n- 回合：${r?r.name:""}；鋼板 ${S.stencil} µm${S.step.on?"（階梯："+S.step.zones.map(z=>z.name+" "+z.t+" µm").join("、")+"）":""}\n- 判定依據：IPC-7525 面積比 ≥ 0.66、寬厚比 ≥ 1.5；數值為依 SPI 資料推算的估計，開鋼板前請與鋼板廠確認。\n\n`
   +dfmRows().map((x,i)=>`## ${i+1}. ${x.g}（風險 ${x.lvl}，${f(x.score,1)} 分）\n\n- 開孔 ${x.ap.shape==="round"?"Ø"+f(x.ap.L,3):f(x.ap.L,3)+" × "+f(x.ap.W,3)} mm（${x.ap.src}），鋼板 ${x.thk} µm\n- 面積比 ${f(x.ar,2)}、寬厚比 ${f(x.asp,2)}、AR 0.66 最大可用厚度 ${f(x.tmax,0)} µm\n- 轉移效率 ${f(x.te,1)}%、CV ${f(x.cv,1)}%、穩健 Cpk ${f(x.cpk)}、不良 ${fmtPpm(x.ppm)} PPM\n- 建議：\n${x.acts.map(a=>`  - ${a.act}（${a.why} → ${a.exp}）`).join("\n")}\n`).join("\n"))};
 
 /* ---------- 實驗驗證：AOI / DOE / GR&R ---------- */
@@ -4230,7 +4562,15 @@ function renderAOI(){const r=curRun(),ms=S.metrics.filter(k=>k!=="offx"&&k!=="of
     <p style="margin:10px 0 0"><span class="lbl fact">事實</span> 回焊不良焊墊的 SPI ${METRICS[S.aoiM].short}平均 ${f(ac.ngMean,1)} ${u}，良品 ${f(ac.okMean,1)} ${u}${ac.welch?`（p ${ac.welch.p<.001?"< 0.001":"= "+f(ac.welch.p,3)}）`:""}。</p>
     <p style="margin:4px 0 0"><span class="lbl fact">推論</span> ${ac.welch&&ac.welch.p<.05?`SPI ${METRICS[S.aoiM].short}能區分回焊良窳，可用來訂規格（信心 中）。`:`SPI ${METRICS[S.aoiM].short}與回焊結果關聯不明顯；回焊不良可能來自置件、回焊或其他量測項目（信心 中）。`}${ac.escape>.5?" 過半回焊不良的 SPI 值在現行規格內，代表現行 SPI 規格攔不住這些不良。":""}</p>
     ${ac.win&&sp?`<div class="row" style="margin-top:8px"><button id="btnAoiApply">將 ${METRICS[S.aoiM].short} 規格設為 ${ac.win[0]}–${ac.win[1]}</button><span class="note">套用後所有分析即時更新，可再回「試產比較」或「問題偵測」確認影響。</span></div>`:""}`;
-  if($("#btnAoiApply"))$("#btnAoiApply").onclick=()=>{if(S.specSrc==="machine")setSpecSrc("custom");/* 套用回焊結果建議的規格＝改用自訂規格 */S.specs[S.aoiM].lsl=ac.win[0];S.specs[S.aoiM].usl=ac.win[1];syncControls();recompute()};
+  if($("#btnAoiApply"))$("#btnAoiApply").onclick=()=>{
+    S.specSrc="aoi";
+    S.aoiRun=curRun()?curRun().name:"目前回合";
+    S.aoiTime=fmtNowUtc8();
+    S.specs[S.aoiM].lsl=ac.win[0];
+    S.specs[S.aoiM].usl=ac.win[1];
+    syncControls();
+    recompute();
+  };
   $("#aoiChartBox").hidden=false;const B=ac.bins,ng=css("--ng");
   mk("cAoi",{type:"bar",data:{labels:B.map(b=>`${b.lo}–${b.hi}`),datasets:[
     {label:"95% CI",data:B.map(b=>b.n?[b.ci[0]*100,b.ci[1]*100]:null),backgroundColor:css("--series2")+"33",borderColor:css("--series2")+"88",borderWidth:1,barPercentage:.7,grouped:false,yAxisID:"y"},
@@ -4252,6 +4592,7 @@ function renderDOE(){fillSelect($("#doeResp"),Object.entries(RESP).map(([k,v])=>
   const best=D.combos[0],fv=x=>D.facs.map(k=>`${FACT[k].label} ${x.fv[k]} ${FACT[k].unit}`).join("、");
   $("#doeOut").innerHTML=`<div class="tbl"><table><thead><tr><th>因子</th><th>水準</th><th class="num">各水準平均</th><th class="num">主效應</th><th class="num">p</th><th>判讀</th></tr></thead><tbody>${D.eff.map(e=>`<tr><td>${FACT[e.k].label}</td><td class="mono">${e.lv.join(" / ")} ${FACT[e.k].unit}</td><td class="num mono">${e.means.map(m=>f(m,2)).join(" / ")}</td><td class="num mono">${e.effect>0?"+":""}${f(e.effect,2)}</td><td class="num mono">${e.p<.001?"< 0.001":f(e.p,3)}</td><td>${e.p<.05?'<span class="pill warn">顯著</span>':'<span class="pill na">不顯著</span>'}</td></tr>`).join("")}</tbody></table></div>
     <p style="margin:10px 0 4px"><span class="lbl fact">建議窗口</span><b>${fv(best)}</b>：體積 ${f(best.vol,1)}%、CV ${f(best.cv,1)}%、不良率 ${f(best.def,2)}%（${best.n} 片）。<span class="note">綜合排序：接近體積目標、變異小、不良少；建議以確認實驗驗證。</span></p>
+    <p class="note" style="margin-top:4px">註：各因子單獨檢定、未調整其他因子與交互作用。</p>
     <div class="tbl" style="max-height:260px;overflow:auto"><table><thead><tr><th class="num">#</th><th>參數組合</th><th class="num">片數</th><th class="num">體積 %</th><th class="num">CV %</th><th class="num">不良率 %</th></tr></thead><tbody>${D.combos.map((c,i)=>`<tr${i===0?' style="background:var(--accent-soft)"':""}><td class="num mono">${i+1}</td><td>${fv(c)}</td><td class="num mono">${c.n}</td><td class="num mono">${f(c.vol,1)}</td><td class="num mono">${f(c.cv,1)}</td><td class="num mono">${f(c.def,2)}</td></tr>`).join("")}</tbody></table></div>`;
   box.innerHTML=D.eff.map(e=>`<div><div class="fact" style="margin-bottom:4px">${FACT[e.k].label} 主效應</div><div class="chartbox short"><canvas id="cDoe-${e.k}" role="img" aria-label="${FACT[e.k].label}主效應圖"></canvas></div></div>`).join("");
   const all=D.eff.flatMap(e=>e.means),lo=Math.min(...all),hi=Math.max(...all),pad=(hi-lo)*.25||1;
@@ -4265,14 +4606,14 @@ function renderGRR(){const G=S.grr;const ms=G?G.metrics:["volume"];if(!ms.includ
   if(!G){$("#grrState").textContent="";$("#grrOut").innerHTML='<p class="note">尚未載入重複量測資料。</p>';return}
   const sp=S.specs[S.grrM],tol=sp?sp.usl-sp.lsl:NaN,R=grrAnalyze(G.rows,S.grrM,tol),u=METRICS[S.grrM].unit;
   if(R.err){$("#grrOut").innerHTML=`<p class="err">${esc(R.err)}</p>`;return}
-  $("#grrState").textContent=`${R.a} 個焊墊 × ${R.b} 位操作員 × ${R.n} 次`;
+  $("#grrState").textContent=`${R.a} 個焊墊 × ${R.b} 位操作員 × ${R.n} 次 · 採用：${R.model}${R.truncated?`（已截斷 ${R.truncated} 筆以平衡資料）`:""}`;
   const cls=v=>v<10?"ok":v<30?"warn":"ng",verdict=v=>v<10?"可接受":v<30?"視用途條件接受":"不可接受",worst=Math.max(R.pctTV,isFinite(R.pctTol)?R.pctTol:0);
   const pc=x=>f(x*x/(R.tv*R.tv)*100,1);
   $("#grrOut").innerHTML=`<div class="kpis">${kpi("%GRR（總變異）",f(R.pctTV,1)+"%",verdict(R.pctTV),cls(R.pctTV))}${kpi("%GRR（公差）",isFinite(R.pctTol)?f(R.pctTol,1)+"%":"—",isFinite(tol)?`公差 ${f(tol,0)} ${u}（LSL–USL）`:"未設定規格",isFinite(R.pctTol)?cls(R.pctTol):"")}
     ${kpi("可區分類別 ndc",R.ndc,R.ndc>=5?"≥ 5，足以區分焊墊差異":"< 5，解析力不足",R.ndc>=5?"ok":"ng")}${kpi("量測誤差 σ",f(R.grr,2)+` <small style="font-size:14px">${u}</small>`,`焊墊間 σ ${f(R.pv,2)} ${u}`)}</div>
     <div class="tbl" style="margin-top:10px"><table><thead><tr><th>變異來源</th><th class="num">σ（${u}）</th><th class="num">貢獻 %</th><th>說明</th></tr></thead><tbody>
-    <tr><td>重複性 EV</td><td class="num mono">${f(R.ev,3)}</td><td class="num mono">${pc(R.ev)}</td><td class="note">同一人同一焊墊重複量測的差異（機台本身）</td></tr>
-    ${R.b>1?`<tr><td>再現性 AV</td><td class="num mono">${f(R.av,3)}</td><td class="num mono">${pc(R.av)}</td><td class="note">操作員／重新載入造成的差異</td></tr><tr><td>交互作用</td><td class="num mono">${f(R.inter,3)}</td><td class="num mono">${pc(R.inter)}</td><td class="note">p = ${f(R.pInt,3)}${R.pInt>.25?"（不顯著）":""}</td></tr>`:""}
+    <tr><td>重複性 EV</td><td class="num mono">${f(R.ev,3)}</td><td class="num mono">${pc(R.ev)}</td><td class="note">同一人同一焊墊重複量測的差異${R.pooled?"（含合併之交互作用）":"（機台本身）"}</td></tr>
+    ${R.b>1?`<tr><td>再現性 AV</td><td class="num mono">${f(R.av,3)}</td><td class="num mono">${pc(R.av)}</td><td class="note">操作員／重新載入造成的差異</td></tr><tr><td>交互作用</td><td class="num mono">${R.pooled?"—":f(R.inter,3)}</td><td class="num mono">${R.pooled?"0.0%":pc(R.inter)}</td><td class="note">p = ${f(R.pInt,3)}${R.pooled?" > 0.25（已併入重複性）":R.pInt>.25?"（不顯著）":""}</td></tr>`:""}
     <tr style="font-weight:500"><td>GR&amp;R 合計</td><td class="num mono">${f(R.grr,3)}</td><td class="num mono">${pc(R.grr)}</td><td></td></tr><tr><td>焊墊間 PV</td><td class="num mono">${f(R.pv,3)}</td><td class="num mono">${pc(R.pv)}</td><td></td></tr></tbody></table></div>
     <p style="margin:10px 0 0"><span class="lbl fact">推論</span> ${worst<10?"SPI 程式量測可信，可直接採信本系統的能力與問題偵測結論（信心 高）。":worst<30?"量測誤差佔一定比例，Cpk 會被低估；細微差異（例如刮刀前後差）需謹慎解讀（信心 中）。":"量測誤差過大，先改善 SPI 程式（基準面、翹曲補償、照明、焊墊 ROI）再採信其他結論（信心 高）。"}</p>`}
 $("#grrFile").onchange=e=>{const fl=e.target.files[0];if(!fl)return;fl.text().then(t=>{try{S.grr=parseGRR(t);renderGRR()}catch(er){$("#grrState").textContent=er.message}})};
@@ -4413,13 +4754,15 @@ function importCfg(rows){const cfg=snapCfg();
   if(cfg.specSrc!=="machine")cfg.specsCustom=clone(cfg.specs);cfg.specSrc="machine";const ms=machineSpecs(rows,{...S,...cfg},cfg.specsCustom);cfg.specs=ms.specs;cfg.specsG=ms.groups;return cfg}
 function setSpecSrc(v){if(v===S.specSrc)return;
   if(v==="machine"){if(!S.rows.some(r=>r.result!=null)){toast("目前回合沒有機台判定碼欄位，無法使用機台判定");syncControls();return}S.specsCustom=clone(S.specs);const ms=machineSpecs(S.rows,S,S.specsCustom);S.specs=ms.specs;S.specsG=ms.groups;S.specSrc="machine"}
+  else if(v==="workorder"){S.specSrc="workorder"}
+  else if(v==="aoi"){S.specSrc="aoi"}
   else{S.specSrc="custom";if(S.specsCustom)S.specs=clone(S.specsCustom);S.specsCustom=null;S.specsG=null}
   persist();syncControls();recompute()}
 function curRun(){return (S.runs&&S.runs.find(r=>r.id===S.runId))||null}
 function runState(run){return run.id===S.runId?{...S}:{...S,rows:run.rows,metrics:run.metrics,...clone(run.cfg)}}
-function addRun(name,rows,metrics,cfg,info){name=safeId(name)||"未命名回合";const id=Math.max(0,...S.runs.map(r=>r.id))+1;S.runs.push({id,name,rows,metrics:withHpct(metrics),cfg:cfg||snapCfg(),info:info||null,aoi:null});return id}
+function addRun(name,rows,metrics,cfg,info){name=safeId(name)||"未命名回合";const id=Math.max(0,...S.runs.map(r=>r.id))+1;S.runs.push({id,name,rows,metrics:withHpct(metrics),cfg:cfg||snapCfg(),info:info||null,aoi:null,_rawRows:rows});return id}
 function switchRun(id){const c=curRun();if(c)c.cfg=snapCfg();const n=S.runs.find(r=>r.id===id);if(!n)return;
-  S.runId=id;S.rows=n.rows;S.metrics=n.metrics;S.source=n.name;S.issEnt=null;S.ctx=null;S.specSrc="custom";S.specsCustom=null;S.specsG=null;S.sqDir="Y";Object.assign(S,clone(n.cfg));S.group="ALL";S.board=null;S.pad=null;
+  S.runId=id;S.rows=n.rows;S._rawRows=n._rawRows||n.rows;S.timeFilter=null;S.partialBoards=null;S.metrics=n.metrics;S.source=n.name;S.issEnt=null;S.ctx=null;S.specSrc="custom";S.specsCustom=null;S.specsG=null;S.sqDir="Y";Object.assign(S,clone(n.cfg));S.group="ALL";S.board=null;S.pad=null;
   /* v9.10.0 存下的機台模式回合沒有群組規格、規格窗也向外取整過：依原始資料重新推估 */
   if(S.specSrc==="machine"&&!S.specsG&&S.rows.some(r=>r.result!=null)){const ms=machineSpecs(S.rows,S,S.specsCustom||S.specs);S.specs=ms.specs;S.specsG=ms.groups;n.cfg=snapCfg()}
   if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon()}
@@ -4803,14 +5146,43 @@ function reportMd(){const A=S.A,u=METRICS[A.m].unit,lab={ok:"一致/正常",warn
   const vd=(S.F&&S.F.meta&&S.F.meta.verdict)||overallVerdict(S,S.F);
   const zCnt=S.step&&S.step.on?zoneCounts():null;
   const stepCovered=zCnt?Object.values(zCnt.c).reduce((a,b)=>a+b,0):0;
-  return`# SPI·SPC 分析報告\n\n- 產生時間：${new Date().toLocaleString("zh-TW")}\n- 資料來源：${S.source}\n- 量測項目：${METRICS[A.m].label}；元件群組：${S.group==="ALL"?"全部":S.group}；管制圖：${chartName()}\n- 整體判定：${vd.label}（${vd.level}）${vd.reasons&&vd.reasons.length?" · 原因："+vd.reasons.join("；"):""}\n- 規格：LSL ${A.sp.lsl} / 目標 ${A.sp.tgt} / USL ${A.sp.usl} ${u}\n- 規格來源：${specSrcText()}\n- 刮刀行程方向：沿 ${S.sqDir||"Y"}；擦拭間隔：每 ${S.wipe} 片\n- 鋼板厚度：${S.stencil} µm（高度規格 ${S.htol.lo}%–${S.htol.hi}% 厚度）\n- 階梯鋼板：${S.step.on?S.step.zones.map(z=>`${z.name} ${z.t} µm（${z.mode==="group"?"群組 "+z.group:`X ${z.x0}–${z.x1}, Y ${z.y0}–${z.y1} mm`}）`).join("；")+`（涵蓋 ${stepCovered} 焊墊${stepCovered===0?" ⚠️ 未涵蓋任何焊墊":""}）`:"未啟用"}\n- 系統版本：${APP.ver} · 系統更新 ${APP.built}\n- 試產回合：${curRun()?curRun().name:""}\n${runSrc(curRun())?`- 資料來源追溯：${srcLine(runSrc(curRun()))}\n- 原始檔 SHA-256：${runSrc(curRun()).sha256}\n`:""}\n## 問題偵測（依嚴重度與佐證排序）\n\n${S.F.map(x=>`- #${x.no}［${x.level}］${x.title}（規則：${x.rule_id} ${x.rule_name}）\n  - 面向：${x.category}；量測項目：${x.metric}；板號：${x.boards}；焊墊：${x.pads}；群組：${x.group}；位號：${x.refdes}\n  - 觀測值：${x.observed}；界限：${x.limit}；z：${x.z}；p：${x.p}\n  - 事實：${x.facts.join("；")}\n  - 推論（信心 ${x.confidence}）：${x.inference}\n  - 建議動作：${x.action}${x.corroborated_by.length?"\n  - 跨面向佐證："+x.corroborated_by.map(i=>"#"+i).join("、"):""}${x.same_phenomenon.length?"\n  - 同一現象："+x.same_phenomenon.map(i=>"#"+i).join("、"):""}${x.explained_pads.length?"\n  - 已解釋焊墊："+x.explained_pads.join("；"):""}`).join("\n")||"- 未偵測到顯著問題"}\n\n## 一、統計結果（事實）\n\n| 指標 | 數值 |\n|---|---|\n| 樣本數 | ${A.N} |\n| 板數 | ${A.boards.length} |\n| 平均 | ${f(A.gMean,2)} ${u} |\n| σ 組內 / 整體 | ${f(A.sigmaW,3)} / ${f(A.overallSd,3)} |\n${A.cap?`| 能力計算方式 | ${A.cap.mixed?`逐元件群組（組內 σ），以最差群組 ${A.cap.worst} 代表`:"組內 σ"}${A.cap.lowerBound?"；規格窗為機台 PASS 焊墊的實際範圍，真正規格只會更寬，Cp/Cpk 為下限":""}${A.stable?"":"；製程未穩定，僅供參考"} |\n| Cp / Cpk | ${f(A.cap.cp)} / ${f(A.cap.cpk)} |\n| Cpk 95% 信賴區間（以 ${A.cap.nb} 片板計） | ${f(A.cap.ci[0])} – ${f(A.cap.ci[1])} |\n| Pp / Ppk | ${f(A.cap.pp)} / ${f(A.cap.ppk)} |\n| 預估 PPM / 超規 PPM（${mShort}） | ${fmtPpm(A.cap.ppmExp)} / ${fmtPpm(A.cap.ppmObs)} |\n| 不良 PPM（全部判定項目） | ${fmtPpm(defPpm)} |\n`:""}| Anderson-Darling p | ${A.ad.p<.001?"<0.001":f(A.ad.p,3)} |\n${A.sw&&A.sw.valid?`| Shapiro-Wilk W / p | ${f(A.sw.w,4)} / ${A.sw.p<.001?"<0.001":f(A.sw.p,3)} |\n`:""}| 不良焊墊（全部項目） | ${A.defRows.length} |\n\n${A.cap&&A.cap.mixed?`\n### 逐元件群組製程能力\n\n| 元件群組 | n | 平均 | 規格 | Cpk | Cpk 95% 信賴區間 | Ppk | 預估 PPM | 超規 PPM（${mShort}） |\n|---|---|---|---|---|---|---|---|---|\n${A.cap.groups.map(g=>`| ${g.g} | ${g.n} | ${f(g.mu,1)} | ${f(g.lsl,0)}–${f(g.usl,0)} | ${f(g.cpk)} | ${f(g.ci[0])}–${f(g.ci[1])} | ${f(g.ppk)} | ${fmtPpm(g.ppmExp)} | ${fmtPpm(g.ppmObs)} |`).join("\n")}\n`:""}
-## 二、Nelson 規則（X̄ 圖，管制狀態判斷依據）\n\n${(A.nelX||A.nel).rules.map(r=>`- 規則 ${r.name}：${r.idx.length?"觸發（"+r.idx.map(i=>A.xs.pts[i].lab).join(", ")+"）":"通過"}`).join("\n")}${S.chart!=="xbars"?`\n\n目前畫面管制圖（${chartName()}）：${A.nel.rules.filter(r=>!r.na).map(r=>`規則 ${r.id} ${r.idx.length?"觸發":"通過"}`).join("、")}`:""}\n\n## 三、交叉驗證\n\n| 面向 | 來源 | 判定 | 依據 |\n|---|---|---|---|\n${A.xv.rows.map(x=>`| ${x.k} | ${x.src} | ${lab[x.st]} | ${x.ev} |`).join("\n")}\n\n${fmMd().trim()||"## 失效模式交叉比對\n\n- 無資料"}\n\n## 進階分析\n\n${(()=>{const W=advSummary(A);return[`- EWMA 越界：${W.EWMA越界.join(", ")||"無"}；CUSUM 訊號：${W.CUSUM訊號.join(", ")||"無"}`,`- 面積比 / 轉移效率：${W.面積比.map(g=>`${g.群組} AR ${g.AR}、TE ${g.轉移效率}%`).join("；")}`,`- 最差焊墊 Cpk：${W.最差焊墊Cpk.map(p=>`${p.焊墊} ${p.Cpk}`).join("、")}`,`- 對位異常板：${W.對位異常板.map(a=>`${a.板}（平移 ${a.平移X}/${a.平移Y} µm，旋轉 ${a.旋轉度}°）`).join("；")||"無"}`,W.刮刀前後?`- 刮刀前後差：${W.刮刀前後.差值}，p = ${W.刮刀前後.p}`:"",`- 擦拭週期（每 ${W.擦拭週期.每幾片} 片）：斜率 ${W.擦拭週期.每片斜率}/片，p = ${W.擦拭週期.p}`].filter(Boolean).join("\n")})()}\n\n## 四、不良柏拉圖\n\n${Object.entries(A.pareto).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`- ${DEFECTS[k]}：${v}`).join("\n")||"- 無"}\n${S.ai?`\n## 五、Claude AI 分析（含推論，需工程驗證）\n\n${S.ai}\n`:""}`}
+  return`# SPI·SPC 分析報告\n\n- 產生時間：${fmtNowUtc8()}\n- 資料來源：${S.source}\n- 量測項目：${METRICS[A.m].label}；元件群組：${S.group==="ALL"?"全部":S.group}；管制圖：${chartName()}\n- 整體判定：${vd.label}（${vd.level}）${vd.reasons&&vd.reasons.length?" · 原因："+vd.reasons.join("；"):""}\n- 規格：LSL ${A.sp.lsl} / 目標 ${A.sp.tgt} / USL ${A.sp.usl} ${u}\n- 規格來源：${specSrcText()}\n- 刮刀行程方向：沿 ${S.sqDir||"Y"}；擦拭間隔：每 ${S.wipe} 片\n- 鋼板厚度：${S.stencil} µm（高度規格 ${S.htol.lo}%–${S.htol.hi}% 厚度）\n- 階梯鋼板：${S.step.on?S.step.zones.map(z=>`${z.name} ${z.t} µm（${z.mode==="group"?"群組 "+z.group:`X ${z.x0}–${z.x1}, Y ${z.y0}–${z.y1} mm`}）`).join("；")+`（涵蓋 ${stepCovered} 焊墊${stepCovered===0?" ⚠️ 未涵蓋任何焊墊":""}）`:"未啟用"}\n- 系統版本：${APP.ver} · 系統更新 ${APP.built}\n- 試產回合：${curRun()?curRun().name:""}\n${runSrc(curRun())?`- 資料來源追溯：${srcLine(runSrc(curRun()))}\n- 原始檔 SHA-256：${runSrc(curRun()).sha256}\n`:""}\n## 問題偵測（依嚴重度與佐證排序）\n\n${S.F.map(x=>`- #${x.no}［${x.level}］${x.title}（規則：${x.rule_id} ${x.rule_name}）\n  - 面向：${x.category}；量測項目：${x.metric}；板號：${x.boards}；焊墊：${x.pads}；群組：${x.group}；位號：${x.refdes}\n  - 觀測值：${x.observed}；界限：${x.limit}；z：${x.z}；p：${x.p}\n  - 事實：${x.facts.join("；")}\n  - 推論（信心 ${x.confidence}）：${x.inference}\n  - 建議動作：${x.action}${x.corroborated_by.length?"\n  - 跨面向佐證："+x.corroborated_by.map(i=>"#"+i).join("、"):""}${x.same_phenomenon.length?"\n  - 同一現象："+x.same_phenomenon.map(i=>"#"+i).join("、"):""}${x.explained_pads.length?"\n  - 已解釋焊墊："+x.explained_pads.join("；"):""}`).join("\n")||"- 未偵測到顯著問題"}\n\n## 一、統計結果（事實）\n\n| 指標 | 數值 |\n|---|---|\n| 樣本數 | ${A.N} |\n| 板數 | ${A.boards.length} |\n| 平均 | ${f(A.gMean,2)} ${u} |\n| σ 組內 / 整體 | ${f(A.sigmaW,3)} / ${f(A.overallSd,3)} |\n${A.cap?`| 能力計算方式 | ${A.cap.mixed?`逐元件群組（組內 σ），以最差群組 ${A.cap.worst} 代表`:"組內 σ"}${A.cap.lowerBound?"；規格窗為機台 PASS 焊墊的實際範圍，真正規格只會更寬，Cp/Cpk 為下限":""}${A.stable?"":"；製程未穩定，僅供參考"} |\n| Cp / Cpk | ${f(A.cap.cp)} / ${f(A.cap.cpk)} |\n| Cpk 95% 信賴區間（以 ${A.cap.nb} 片板計） | ${f(A.cap.ci[0])} – ${f(A.cap.ci[1])} |\n| Pp / Ppk | ${f(A.cap.pp)} / ${f(A.cap.ppk)} |\n| 預估 PPM / 超規 PPM（${mShort}） | ${fmtPpm(A.cap.ppmExp)} / ${fmtPpm(A.cap.ppmObs)} |\n| 不良 PPM（全部判定項目） | ${fmtPpm(defPpm)} |\n`:""}| Anderson-Darling p | ${A.ad.p<.001?"<0.001":f(A.ad.p,3)} |\n${A.sw&&A.sw.valid?`| Shapiro-Wilk W / p | ${f(A.sw.w,4)} / ${A.sw.p<.001?"<0.001":f(A.sw.p,3)} |\n`:""}| 不良焊墊（全部項目） | ${A.defRows.length} |\n\n${A.cap&&A.cap.mixed?`\n### 逐元件群組製程能力\n\n| 元件群組 | n | 平均 | 規格 | Cpk | Cpk 95% 信賴區間 | Ppk | 預估 PPM | 超規 PPM（${mShort}） |\n|---|---|---|---|---|---|---|---|---|\n${A.cap.groups.map(g=>`| ${g.g} | ${g.n} | ${f(g.mu,1)} | ${f(g.lsl,0)}–${f(g.usl,0)} | ${f(g.cpk)} | ${f(g.ci[0])}–${f(g.ci[1])} | ${f(g.ppk)} | ${fmtPpm(g.ppmExp)} | ${fmtPpm(g.ppmObs)} |`).join("\n")}\n`:""}\n## 二、Nelson 規則（X̄ 圖，管制狀態判斷依據）\n\n${(A.nelX||A.nel).rules.map(r=>`- 規則 ${r.name}：${r.idx.length?"觸發（"+r.idx.map(i=>A.xs.pts[i].lab).join(", ")+"）":"通過"}`).join("\n")}${S.chart!=="xbars"?`\n\n目前畫面管制圖（${chartName()}）：${A.nel.rules.filter(r=>!r.na).map(r=>`規則 ${r.id} ${r.idx.length?"觸發":"通過"}`).join("、")}`:""}\n\n## 三、交叉驗證\n\n| 面向 | 來源 | 判定 | 依據 |\n|---|---|---|---|\n${A.xv.rows.map(x=>`| ${x.k} | ${x.src} | ${lab[x.st]} | ${x.ev} |`).join("\n")}\n\n${fmMd().trim()||"## 失效模式交叉比對\n\n- 無資料"}\n\n## 進階分析\n\n${(()=>{const W=advSummary(A);return[`- EWMA 越界：${W.EWMA越界.join(", ")||"無"}；CUSUM 訊號：${W.CUSUM訊號.join(", ")||"無"}`,`- 面積比 / 轉移效率：${W.面積比.map(g=>`${g.群組} AR ${g.AR}、TE ${g.轉移效率}%`).join("；")}`,`- 最差焊墊 Cpk：${W.最差焊墊Cpk.map(p=>`${p.焊墊} ${p.Cpk}`).join("、")}`,`- 對位異常板：${W.對位異常板.map(a=>`${a.板}（平移 ${a.平移X}/${a.平移Y} µm，旋轉 ${a.旋轉度}°）`).join("；")||"無"}`,W.刮刀前後?`- 刮刀前後差：${W.刮刀前後.差值}，p = ${W.刮刀前後.p}`:"",`- 擦拭週期（每 ${W.擦拭週期.每幾片} 片）：斜率 ${W.擦拭週期.每片斜率}/片，p = ${W.擦拭週期.p}`].filter(Boolean).join("\n")})()}\n\n## 四、不良柏拉圖\n\n${Object.entries(A.pareto).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`- ${DEFECTS[k]}：${v}`).join("\n")||"- 無"}\n${S.ai?`\n## 五、Claude AI 分析（含推論，需工程驗證）\n\n${S.ai}\n`:""}\n## 八、資料範圍揭露與未納入證據 (Data Scope & Exclusions)\n\n- 匯入總筆數：${S.rows.length} 筆；納入分析筆數：${S.rows.length} 筆\n- 板號推定狀態：${(S.boardInferred || S.rows.some(r=>r.boardInferred)) ? `板號為推定（每 ${S.boardInferred || Math.round(S.rows.length / (A.boards.length||1))} 筆）` : "板號完整，無推定缺失"}\n- 時間區間篩選：${S.timeFilter ? `${S.timeFilter.start || "—"} ～ ${S.timeFilter.end || "—"}（UTC+8）` : "未設定時間篩選（全時段）"}\n- 部分焊墊板數：${S.partialBoards && S.partialBoards.length ? `${S.partialBoards.length} 片板僅含部分焊墊（${S.partialBoards.join("、")}）` : "無部分板（所有板皆含完整焊墊）"}\n- 刮刀方向狀態：${S.sqDir ? `刮刀方向設定為 ${S.sqDir} 向` : "依板序奇偶推定"}\n- 焊墊座標狀態：${PLACE ? `已套用座標檔：${esc(PLACE.part)} ${esc(PLACE.rev)}` : "未套用獨立座標檔（採用資料內建座標或相對位置）"}\n\n## 九、方法附錄與統計檢驗說明 (Methodology Appendix)\n\n- 判定規格來源：${specSrcText()}\n- 實驗設計 (DOE)：各因子單獨檢定、未調整其他因子與交互作用。\n`}
 /* 下載：在 claude.ai 內用平台下載功能；一般瀏覽器（例如 Netlify 部署）直接下載檔案 */
-function browserDownload(filename,data){const type=/\.csv$/.test(filename)?"text/csv;charset=utf-8":"text/markdown;charset=utf-8",url=URL.createObjectURL(new Blob(["\uFEFF"+data],{type})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function browserDownload(filename,data){const isXlsx=/\.xlsx$/i.test(filename);const type=isXlsx?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":(/\.csv$/.test(filename)?"text/csv;charset=utf-8":"text/markdown;charset=utf-8"),url=URL.createObjectURL(new Blob(isXlsx?[data]:["\uFEFF"+data],{type})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 async function save(filename,data){const st=$("#expState");try{const d=window.claude&&await window.claude.use("downloads");if(!d){browserDownload(filename,data);st.textContent="已下載 "+filename;return}await d.save({filename,data});st.textContent="已儲存 "+filename}catch(e){st.textContent=e&&e.code==="declined"?"已取消":"下載失敗："+(e&&e.message||e)}}
 $("#btnExpMd").onclick=()=>save("spi-spc-report.md",reportMd());
 $("#btnExpBoard").onclick=()=>{const src=runSrc(curRun()),swo=src&&src.supplierWo?src.supplierWo:"",owo=src&&src.outsourceWo?src.outsourceWo:"";save("board-stats.csv",toCSV([["board","supplier_wo","outsource_wo","n","mean","sd","min","q1","median","q3","max","defect_pads","defect_rate"],...S.A.byBoard.map(b=>[b.board,swo,owo,b.n,f(b.mean,3),f(b.sd,3),b.min,f(b.q1,2),f(b.med,2),f(b.q3,2),b.max,b.defects,f(b.p,4)])]))};
 $("#btnExpDef").onclick=()=>save("defect-pads.csv",toCSV([["board","pad","component","group","volume","height","area","offset_x","offset_y","defects"],...S.A.defRows.map(r=>[r.board,r.pad,r.comp,r.group,r.volume,r.height,r.area,r.offx,r.offy,r.codes.map(c=>DEFECTS[c]).join(" / ")])]));
+
+if($("#btnTimeFilter")) $("#btnTimeFilter").onclick = () => {
+  const start = $("#inTimeStart") ? $("#inTimeStart").value.trim() : "";
+  const end = $("#inTimeEnd") ? $("#inTimeEnd").value.trim() : "";
+  applyTimeFilter(start, end);
+};
+if($("#btnTimeFilterClear")) $("#btnTimeFilterClear").onclick = () => {
+  if($("#inTimeStart")) $("#inTimeStart").value = "";
+  if($("#inTimeEnd")) $("#inTimeEnd").value = "";
+  applyTimeFilter("", "");
+};
+if($("#woSpecIn")) $("#woSpecIn").onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const text = evt.target.result;
+      const parsed = parseWorkorderSpec(text, f.name);
+      applyWorkorderSpec(parsed);
+      toast(`已套用工單規格（${f.name}）`);
+      if($("#woSpecState")) $("#woSpecState").textContent = `已套用：${f.name}`;
+    } catch(err) {
+      toast(`工單規格解析失敗：${err.message}`);
+      if($("#woSpecState")) $("#woSpecState").textContent = `解析失敗：${err.message}`;
+    }
+  };
+  reader.readAsText(f);
+  e.target.value = "";
+};
 
 /* ---------- AI ---------- */
 let aiAbort=null;
@@ -4829,7 +5201,11 @@ function capInfo(A){const c=A.cap;if(!c)return null;const ci=x=>`${f(x.ci[0])}�
 function ctrlInfo(A){const N=A.nelX||A.nel;return{依據:"X̄ 圖（每板平均，8 條 Nelson 規則）",製程穩定:A.stable,觸發規則:N.rules.filter(r=>r.idx.length).map(r=>({規則:r.name,板:r.idx.map(i=>A.xs.pts[i].lab).join(" ")})),Pprime_sigmaZ:+f(A.pc.sigZ,2)}}
 function fmInfo(){const Me=S.F&&S.F.meta;if(!Me||!Me.modes)return[];return Me.modes.map(m=>({模式:m.name,判讀:m.verdict,支持面向:m.dims.join("、"),必要面向:m.key||"",支持證據:m.sup.map(e=>e.d+"："+e.txt),矛盾證據:m.con.map(e=>e.d+"："+e.txt),資料不足:m.need||""}))}
 function mcInfo(){const Me=S.F&&S.F.meta;return Me&&Me.tests?{單板異常檢定次數:Me.tests,每次誤報率:+Me.alpha.toExponential(2),預期誤報數:+f(Me.expFA,2)}:null}
-function specSrcText(){return S.specSrc==="machine"?"與機台判定一致（好壞採用機台判定碼；規格窗由 PASS 範圍推估，"+(S.specsG?"各元件群組分別推估":"全板共用")+"）":"自訂規格"}
+function specSrcText(){
+  if(S.specSrc==="aoi") return `AOI 建議窗（${S.aoiRun||(curRun()?curRun().name:"")}，套用時間 ${S.aoiTime||fmtNowUtc8()}）`;
+  if(S.specSrc==="workorder") return `工單規格（${S.woSpecFile||"workorder_spec.json"}）`;
+  return S.specSrc==="machine"?"與機台判定一致（好壞採用機台判定碼；規格窗由 PASS 範圍推估，"+(S.specsG?"各元件群組分別推估":"全板共用")+"）":"自訂規格";
+}
 /* 與伺服器端 lib/analyze-core.mjs 的 SYSTEM_PROMPT 相同的證據規則（測試會核對兩邊一致） */
 const AI_EVIDENCE_RULE="錫膏印刷的失效通常是多因素的：「失效模式交叉比對」是系統依形狀、時間、空間、設計、對位、量測六個獨立面向整理的支持與矛盾證據。判斷根因時，至少兩個獨立面向一致且沒有矛盾證據才可列為「可能原因」；只有單一現象者只能列為「待確認」並說明還缺哪個面向的證據。「管制狀態」顯示製程未穩定時，能力指標只能作參考。「多重比較」為大量檢定下的預期誤報數，單一發現請據此評估是否為假訊號。";
 function aiPayload(){const A=S.A;return{試產回合:curRun()?curRun().name:"",量測項目:METRICS[A.m].label,單位:METRICS[A.m].unit,元件群組:S.group==="ALL"?"全部":S.group,管制圖:chartName(),規格:A.sp,鋼板厚度µm:S.stencil,階梯鋼板:S.step.on?S.step.zones.map(z=>({區域:z.name,厚度µm:z.t,範圍:z.mode==="group"?"元件群組 "+z.group:`X ${z.x0}~${z.x1} mm, Y ${z.y0}~${z.y1} mm`})):"未啟用",高度規格佔厚度:`${S.htol.lo}%–${S.htol.hi}%`,樣本數:A.N,板數:A.boards.length,
@@ -5278,7 +5654,8 @@ let prOpenPrev=null;
 let origDocTitle="";
 
 function formatUtc8Date(date, fmt="YYYY/MM/DD HH:mm:ss"){
-  const d=new Date(date.getTime()+8*3600*1000);
+  const t = typeof date === "number" ? date : (date ? date.getTime() : Date.now());
+  const d = new Date(t + 8 * 3600 * 1000);
   const YYYY=String(d.getUTCFullYear()),MM=String(d.getUTCMonth()+1).padStart(2,"0"),DD=String(d.getUTCDate()).padStart(2,"0");
   const HH=String(d.getUTCHours()).padStart(2,"0"),mm=String(d.getUTCMinutes()).padStart(2,"0"),ss=String(d.getUTCSeconds()).padStart(2,"0");
   return fmt.replace("YYYY",YYYY).replace("MM",MM).replace("DD",DD).replace("HH",HH).replace("mm",mm).replace("ss",ss);
@@ -6358,7 +6735,8 @@ function updateRailSummary(){
   const runText=(runOpt&&runOpt.selectedIndex>=0&&runOpt.options[runOpt.selectedIndex])?runOpt.options[runOpt.selectedIndex].text:(S.runs?.find(r=>String(r.id)===String(S.runId))?.name||"範例資料");
   const metricText=(METRICS&&METRICS[S.metric])?(METRICS[S.metric].short||METRICS[S.metric].label):"體積";
   const grpText=S.group==="ALL"?"全部元件":(S.group||"全部元件");
-  chip.textContent=`${runText} · ${metricText} · ${grpText} ▾`;
+  const inferredText=(S.boardInferred||(S.rows&&S.rows.some(r=>r.boardInferred)))?` · 板號為推定（每 ${S.boardInferred||Math.round(S.rows.length/((S.A&&S.A.boards&&S.A.boards.length)||1))} 筆）`:"";
+  chip.textContent=`${runText} · ${metricText} · ${grpText}${inferredText} ▾`;
 }
 function setupModalSheet(sheetId,triggerId,closeId,backdropId){
   const sheet=$(sheetId),trig=$(triggerId),cls=$(closeId),bd=$(backdropId);
@@ -6435,7 +6813,7 @@ try{const svT=localStorage.getItem("spi-theme");applyTheme(svT==="dark"?"dark":"
 if($("#btnTheme"))$("#btnTheme").onclick=toggleTheme;
 if($("#mBtnTheme"))$("#mBtnTheme").onclick=()=>{if(typeof moreSheetCtrl!=="undefined"&&moreSheetCtrl)moreSheetCtrl.close();toggleTheme()};
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters,csvTable,parseAOI,aoiCorr,normPadKey,unpivotWide,buildRows,recomputeMachineSpecs,machineSpecs,zonesChanged,setStep,applyStencil,renderZones,syncControls,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters,csvTable,parseAOI,aoiCorr,normPadKey,unpivotWide,buildRows,recomputeMachineSpecs,machineSpecs,zonesChanged,setStep,applyStencil,renderZones,syncControls,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();
