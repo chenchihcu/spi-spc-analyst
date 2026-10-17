@@ -75,9 +75,76 @@ async function applyImport(dom, expectedRows) {
 }
 
 // 金標測試骨架 (M-04, TV-21)
-// 依規則 0.5: 依賴尚未完成項目的測試使用 test.todo 標示依賴項目
-test.todo('[D-10] no_coords: 空間分布與問題地圖顯示不適用，無空間問題卡');
-test.todo('[D-10] partial_spec: area 無規格時顯示無規格，不為 0 或 NaN');
+test('[D-10] no_coords: 空間分布與問題地圖顯示不適用，無空間問題卡', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  const csvBytes = fs.readFileSync(path.join(FIXTURES_DIR, 'normal_baseline.csv'));
+  await pick(dom, '#fileIn', 'normal_baseline.csv', csvBytes);
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.N, 10);
+  const xv = A.xv.rows.find(x => x.k === '空間分布');
+  assert.ok(xv, '應有空間分布項目');
+  assert.equal(xv.st, 'na');
+  assert.equal(xv.ev, '不適用（無座標）');
+  const issues = JSON.parse(w.eval('JSON.stringify(detectIssues(S))'));
+  const spatialIssues = issues.filter(iss => iss.cat === '空間分布');
+  assert.equal(spatialIssues.length, 0, '無座標時不得出現空間相關的問題卡');
+  const d = dom.window.document;
+  d.querySelector('[data-tab="cross"]').click();
+  await tick(40);
+  const heatSub = d.querySelector('#heatSub');
+  if (heatSub) {
+    assert.match(heatSub.textContent, /不適用（無座標）/);
+  }
+});
+
+test('[D-10] partial_spec: area 無規格時顯示無規格，不為 0 或 NaN', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
+  const { dom } = page();
+  await tick(60);
+  const rows = [
+    'Board,RefDes,Pad,Volume,Height,Area,PartType',
+    'B1,R1,1,102,120,100,0603',
+    'B1,R2,1,102,120,100,0603',
+    'B2,R1,1,99,119,101,0603',
+    'B2,R2,1,99,119,101,0603',
+    'B3,R1,1,99,121,99,0603',
+    'B3,R2,1,100,121,99,0603',
+    'B4,R1,1,100,120,100,0603',
+    'B4,R2,1,100,120,100,0603',
+    'B5,R1,1,100,120,100,0603',
+    'B5,R2,1,100,120,100,0603'
+  ].join('\n');
+  await pick(dom, '#fileIn', 'partial_spec.csv', Buffer.from(rows));
+  await applyImport(dom, 10);
+  const w = dom.window;
+  const d = dom.window.document;
+  d.querySelector('[data-tab="capability"]').click();
+  await tick(40);
+  w.eval("S.specs.area = { lsl: NaN, usl: NaN, tgt: NaN };");
+  const sel = d.querySelector('#selMetric');
+  sel.value = 'area';
+  if (sel.onchange) sel.onchange({ target: sel });
+  await tick(60);
+  const A = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(A.hasSpec, false);
+  assert.equal(A.cap.reason, '無規格');
+  assert.ok(A.cap.cp === null || Number.isNaN(A.cap.cp));
+  assert.ok(A.cap.cpk === null || Number.isNaN(A.cap.cpk));
+  const kpisText = d.querySelector('#capKpis').textContent;
+  assert.ok(!kpisText.includes('NaN'), '不得顯示 NaN');
+  assert.ok(!kpisText.includes(' 0.00'), '不得顯示 0');
+  assert.match(kpisText, /無規格/);
+
+  // Volume 正常
+  sel.value = 'volume';
+  if (sel.onchange) sel.onchange({ target: sel });
+  await tick(60);
+  const Av = JSON.parse(w.eval('JSON.stringify(S.A)'));
+  assert.equal(Av.hasSpec, true);
+  assert.ok(Av.cap.cp !== null && !Number.isNaN(Av.cap.cp));
+});
 test('[M-02] sigma_zero_constant: 能力與管制圖拒算並顯示原因', { skip: !JSDOM && '未安裝 jsdom' }, async () => {
   const { dom } = page();
   await tick(60);
