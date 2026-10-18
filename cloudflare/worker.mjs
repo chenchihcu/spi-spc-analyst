@@ -1,9 +1,10 @@
 import { configured, handle as handleAuth } from '../lib/auth-handler.mjs';
 import { SEC } from '../lib/security-headers.mjs';
 import { Repo } from '../lib/repo.mjs';
-import { checkMeta, MAX_GZ, MAX_RAW } from '../lib/records-core.mjs';
+import { checkMeta, checkMetaPatch, MAX_GZ, MAX_RAW } from '../lib/records-core.mjs';
 import { handleAnalyze } from './ai.mjs';
 import { handleShare } from '../lib/share-core.mjs';
+import { randomBytes } from 'node:crypto';
 
 const plain = (message, status) => new Response(message, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 const json = (obj, status = 200) => Response.json(obj, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -71,14 +72,16 @@ async function handleRecordsApi(req, repo, user) {
     // 依料號查對應座標檔清單
     const placesFor = url.searchParams.get('places_for');
     if (placesFor) {
-      const placements = await repo.getPlacementsForPart(placesFor);
+      const side = url.searchParams.get('side') || null;
+      const placements = await repo.getPlacementsForPart(placesFor, side);
       return json({ placements, part: placesFor });
     }
 
     const kind = url.searchParams.get('kind') || 'spi';
     const part = url.searchParams.get('part') || null;
+    const side = url.searchParams.get('side') || null;
     const limit = +url.searchParams.get('limit') || 50;
-    const { records, next } = await repo.listRecords({ kind, part, cursorCreated, cursorId, limit });
+    const { records, next } = await repo.listRecords({ kind, part, side, cursorCreated, cursorId, limit });
     return json({ records, next, me: user });
   }
 
@@ -122,6 +125,28 @@ async function handleRecordsApi(req, repo, user) {
     return json(res, 201);
   }
 
+  if (req.method === 'PATCH') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: '請求主體必須為 JSON' }, 400);
+    }
+    if (body.action === 'set_default_place') {
+      const res = await repo.setDefaultPlacement(body.id, user);
+      if (res.error) return json(res, res.status || 500);
+      return json(res, 200);
+    }
+    if (body.action === 'update_meta') {
+      const chk = checkMetaPatch(body);
+      if (chk.error) return json({ error: chk.error }, 400);
+      const res = await repo.updateRecordMeta(body.id, chk.patch, user);
+      if (res.error) return json(res, res.status || 500);
+      return json(res, 200);
+    }
+    return json({ error: '未知的修改動作' }, 400);
+  }
+
   if (req.method === 'DELETE') {
     const id = url.searchParams.get('id') || '';
     const res = await repo.deleteRecord(id, user);
@@ -129,7 +154,7 @@ async function handleRecordsApi(req, repo, user) {
     return json({ deleted: id });
   }
 
-  return json({ error: '原始量測紀錄與座標檔不能修改；只能新增或刪除' }, 405);
+  return json({ error: '原始量測紀錄與座標檔不能直接覆寫；只能修改工單/備註或刪除' }, 405);
 }
 
 async function route(req, env) {

@@ -580,6 +580,66 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     border:none!important;
   }
 }
+@media (max-width: 768px) {
+  .rec-desktop-view { display: none !important; }
+  .rec-mobile-view { display: flex !important; flex-direction: column; gap: 12px; }
+}
+@media (min-width: 769px) {
+  .rec-desktop-view { display: block !important; }
+  .rec-mobile-view { display: none !important; }
+}
+.rec-card {
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.rec-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.rec-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rec-card-sub {
+  font-size: 12px;
+  color: var(--c-sub, #666);
+  margin-top: 2px;
+}
+.rec-card-body {
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.rec-card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+.rec-card-actions button {
+  min-height: 44px !important;
+  touch-action: manipulation;
+}
+.rec-card-actions .primary {
+  flex: 1 1 auto;
+  font-size: 13.5px;
+  font-weight: 600;
+}
 </style>
 </head>
 <body>
@@ -690,17 +750,22 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </div>
 
 <section class="panel" id="p-issues" role="tabpanel">
-  <div id="startupDbBanner" class="card" style="margin-bottom:12px;background:var(--accent-soft);border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-radius:var(--r);flex-wrap:wrap;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:18px">💡</span>
+  <div id="startupDbBanner" class="card" style="margin-bottom:12px;background:var(--accent-soft);border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-radius:var(--r);flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px;flex:1 1 320px">
+      <span style="font-size:22px">💡</span>
       <div>
-        <b style="color:var(--accent-ink);font-size:14px">目前載入為範例資料</b>
-        <div class="note" style="color:var(--ink);font-size:12.5px;margin-top:2px">已備妥產線資料庫，可直接點選既有記錄載入分析，或匯入新量測檔。</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <b style="color:var(--accent-ink);font-size:14.5px">目前載入為範例資料</b>
+          <span class="pill" style="font-size:11px;background:var(--surface)">試產 1 · 鋼板 V1</span>
+        </div>
+        <div class="note" style="color:var(--ink);font-size:12.5px;margin-top:2px">已連線產線雲端資料庫，可直接點選最近記錄一鍵載入分析：</div>
+        <div id="bannerRecentRuns" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center" hidden></div>
       </div>
     </div>
-    <div class="row" style="gap:8px;margin:0">
-      <button type="button" class="primary" id="btnBannerLoadDb" style="padding:4px 14px;min-height:34px;font-size:13px">📂 從資料庫載入記錄</button>
-      <button type="button" id="btnBannerGoImport" style="padding:4px 14px;min-height:34px;font-size:13px">匯入新檔案</button>
+    <div class="row" style="gap:8px;margin:0;align-items:center">
+      <button type="button" class="primary" id="btnBannerLoadDb" style="padding:6px 14px;min-height:36px;font-size:13px">📂 從資料庫載入記錄</button>
+      <button type="button" id="btnBannerGoImport" style="padding:6px 14px;min-height:36px;font-size:13px">匯入新檔案</button>
+      <button type="button" id="btnBannerDismiss" title="略過提示並維持範例資料" style="padding:6px 10px;min-height:36px;font-size:12.5px;background:transparent;border:none;cursor:pointer;color:var(--c-sub)">✕ 略過</button>
     </div>
   </div>
   <div class="iss-top">
@@ -1375,6 +1440,15 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       <button type="button" class="sheet-close" id="recPickerClose" aria-label="關閉選單">✕</button>
     </div>
     <div style="padding:14px 18px;background:var(--surface);display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1 1 auto">
+      <!-- 未登入提示卡片 -->
+      <div id="recPickerAuthNotice" class="card" hidden style="background:var(--accent-soft);border:1px solid var(--accent);padding:12px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <b style="color:var(--accent-ink);font-size:13.5px">🔐 雲端資料庫需登入帳號</b>
+          <div class="note" style="margin-top:2px;font-size:12px">量測與座標資料庫 100% 依託 Cloudflare 雲端，請登入以存取產線資料。</div>
+        </div>
+        <a href="/__login" class="primary" style="display:inline-flex;align-items:center;text-decoration:none;font-size:12.5px;padding:6px 14px;border-radius:6px;min-height:34px;font-weight:600">前往登入</a>
+      </div>
+
       <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px">
         <div class="seg" role="tablist" style="display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--surface2)">
           <button type="button" class="seg-btn active" id="btnPickSpi" style="padding:5px 14px;border:none;border-radius:6px;background:var(--surface);font-weight:500;cursor:pointer;font-size:13px">📊 量測記錄 (<span id="countPickSpi">0</span>)</button>
@@ -1385,14 +1459,73 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
           <button type="button" id="recPickerReload" title="重新整理" style="padding:4px 12px;min-height:34px">↻</button>
         </div>
       </div>
-      <div id="recPickerNotice" class="note" role="status" style="margin:0"></div>
-      <!-- 量測記錄表格 -->
-      <div id="boxPickSpi" class="tbl" style="max-height:56vh;overflow-y:auto">
-        <table id="tblPickSpi"></table>
+
+      <!-- SMT 產線快捷過濾列 -->
+      <div id="recFilterBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:8px">
+        <span class="note" style="font-size:12px;font-weight:600">篩選：</span>
+        <select id="pickPartFilter" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface)">
+          <option value="">全部料號</option>
+        </select>
+        <div class="seg" id="pickSideSeg" style="display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden">
+          <button type="button" class="seg-btn active" data-side="" style="padding:3px 8px;font-size:12px;border:none;background:var(--surface)">全面別</button>
+          <button type="button" class="seg-btn" data-side="TOP" style="padding:3px 8px;font-size:12px;border:none;background:transparent">TOP</button>
+          <button type="button" class="seg-btn" data-side="BOT" style="padding:3px 8px;font-size:12px;border:none;background:transparent">BOT</button>
+        </div>
+        <div class="seg" id="pickQualitySeg" style="display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden">
+          <button type="button" class="seg-btn active" data-qfilter="all" style="padding:3px 8px;font-size:12px;border:none;background:var(--surface)">全部狀態</button>
+          <button type="button" class="seg-btn" data-qfilter="ng" style="padding:3px 8px;font-size:12px;border:none;background:transparent">僅異常 ⚠️</button>
+          <button type="button" class="seg-btn" data-qfilter="pass" style="padding:3px 8px;font-size:12px;border:none;background:transparent">僅合格 ✓</button>
+        </div>
       </div>
-      <!-- 座標檔表格 -->
-      <div id="boxPickPlace" class="tbl" hidden style="max-height:56vh;overflow-y:auto">
-        <table id="tblPickPlace"></table>
+
+      <div id="recPickerNotice" class="note" role="status" style="margin:0"></div>
+
+      <!-- 量測記錄表格與卡片流 -->
+      <div id="boxPickSpi" style="max-height:56vh;overflow-y:auto">
+        <div class="rec-desktop-view tbl">
+          <table id="tblPickSpi"></table>
+        </div>
+        <div class="rec-mobile-view" id="cardsPickSpi"></div>
+      </div>
+
+      <!-- 座標檔表格與卡片流 -->
+      <div id="boxPickPlace" hidden style="max-height:56vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
+        <!-- 獨立上傳新座標檔展開區塊 -->
+        <div id="boxUploadPlaceForm" class="card" style="padding:10px 14px;background:var(--surface2);border:1px dashed var(--line);border-radius:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <b style="font-size:13px">📍 上傳新座標檔至料號庫</b>
+            <span class="note" style="font-size:11.5px">支援 .csv, .txt, .tsv, .xlsx</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <div class="field" style="margin:0"><input type="text" id="upPlacePart" maxlength="64" placeholder="產品料號（必填）" style="width:130px;font-size:12px;padding:4px 8px"></div>
+            <div class="field" style="margin:0"><input type="text" id="upPlaceRev" maxlength="32" placeholder="版次（例：V1）" style="width:85px;font-size:12px;padding:4px 8px"></div>
+            <div class="field" style="margin:0">
+              <select id="upPlaceSide" style="font-size:12px;padding:4px 8px">
+                <option value="">面別：自動/雙面</option>
+                <option value="TOP">TOP (正面)</option>
+                <option value="BOT">BOT (反面)</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0">
+              <select id="upPlaceUnit" style="font-size:12px;padding:4px 8px">
+                <option value="auto">單位：自動</option>
+                <option value="mm">mm</option>
+                <option value="mil">mil</option>
+                <option value="inch">inch</option>
+              </select>
+            </div>
+            <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="upPlaceIsDefault" checked> 設為預設</label>
+            <label class="row" style="cursor:pointer;margin:0"><input type="file" id="upPlaceFile" accept=".csv,.txt,.tsv,.xlsx" class="sr"><span class="chipbtn" style="border:1px solid var(--line);padding:4px 10px;font-size:12px">選取檔案</span></label>
+            <span id="upPlaceFileName" class="note" style="font-size:11.5px"></span>
+            <button type="button" class="primary" id="btnSubmitPlace" style="font-size:12px;padding:4px 12px">存入資料庫</button>
+          </div>
+          <div id="upPlaceState" class="note" style="margin-top:4px"></div>
+        </div>
+
+        <div class="rec-desktop-view tbl">
+          <table id="tblPickPlace"></table>
+        </div>
+        <div class="rec-mobile-view" id="cardsPickPlace"></div>
       </div>
     </div>
     <div class="sheet-foot" style="padding:10px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--surface2);flex:0 0 auto">
@@ -1401,6 +1534,27 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <button type="button" id="btnRecPickerGoImport" style="font-size:13px">＋ 匯入新檔案</button>
         <button type="button" id="btnRecPickerCloseBottom" class="primary" style="font-size:13px">完成</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 工單號與備註修改彈窗 -->
+<div class="db-modal" id="recEditModal" role="dialog" aria-modal="true" aria-label="修改工單號與備註" hidden>
+  <div class="db-modal-panel" style="max-width:440px;margin:auto">
+    <div class="sheet-head" style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+      <h3 style="margin:0;font-size:15px">修改工單與備註</h3>
+      <button type="button" class="sheet-close" id="recEditClose" aria-label="關閉">✕</button>
+    </div>
+    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+      <div class="note" id="recEditTarget" style="font-size:12px;color:var(--accent-ink)"></div>
+      <div class="field"><label for="recEditSupplierWo">廠商工單號</label><input type="text" id="recEditSupplierWo" maxlength="64" placeholder="例：SWO-202610-01"></div>
+      <div class="field"><label for="recEditOutsourceWo">外包工單號</label><input type="text" id="recEditOutsourceWo" maxlength="64" placeholder="例：OWO-88912"></div>
+      <div class="field"><label for="recEditNote">備註（最多 200 字）</label><textarea id="recEditNote" maxlength="200" rows="3" placeholder="選填，可輸入批次說明或測試標記…"></textarea></div>
+      <div id="recEditState" class="note" style="min-height:16px"></div>
+    </div>
+    <div class="sheet-foot" style="padding:10px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px">
+      <button type="button" id="recEditCancel">取消</button>
+      <button type="button" class="primary" id="recEditSave">儲存更新</button>
     </div>
   </div>
 </div>
@@ -4692,7 +4846,7 @@ function renderStats(){
 }
 const nextFrame=f=>window.requestAnimationFrame?requestAnimationFrame(f):setTimeout(f,16);
 function renderTab(){renderTabInner();nextFrame(enhancePanel)}
-function renderTabInner(){const fn=({issues:renderIssues,overview:renderOverview,compare:renderCompare,dfm:renderDfm,lab:renderLab,control:renderControl,capability:renderCap,sim3d:render3D,cross:renderCross,adv:renderAdv,stats:renderStats,ai:()=>{},report:renderReport,data:()=>{renderSpecTbl();renderZones();renderAperture();renderRuns();renderResults();if(S.sub==="records")renderRecords()}})[S.tab];if(fn)fn()}
+function renderTabInner(){const fn=({issues:renderIssues,overview:renderOverview,compare:renderCompare,dfm:renderDfm,lab:renderLab,control:renderControl,capability:renderCap,sim3d:render3D,cross:renderCross,adv:renderAdv,stats:renderStats,ai:()=>{},report:renderReport,data:()=>{renderSpecTbl();renderZones();renderAperture();renderRuns();renderResults();if(S.sub==="records")renderRecords(true)}})[S.tab];if(fn)fn()}
 
 $("#selMetric").onchange=e=>{S.metric=e.target.value;syncControls();recompute()};
 $("#selGroup").onchange=e=>{S.group=e.target.value;recompute()};
@@ -6381,7 +6535,9 @@ $("#btnApply").onclick=async()=>{if(!IMP||!IMP.res)return;
     if(!lot||!part){$("#recNote").innerHTML='<span class="err">請填寫批號與產品料號（資料回溯必填）</span>';(lot?$("#inPart"):$("#inLot")).focus();return}
     if(IMP.rec)src=IMP.rec;
     else{const I0=IMP;busy(true,"正在存入資料庫…");
-      try{src=await RecDB.create({kind:"spi",lot,part,supplierWo,outsourceWo,side:(I0.conv&&I0.conv.side)||"",vendor:$("#selVendor").value,name:safeId(I0.name)||"量測紀錄.csv",rows:I0.res.rows.length,boards:I0.res.info.boards,pads:I0.res.info.pads,placeId:(I0.conv&&I0.conv.place&&PLACE&&PLACE.recId)||""},I0.bytes)}
+      const qSnap=computeQualitySnapshot(I0.res),pMatch=computePlacementMatch(I0.res.rows,PLACE);
+      const impSide=(I0.conv&&I0.conv.side)||($("#selSide").value==="auto"?detectSide(I0.name):$("#selSide").value)||"";
+      try{src=await RecDB.create({kind:"spi",lot,part,supplierWo,outsourceWo,side:impSide,vendor:$("#selVendor").value,name:safeId(I0.name)||"量測紀錄.csv",rows:I0.res.rows.length,boards:I0.res.info.boards,pads:I0.res.info.pads,placeId:(I0.conv&&I0.conv.place&&PLACE&&PLACE.recId)||"",qualitySnapshot:qSnap,placeMatch:pMatch},I0.bytes)}
       catch(e){if(e.existing){src=await recFind(e.existing).catch(()=>null);if(src){const dupMsg=`這個檔案已存過（${src.user}，${fmtTime(src.created)}），回合已連結到既有紀錄`;if(dn){dn.hidden=false;dn.textContent=dupMsg}$("#recNote").textContent=dupMsg;toast(dupMsg)}}
         if(!src){busy(false);$("#recNote").innerHTML=`<span class="err">無法存入資料庫：${esc(e.message)}；未建立回合</span>`;return}}
       busy(false);if(IMP!==I0)return}
@@ -6853,10 +7009,47 @@ async function gunzipBytes(buf,max=100*1048576,expectedBytes=0){
   return all;
 }
 /* 上傳欄位檢查（與後端規則相同） */
+function computeQualitySnapshot(res){
+  if(!res||!res.rows||!res.rows.length)return null;
+  const total=res.rows.length;let badCount=0;const defMap={};
+  for(const r of res.rows){
+    let isBad=false;
+    if(r.result!=null&&r.result!==""&&r.result!=="OK"&&r.result!=="GOOD")isBad=true;
+    else if(r.volume!=null&&(r.volume<50||r.volume>160))isBad=true;
+    if(isBad){
+      badCount++;
+      const d=r.defect||(r.volume!=null&&r.volume<50?"少錫":(r.volume!=null&&r.volume>160?"多錫":(r.result||"異常")));
+      defMap[d]=(defMap[d]||0)+1;
+    }
+  }
+  const yieldPct=total>0?+(((total-badCount)/total)*100).toFixed(1):100;
+  let topDefect="無";
+  if(badCount>0)topDefect=Object.entries(defMap).sort((a,b)=>b[1]-a[1])[0][0];
+  return {yieldPct,defects:badCount,totalDefects:badCount,topDefect};
+}
+function computePlacementMatch(rows,place){
+  if(!rows||!rows.length||!place||!place.res||!place.res.items)return null;
+  const total=rows.length;let matched=0;
+  for(const r of rows){if(r.x!=null&&r.y!=null&&(r.x!==0||r.y!==0))matched++}
+  const pct=total>0?+((matched/total)*100).toFixed(1):0;
+  return {matched,total,pct};
+}
 function recCheck(m){const c=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\u007f]/g,"").trim().slice(0,n);const o={...m,part:c(m.part,64),name:c(m.name,200),supplierWo:c(m.supplierWo,64),outsourceWo:c(m.outsourceWo,64)};
-  if(!o.part)return{error:"請填寫產品料號"};if(m.kind==="spi"){o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"}}else{o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"}}return{meta:o}}
+  if(!o.part)return{error:"請填寫產品料號"};
+  if(m.kind==="spi"){
+    o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"};
+    if(m.qualitySnapshot)o.qualitySnapshot=m.qualitySnapshot;
+    if(m.placeMatch)o.placeMatch=m.placeMatch;
+  }else{
+    o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"};
+    o.side=m.side==="TOP"||m.side==="BOT"?m.side:"";
+    o.comps=Number.isFinite(+m.comps)&&+m.comps>=0?Math.floor(+m.comps):0;
+    o.unit=["mil","mm","inch","auto"].includes(m.unit)?m.unit:"mm";
+    o.isDefault=Boolean(m.isDefault);
+  }
+  return{meta:o}}
 /* 重複判定與後端相同：內容與回溯欄位（量測紀錄含工單、面別、格式、座標檔）全部相同才算 */
-const recSame=(a,b)=>a.kind===b.kind&&a.sha256===b.sha256&&a.part===b.part&&(a.kind==="spi"?a.lot===b.lot&&(a.supplierWo||"")===(b.supplierWo||"")&&(a.outsourceWo||"")===(b.outsourceWo||"")&&(a.side||"")===(b.side||"")&&(a.vendor||"")===(b.vendor||"")&&(a.placeId||"")===(b.placeId||""):a.rev===b.rev);
+const recSame=(a,b)=>a.kind===b.kind&&a.sha256===b.sha256&&a.part===b.part&&(a.kind==="spi"?a.lot===b.lot&&(a.supplierWo||"")===(b.supplierWo||"")&&(a.outsourceWo||"")===(b.outsourceWo||"")&&(a.side||"")===(b.side||"")&&(a.vendor||"")===(b.vendor||"")&&(a.placeId||"")===(b.placeId||""):a.rev===b.rev&&(a.side||"")===(b.side||""));
 /* 本機版：IndexedDB「spi-records」 */
 const LocalRec={db:null,
   open(){if(this.db)return this.db;this.db=new Promise((ok,no)=>{if(!window.indexedDB)return no(new Error("這個瀏覽器無法保存資料庫（可能是無痕模式）"));const q=indexedDB.open("spi-records",1);
@@ -6904,6 +7097,36 @@ var RecDB={mode:"local",me:"本機",cache:null,ready:null,
     }
     const sha=await sha256Hex(u8);return{bytes:u8,sha,ok:sha===rec.sha256}},
   async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});return LocalRec.del(id,this.me)},
+  async setDefaultPlace(id){
+    await this.ready;this.cache=null;
+    if(this.mode==="cloud"){
+      return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"set_default_place",id})});
+    }
+    const all=await LocalRec.index();const hit=all.find(x=>x.id===id);
+    if(hit){
+      for(const r of all){
+        if(r.kind==="place"&&r.part===hit.part){
+          r.isDefault=(r.id===id);
+          await LocalRec.tx(["meta"],"readwrite",t=>t.objectStore("meta").put(r));
+        }
+      }
+    }
+    return {success:true,defaultId:id};
+  },
+  async updateMeta(id,patch){
+    await this.ready;this.cache=null;
+    if(this.mode==="cloud"){
+      return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"update_meta",id,...patch})});
+    }
+    const all=await LocalRec.index();const hit=all.find(x=>x.id===id);
+    if(hit){
+      if(patch.supplierWo!==undefined)hit.supplierWo=patch.supplierWo;
+      if(patch.outsourceWo!==undefined)hit.outsourceWo=patch.outsourceWo;
+      if(patch.note!==undefined)hit.note=patch.note;
+      await LocalRec.tx(["meta"],"readwrite",t=>t.objectStore("meta").put(hit));
+    }
+    return {success:true,id};
+  },
   async audit(){await this.ready;if(this.mode==="cloud")return((await this.jfetch("/api/records?audit=1")).entries||[]).map(x=>deepClean(x));return(await LocalRec.audit()).map(x=>deepClean(x))}};
 RecDB.ready=meP.then(j=>{if(j&&j.user){RecDB.mode="cloud";RecDB.me=j.user}}).catch(()=>{});
 function recWhere(){return RecDB.mode==="cloud"?"雲端資料庫":"這台電腦的瀏覽器"}
@@ -6959,9 +7182,11 @@ async function openRecord(rec, opt = {}){busy(true,"正在從資料庫取回原�
       noPlace=true;note="當時沒有使用座標檔，這次也不套用"
     }else if(rec.part && opt.autoApply){
       const list = (!RecDB.cache ? await RecDB.list() : RecDB.cache);
-      const pr = list.find(x => x.kind === "place" && x.part === rec.part);
+      const recSide = (rec.side || "").toUpperCase();
+      const places = (list || []).filter(x => x.kind === "place" && x.part === rec.part && (!recSide || !x.side || x.side === "ALL" || x.side.toUpperCase() === recSide));
+      const pr = places.find(x => x.isDefault) || places[0];
       if(pr){
-        try{await usePlaceRec(pr);note=`已自動套用料號 ${rec.part} 的座標檔 (${pr.rev})`}catch(er){}
+        try{await usePlaceRec(pr);note=`已自動套用料號 ${rec.part} (${pr.side || "ALL"}) 的預設座標檔 (${pr.rev})`}catch(er){}
       }
     }
 
@@ -7001,15 +7226,70 @@ $("#recCard").addEventListener("click",async e=>{const b=e.target.closest("[data
   catch(er){if(er&&er.code==="declined")$("#recState").textContent="已取消下載";else $("#recState").innerHTML=`<span class="err">${esc(er.message||String(er))}</span>`;renderRecords()}});
 
 /* ---------- 開機載入中樞與資料庫選取視窗 (Record Picker) ---------- */
+let BANNER_DISMISSED = false;
 function updateStartupDbBanner() {
   const b = $("#startupDbBanner");
   if (!b) return;
+  if (BANNER_DISMISSED) { b.hidden = true; return; }
   const isSample = S.runs && S.runs.length > 0 && S.runs.every(r => r.sample);
   b.hidden = !isSample;
+  if (!isSample) return;
+
+  const recentBox = $("#bannerRecentRuns");
+  if (!recentBox) return;
+
+  RecDB.ready.then(async () => {
+    if (RecDB.mode !== "cloud") {
+      recentBox.hidden = true;
+      recentBox.innerHTML = "";
+      return;
+    }
+    try {
+      const j = await RecDB.jfetch("/api/records?limit=3&kind=spi");
+      const spis = (j && j.records) || [];
+      if (!spis.length) {
+        recentBox.hidden = true;
+        recentBox.innerHTML = "";
+        return;
+      }
+      recentBox.hidden = false;
+      recentBox.innerHTML = spis.map(r => {
+        let qBadge = "";
+        if (r.qualitySnapshot) {
+          if (r.qualitySnapshot.totalDefects === 0) {
+            qBadge = `<span class="pill ok" style="font-size:11px;padding:1px 6px">✓ 良品</span>`;
+          } else {
+            qBadge = `<span class="pill bad" style="font-size:11px;padding:1px 6px">⚠ ${r.qualitySnapshot.totalDefects} 缺點</span>`;
+          }
+        }
+        return `<button type="button" class="chipbtn banner-run-chip" data-id="${esc(r.id)}" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);cursor:pointer;min-height:34px" title="一鍵載入批號 ${esc(r.lot)}">
+          <span style="font-weight:600">🕒 ${esc(r.lot)}</span>
+          <span class="note" style="font-size:11.5px">${esc(r.part || "—")} (${esc(r.side || "ALL")})</span>
+          ${qBadge}
+        </button>`;
+      }).join("");
+
+      recentBox.querySelectorAll(".banner-run-chip").forEach(btn => {
+        btn.onclick = async (e) => {
+          e.preventDefault();
+          const id = btn.dataset.id;
+          const rec = await recFind(id);
+          if (rec) await openRecord(rec, { autoApply: true });
+        };
+      });
+    } catch(e) {
+      recentBox.hidden = true;
+      recentBox.innerHTML = "";
+    }
+  }).catch(() => {});
 }
 
 let PICKER_TAB = "spi";
 let PICKER_CONFIRM = null;
+let PICKER_SIDE_FILTER = "";
+let PICKER_QUALITY_FILTER = "all";
+let EDITING_REC_ID = null;
+let UP_PLACE_FILE_OBJ = null;
 
 async function renderRecPicker(force) {
   const modal = $("#recPickerModal");
@@ -7019,6 +7299,12 @@ async function renderRecPicker(force) {
   if (modeSpan) {
     modeSpan.textContent = `存放位置：${recWhere()}${RecDB.mode === "cloud" ? `（帳號 ${RecDB.me}）` : "（本機測試模式）"}`;
   }
+
+  const authNotice = $("#recPickerAuthNotice");
+  if (authNotice) {
+    authNotice.hidden = (RecDB.mode === "cloud");
+  }
+
   let list;
   try {
     list = (!force && RecDB.cache) || await RecDB.list();
@@ -7028,13 +7314,38 @@ async function renderRecPicker(force) {
     return;
   }
 
+  const partFilterSel = $("#pickPartFilter");
+  if (partFilterSel) {
+    const curVal = partFilterSel.value;
+    const parts = [...new Set((list || []).map(r => r.part).filter(Boolean))].sort();
+    partFilterSel.innerHTML = `<option value="">全部料號</option>` + parts.map(p => `<option value="${esc(p)}"${p === curVal ? " selected" : ""}>${esc(p)}</option>`).join("");
+  }
+
   const q = ($("#recPickerQ")?.value || "").trim().toLowerCase();
-  const hit = r => !q || [r.lot, r.part, r.supplierWo, r.outsourceWo, r.rev, r.name, r.user].some(x => String(x || "").toLowerCase().includes(q));
+  const selectedPart = partFilterSel ? partFilterSel.value : "";
+  const sideFilter = PICKER_SIDE_FILTER;
+  const qualityFilter = PICKER_QUALITY_FILTER;
+
+  const hit = r => {
+    if (q && ![r.lot, r.part, r.supplierWo, r.outsourceWo, r.rev, r.name, r.user, r.note].some(x => String(x || "").toLowerCase().includes(q))) return false;
+    if (selectedPart && r.part !== selectedPart) return false;
+    if (sideFilter && (r.side || "").toUpperCase() !== sideFilter && (r.side || "").toUpperCase() !== "ALL") return false;
+    if (qualityFilter === "pass") {
+      const defs = r.qualitySnapshot ? (r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0) : null;
+      if (defs == null || defs > 0) return false;
+    } else if (qualityFilter === "ng") {
+      const defs = r.qualitySnapshot ? (r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0) : null;
+      if (defs == null || defs === 0) return false;
+    }
+    return true;
+  };
+
   const fp = r => `<span class="mono" title="SHA-256 ${esc(r.sha256)}">${esc(String(r.sha256).slice(0, 10))}…</span>${REC_VER[r.id] ? ` <span class="${REC_VER[r.id].ok ? "rec-ok" : "rec-bad"}">${REC_VER[r.id].ok ? "✓ 相同" : "✗ 異常"}</span>` : ""}`;
   const delBtn = r => r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="font-size:12px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定刪除？" : "刪除"}</button>` : "";
+  const editBtn = r => r.user === RecDB.me ? `<button data-pact="edit-meta" data-id="${esc(r.id)}" title="修改工單號與備註" style="font-size:12px;padding:3px 8px">✏️ 備註</button>` : "";
 
-  const S1 = list.filter(r => r.kind === "spi" && hit(r));
-  const P1 = list.filter(r => r.kind === "place" && hit(r));
+  const S1 = (list || []).filter(r => r.kind === "spi" && hit(r));
+  const P1 = (list || []).filter(r => r.kind === "place" && hit(r));
 
   if ($("#countPickSpi")) $("#countPickSpi").textContent = S1.length;
   if ($("#countPickPlace")) $("#countPickPlace").textContent = P1.length;
@@ -7046,61 +7357,151 @@ async function renderRecPicker(force) {
       <th>工單 / 面別</th>
       <th class="num">板 × 焊墊</th>
       <th>關聯座標檔</th>
+      <th>品質狀態</th>
       <th>上傳時間 / 者</th>
       <th>指紋</th>
       <th style="text-align:right">操作</th>
     </tr></thead><tbody>` + S1.map(r => {
       const wo = [r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "—";
-      const placeInfo = r.placeId ? `<span class="pill ok" title="已綁定座標檔 ${esc(r.placeId)}">已綁定</span>` : (list.some(p => p.kind === "place" && p.part === r.part) ? `<span class="pill warn" title="此料號已有座標檔，載入時將自動對應">有可用座標</span>` : `<span class="note">無</span>`);
+      const placeInfo = r.placeId ? `<span class="pill ok" title="已綁定座標檔 ${esc(r.placeId)}">已綁定</span>` : ((list || []).some(p => p.kind === "place" && p.part === r.part) ? `<span class="pill warn" title="此料號已有座標檔，載入時將自動對應">有可用座標</span>` : `<span class="note">無</span>`);
+      let qualityInfo = `<span class="note">—</span>`;
+      if (r.qualitySnapshot) {
+        const defs = r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0;
+        if (defs === 0) {
+          qualityInfo = `<span class="pill ok" title="0 缺點">✓ 良品 (0 缺點)</span>`;
+        } else {
+          qualityInfo = `<span class="pill bad" title="缺點數: ${defs}">⚠ ${defs} 缺點</span>`;
+        }
+        if (r.qualitySnapshot.matchRate != null) {
+          qualityInfo += `<br><span class="note" style="font-size:11px">位號匹配 ${r.qualitySnapshot.matchRate}%</span>`;
+        }
+      }
       return `<tr>
-        <td><b>${esc(r.lot)}</b><br><span class="note" style="font-size:11.5px">${esc(r.part)}</span></td>
+        <td><b>${esc(r.lot)}</b><br><span class="note" style="font-size:11.5px">${esc(r.part || "—")}</span></td>
         <td>${esc(r.side || "—")}<br><span class="note" style="font-size:11.5px">${wo}</span></td>
         <td class="num mono">${r.boards || "—"} × ${r.pads || "—"}</td>
         <td>${placeInfo}</td>
+        <td>${qualityInfo}</td>
         <td class="mono" style="font-size:11.5px">${esc(fmtTime(r.created))}<br><span class="note">${esc(r.user)}</span></td>
         <td>${fp(r)}</td>
         <td style="text-align:right">
           <div class="row" style="justify-content:flex-end;gap:4px">
             <button class="primary" data-pact="load" data-id="${esc(r.id)}" title="一鍵載入資料並直接進入 SPC 分析" style="font-size:12.5px;padding:3px 10px">🚀 載入分析</button>
             <button data-pact="open" data-id="${esc(r.id)}" title="開啟至匯入對應面板以檢視或調整欄位" style="font-size:12px;padding:3px 8px">調整</button>
+            ${editBtn(r)}
             <button data-pact="ver" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">驗證</button>
             <button data-pact="dl" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">下載</button>
             ${delBtn(r)}
           </div>
         </td>
       </tr>`;
-    }).join("") + `</tbody>` : `<tbody><tr><td colspan="7" class="note" style="text-align:center;padding:24px">${q ? "沒有符合搜尋條件的量測紀錄" : "資料庫目前尚無量測記錄。請點選下方「＋ 匯入新檔案」進行匯入。"}</td></tr></tbody>`;
+    }).join("") + `</tbody>` : `<tbody><tr><td colspan="8" class="note" style="text-align:center;padding:24px">${q || selectedPart || sideFilter || qualityFilter !== "all" ? "沒有符合篩選條件的量測紀錄" : "資料庫目前尚無量測記錄。請點選下方「＋ 匯入新檔案」進行匯入。"}</td></tr></tbody>`;
+  }
+
+  const cardsSpi = $("#cardsPickSpi");
+  if (cardsSpi) {
+    cardsSpi.innerHTML = S1.length ? S1.map(r => {
+      const wo = [r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "—";
+      let qualityInfo = "";
+      if (r.qualitySnapshot) {
+        const defs = r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0;
+        if (defs === 0) {
+          qualityInfo = `<span class="pill ok" style="font-size:11.5px">✓ 良品</span>`;
+        } else {
+          qualityInfo = `<span class="pill bad" style="font-size:11.5px">⚠ ${defs} 缺點</span>`;
+        }
+      }
+      return `<div class="rec-card" style="padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <b style="font-size:15px">${esc(r.lot)}</b>
+            <div class="note" style="font-size:12px;margin-top:2px">${esc(r.part || "—")} · 面別: ${esc(r.side || "ALL")}</div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            ${qualityInfo}
+            <span class="pill" style="font-size:11px;background:var(--surface2)">${esc(r.boards || 0)}板</span>
+          </div>
+        </div>
+        <div class="note" style="font-size:12px;margin:8px 0;line-height:1.4">
+          工單: ${wo}<br>
+          上傳: ${esc(fmtTime(r.created))} · ${esc(r.user)}
+          ${r.note ? `<br><span style="color:var(--text)">備註: ${esc(r.note)}</span>` : ""}
+        </div>
+        <div class="rec-card-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <button class="primary" data-pact="load" data-id="${esc(r.id)}" style="flex:1 1 120px;min-height:44px;font-size:14px;font-weight:600">🚀 載入分析</button>
+          <button data-pact="open" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px">調整</button>
+          ${r.user === RecDB.me ? `<button data-pact="edit-meta" data-id="${esc(r.id)}" style="flex:0 0 70px;min-height:44px;font-size:13px">✏️ 備註</button>` : ""}
+          <button data-pact="dl" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px">下載</button>
+          ${r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定？" : "刪除"}</button>` : ""}
+        </div>
+      </div>`;
+    }).join("") : `<div class="note" style="text-align:center;padding:24px">無符合篩選條件的量測記錄</div>`;
   }
 
   const tblPlace = $("#tblPickPlace");
   if (tblPlace) {
     tblPlace.innerHTML = P1.length ? `<thead><tr>
       <th>產品料號</th>
+      <th>面別</th>
       <th>版本 (Rev)</th>
-      <th>原始檔名</th>
+      <th>單位</th>
       <th class="num">元件數</th>
+      <th>預設版本</th>
       <th>上傳時間 / 者</th>
       <th>指紋</th>
       <th style="text-align:right">操作</th>
     </tr></thead><tbody>` + P1.map(r => {
       const isCur = PLACE && PLACE.recId === r.id;
+      const defBadge = r.isDefault ? `<span class="pill ok">★ 預設版次</span>` : `<button data-pact="set-default" data-id="${esc(r.id)}" style="font-size:11.5px;padding:2px 6px">設為預設</button>`;
       return `<tr${isCur ? ' style="background:var(--accent-soft)"' : ""}>
         <td><b>${esc(r.part)}</b></td>
+        <td>${esc(r.side || "ALL")}</td>
         <td><span class="pill ok">${esc(r.rev)}</span></td>
-        <td>${esc(r.name)}</td>
+        <td>${esc(r.unit || "mm")}</td>
         <td class="num mono">${r.comps || "—"}</td>
+        <td>${defBadge}</td>
         <td class="mono" style="font-size:11.5px">${esc(fmtTime(r.created))}<br><span class="note">${esc(r.user)}</span></td>
         <td>${fp(r)}</td>
         <td style="text-align:right">
           <div class="row" style="justify-content:flex-end;gap:4px">
-            ${isCur ? '<span class="pill ok">目前使用</span>' : `<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 10px">設為目前座標檔</button>`}
+            ${isCur ? '<span class="pill ok">目前使用</span>' : `<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 10px">套用</button>`}
+            ${editBtn(r)}
             <button data-pact="ver" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">驗證</button>
             <button data-pact="dl" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">下載</button>
             ${delBtn(r)}
           </div>
         </td>
       </tr>`;
-    }).join("") + `</tbody>` : `<tbody><tr><td colspan="7" class="note" style="text-align:center;padding:24px">${q ? "沒有符合搜尋條件的座標檔" : "資料庫目前尚無座標檔。在匯入立榮格式時上傳座標檔即可儲存至此。"}</td></tr></tbody>`;
+    }).join("") + `</tbody>` : `<tbody><tr><td colspan="9" class="note" style="text-align:center;padding:24px">${q || selectedPart || sideFilter ? "沒有符合篩選條件的座標檔" : "資料庫目前尚無座標檔。可利用上方表單獨立上傳，或於匯入時上傳。"}</td></tr></tbody>`;
+  }
+
+  const cardsPlace = $("#cardsPickPlace");
+  if (cardsPlace) {
+    cardsPlace.innerHTML = P1.length ? P1.map(r => {
+      const isCur = PLACE && PLACE.recId === r.id;
+      return `<div class="rec-card" style="padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <b style="font-size:15px">${esc(r.part)}</b>
+            <div class="note" style="font-size:12px;margin-top:2px">面別: ${esc(r.side || "ALL")} · 版次: ${esc(r.rev)}</div>
+          </div>
+          <div>
+            ${r.isDefault ? `<span class="pill ok" style="font-size:11.5px">★ 預設</span>` : ""}
+          </div>
+        </div>
+        <div class="note" style="font-size:12px;margin:8px 0">
+          元件數: ${r.comps || "—"} · 單位: ${esc(r.unit || "mm")}<br>
+          上傳: ${esc(fmtTime(r.created))} · ${esc(r.user)}
+          ${r.note ? `<br><span style="color:var(--text)">備註: ${esc(r.note)}</span>` : ""}
+        </div>
+        <div class="rec-card-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          ${isCur ? '<button class="primary" disabled style="flex:1 1 120px;min-height:44px;font-size:14px">目前使用中</button>' : `<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="flex:1 1 120px;min-height:44px;font-size:14px">套用此座標檔</button>`}
+          ${!r.isDefault ? `<button data-pact="set-default" data-id="${esc(r.id)}" style="flex:0 0 80px;min-height:44px;font-size:13px">設為預設</button>` : ""}
+          <button data-pact="dl" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px">下載</button>
+          ${r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定？" : "刪除"}</button>` : ""}
+        </div>
+      </div>`;
+    }).join("") : `<div class="note" style="text-align:center;padding:24px">無符合篩選條件的座標檔</div>`;
   }
 }
 
@@ -7136,6 +7537,14 @@ function setupRecPicker() {
     btnBannerImport.onclick = () => {
       setTab("data");
       setSub("import");
+    };
+  }
+  const btnBannerDismiss = $("#btnBannerDismiss");
+  if (btnBannerDismiss) {
+    btnBannerDismiss.onclick = () => {
+      BANNER_DISMISSED = true;
+      const b = $("#startupDbBanner");
+      if (b) b.hidden = true;
     };
   }
 
@@ -7182,6 +7591,136 @@ function setupRecPicker() {
     renderRecPicker(true);
   };
 
+  if ($("#pickPartFilter")) $("#pickPartFilter").onchange = () => renderRecPicker();
+
+  const sideSeg = $("#pickSideSeg");
+  if (sideSeg) {
+    sideSeg.addEventListener("click", e => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      sideSeg.querySelectorAll("button").forEach(b => {
+        b.classList.remove("active");
+        b.style.background = "transparent";
+      });
+      btn.classList.add("active");
+      btn.style.background = "var(--surface)";
+      PICKER_SIDE_FILTER = (btn.dataset.side || "").toUpperCase();
+      renderRecPicker();
+    });
+  }
+
+  const qSeg = $("#pickQualitySeg");
+  if (qSeg) {
+    qSeg.addEventListener("click", e => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      qSeg.querySelectorAll("button").forEach(b => {
+        b.classList.remove("active");
+        b.style.background = "transparent";
+      });
+      btn.classList.add("active");
+      btn.style.background = "var(--surface)";
+      PICKER_QUALITY_FILTER = btn.dataset.qfilter || "all";
+      renderRecPicker();
+    });
+  }
+
+  // 獨立座標上傳表單事件
+  const upPlaceFile = $("#upPlaceFile");
+  if (upPlaceFile) {
+    upPlaceFile.onchange = () => {
+      const f = upPlaceFile.files && upPlaceFile.files[0];
+      if (!f) return;
+      UP_PLACE_FILE_OBJ = f;
+      const fnSpan = $("#upPlaceFileName");
+      if (fnSpan) fnSpan.textContent = f.name;
+      const clean = f.name.replace(/\.[^.]+$/, "");
+      const m = clean.match(/^([A-Za-z0-9_-]+?)[-_]([Vv]\d+(?:\.\d+)?|[A-Za-z]\d*)$/);
+      if (m) {
+        if ($("#upPlacePart") && !$("#upPlacePart").value) $("#upPlacePart").value = m[1];
+        if ($("#upPlaceRev") && !$("#upPlaceRev").value) $("#upPlaceRev").value = m[2];
+      } else {
+        if ($("#upPlacePart") && !$("#upPlacePart").value) $("#upPlacePart").value = clean;
+      }
+      if (/top/i.test(clean) && $("#upPlaceSide")) $("#upPlaceSide").value = "TOP";
+      else if (/bot/i.test(clean) && $("#upPlaceSide")) $("#upPlaceSide").value = "BOT";
+    };
+  }
+
+  const btnSubmitPlace = $("#btnSubmitPlace");
+  if (btnSubmitPlace) {
+    btnSubmitPlace.onclick = async () => {
+      const state = $("#upPlaceState");
+      if (!UP_PLACE_FILE_OBJ) {
+        if (state) state.innerHTML = `<span class="err">請先選取座標檔案</span>`;
+        return;
+      }
+      const part = ($("#upPlacePart")?.value || "").trim();
+      const rev = ($("#upPlaceRev")?.value || "").trim() || "V1";
+      const side = $("#upPlaceSide")?.value || "";
+      const unit = $("#upPlaceUnit")?.value || "mm";
+      const isDefault = $("#upPlaceIsDefault") ? $("#upPlaceIsDefault").checked : true;
+      if (!part) {
+        if (state) state.innerHTML = `<span class="err">請填寫產品料號</span>`;
+        return;
+      }
+      if (state) state.innerHTML = `正在解析並上傳座標檔…`;
+      try {
+        const buf = await UP_PLACE_FILE_OBJ.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        const tab = /\.xlsx$/i.test(UP_PLACE_FILE_OBJ.name) ? (await xlsxTable(buf)).tab : csvTable(decodeBytes(bytes));
+        const res = parsePlacement(tab, unit);
+        if (res.err) throw new Error(res.err);
+        await RecDB.create({
+          kind: "place",
+          file: UP_PLACE_FILE_OBJ,
+          part,
+          rev,
+          side,
+          unit,
+          isDefault,
+          comps: res.comps ? res.comps.size : 0
+        });
+        if (state) state.innerHTML = `<span class="ok">✓ 成功存入座標檔 ${esc(part)} (${esc(rev)})</span>`;
+        UP_PLACE_FILE_OBJ = null;
+        if (upPlaceFile) upPlaceFile.value = "";
+        if ($("#upPlaceFileName")) $("#upPlaceFileName").textContent = "";
+        await renderRecPicker(true);
+        await renderRecords(true);
+      } catch(err) {
+        if (state) state.innerHTML = `<span class="err">上傳失敗：${esc(err.message)}</span>`;
+      }
+    };
+  }
+
+  // 工單/備註修改彈窗
+  const recEditModal = $("#recEditModal");
+  function closeEditModal() {
+    if (recEditModal) recEditModal.hidden = true;
+    EDITING_REC_ID = null;
+  }
+  if ($("#recEditClose")) $("#recEditClose").onclick = closeEditModal;
+  if ($("#recEditCancel")) $("#recEditCancel").onclick = closeEditModal;
+  if ($("#recEditSave")) {
+    $("#recEditSave").onclick = async () => {
+      if (!EDITING_REC_ID) return;
+      const state = $("#recEditState");
+      if (state) state.innerHTML = "正在儲存…";
+      const supplierWo = ($("#recEditSupplierWo")?.value || "").trim();
+      const outsourceWo = ($("#recEditOutsourceWo")?.value || "").trim();
+      const note = ($("#recEditNote")?.value || "").trim();
+      try {
+        await RecDB.updateMeta(EDITING_REC_ID, { supplierWo, outsourceWo, note });
+        closeEditModal();
+        await renderRecPicker(true);
+        await renderRecords(true);
+        toast("已成功更新工單號與備註");
+      } catch(e) {
+        if (state) state.innerHTML = `<span class="err">更新失敗：${esc(e.message)}</span>`;
+      }
+    };
+  }
+
   modal.addEventListener("keydown", e => {
     if (e.key === "Escape") {
       e.stopPropagation();
@@ -7214,6 +7753,23 @@ function setupRecPicker() {
         renderRecords();
         toast(`已改用座標檔 ${rec.part} ${rec.rev}`);
         if (IMP && IMP.raw) reconvert();
+        return;
+      }
+      if (act === "set-default") {
+        await RecDB.setDefaultPlace(id);
+        await renderRecPicker(true);
+        await renderRecords(true);
+        toast(`已將座標檔 ${rec.part} (${rec.side || "ALL"}) ${rec.rev} 設為預設版次`);
+        return;
+      }
+      if (act === "edit-meta") {
+        EDITING_REC_ID = rec.id;
+        if ($("#recEditTarget")) $("#recEditTarget").textContent = `正在修改：${rec.kind === "spi" ? `批號 ${rec.lot}` : `座標檔 ${rec.part} (${rec.rev})`}`;
+        if ($("#recEditSupplierWo")) $("#recEditSupplierWo").value = rec.supplierWo || "";
+        if ($("#recEditOutsourceWo")) $("#recEditOutsourceWo").value = rec.outsourceWo || "";
+        if ($("#recEditNote")) $("#recEditNote").value = rec.note || "";
+        if ($("#recEditState")) $("#recEditState").textContent = "";
+        if (recEditModal) recEditModal.hidden = false;
         return;
       }
       if (act === "dl") {

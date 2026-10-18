@@ -147,3 +147,149 @@ test("座標檔庫切換、管理與設為目前座標檔", { skip: !JSDOM && "�
 
   assert.deepEqual(errs, []);
 });
+
+test("SMT 產線過濾工具列、品質快照狀態與手機端卡片流", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page();
+  await tick(50);
+  const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
+
+  // 1. 匯入一筆正常資料與一筆帶不良的資料
+  $("[data-tab=data]").click();
+  await pickFile(dom, "NORMAL_TOP.csv", CSV);
+  $("#inLot").value = "LOT-OK";
+  $("#inPart").value = "PART-AAA";
+  $("#selSide").value = "TOP";
+  $("#selSide").dispatchEvent(new w.Event("change"));
+  $("#btnApply").click();
+  assert.ok(await until(() => w.eval("S.runs.length") === 3));
+
+  // 第二筆：不良資料（Volume < 50）
+  const BAD_CSV = "Board,Pad,Component,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `B${Math.floor(i / 6) + 1},P${i % 6},U1,${i === 5 ? 20 : 100},120,100`).join("\n");
+  $("[data-tab=data]").click();
+  await pickFile(dom, "DEFECT_BOT.csv", BAD_CSV);
+  $("#inLot").value = "LOT-NG";
+  $("#inPart").value = "PART-BBB";
+  $("#selSide").value = "BOT";
+  $("#selSide").dispatchEvent(new w.Event("change"));
+  $("#btnApply").click();
+  assert.ok(await until(() => w.eval("S.runs.length") === 4));
+
+  // 2. 開啟選取視窗
+  $("#btnOpenRecModal").click();
+  assert.ok(await until(() => $("#tblPickSpi").textContent.includes("LOT-OK")), "表格應包含 LOT-OK");
+  assert.ok($("#tblPickSpi").textContent.includes("LOT-NG"), "表格應包含 LOT-NG");
+  assert.ok($("#tblPickSpi").textContent.includes("良品"), "LOT-OK 應標示為良品");
+  assert.ok($("#tblPickSpi").textContent.includes("缺點"), "LOT-NG 應標示有缺點");
+
+  // 3. 測試料號篩選下拉選單
+  const partFilter = $("#pickPartFilter");
+  assert.ok(partFilter, "應存在料號篩選選單");
+  assert.ok([...partFilter.options].some(o => o.value === "PART-AAA"), "選單應包含 PART-AAA");
+  assert.ok([...partFilter.options].some(o => o.value === "PART-BBB"), "選單應包含 PART-BBB");
+
+  partFilter.value = "PART-AAA";
+  partFilter.dispatchEvent(new w.Event("change"));
+  await tick(30);
+  assert.ok($("#tblPickSpi").textContent.includes("LOT-OK"), "篩選 PART-AAA 應保留 LOT-OK");
+  assert.ok(!$("#tblPickSpi").textContent.includes("LOT-NG"), "篩選 PART-AAA 應隱藏 LOT-NG");
+
+  partFilter.value = "";
+  partFilter.dispatchEvent(new w.Event("change"));
+  await tick(30);
+
+  // 4. 測試面別篩選
+  const botSideBtn = $("#pickSideSeg button[data-side=BOT]");
+  assert.ok(botSideBtn, "應有 BOT 面別按鈕");
+  botSideBtn.click();
+  await tick(30);
+  assert.ok(!$("#tblPickSpi").textContent.includes("LOT-OK"), "篩選 BOT 應隱藏 TOP 的 LOT-OK");
+  assert.ok($("#tblPickSpi").textContent.includes("LOT-NG"), "篩選 BOT 應保留 LOT-NG");
+
+  const allSideBtn = $("#pickSideSeg button[data-side='']");
+  allSideBtn.click();
+  await tick(30);
+
+  // 5. 測試品質狀態篩選（僅異常 ⚠️）
+  const ngBtn = $("#pickQualitySeg button[data-qfilter=ng]");
+  assert.ok(ngBtn, "應有僅異常篩選按鈕");
+  ngBtn.click();
+  await tick(30);
+  assert.ok(!$("#tblPickSpi").textContent.includes("LOT-OK"), "僅異常模式應過濾掉良品 LOT-OK");
+  assert.ok($("#tblPickSpi").textContent.includes("LOT-NG"), "僅異常模式應保留 LOT-NG");
+
+  const allQBtn = $("#pickQualitySeg button[data-qfilter=all]");
+  allQBtn.click();
+  await tick(30);
+
+  // 6. 驗證手機端卡片流與觸控熱區
+  const cardsSpi = $("#cardsPickSpi");
+  assert.ok(cardsSpi, "手機端量測卡片容器應存在");
+  assert.ok(cardsSpi.innerHTML.includes("LOT-OK"), "手機端卡片應渲染 LOT-OK");
+  const cardLoadBtn = cardsSpi.querySelector("button[data-pact=load]");
+  assert.ok(cardLoadBtn, "手機端卡片應有載入分析主按鈕");
+  assert.ok(cardLoadBtn.style.minHeight.includes("44px"), "手機端主按鈕高度應符合 Apple HIG (>= 44px)");
+
+  assert.deepEqual(errs, []);
+});
+
+test("座標庫預設版次切換與工單備註修改對話框", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page();
+  await tick(50);
+  const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
+
+  // 1. 上傳兩個不同版本的座標檔
+  $("[data-tab=data]").click();
+  $("#placePart").value = "PART-777";
+  $("#placeRev").value = "V1";
+  const inp1 = $("#placeIn");
+  Object.defineProperty(inp1, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nU1,10,10,BGA,TOP\n")], "cad_v1.csv")] });
+  inp1.dispatchEvent(new w.Event("change"));
+  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+
+  $("#placePart").value = "PART-777";
+  $("#placeRev").value = "V2";
+  const inp2 = $("#placeIn");
+  Object.defineProperty(inp2, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nU1,20,20,BGA,TOP\n")], "cad_v2.csv")] });
+  inp2.dispatchEvent(new w.Event("change"));
+  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+
+  // 2. 開啟選取視窗並切換至座標庫
+  $("#btnOpenRecModal").click();
+  await tick(50);
+  $("#btnPickPlace").click();
+  await tick(30);
+
+  // 找到設為預設按鈕並點擊
+  const setDefBtn = $("#tblPickPlace [data-pact=set-default]");
+  assert.ok(setDefBtn, "非預設版本應有設為預設按鈕");
+  setDefBtn.click();
+  await tick(100);
+
+  assert.ok(await until(() => {
+    const t = $("#toast");
+    return t && t.textContent && /設為預設版次/.test(t.textContent);
+  }), "應提示已設為預設版次");
+  assert.ok($("#tblPickPlace").textContent.includes("★ 預設版次"), "表格中應出現預設版次徽章");
+
+  // 3. 測試工單與備註修改彈窗
+  const editBtn = $("#tblPickPlace [data-pact=edit-meta]");
+  assert.ok(editBtn, "原上傳者應有 ✏️ 備註按鈕");
+  editBtn.click();
+  await tick(50);
+
+  const editModal = $("#recEditModal");
+  assert.ok(editModal && !editModal.hidden, "工單與備註彈窗應顯示");
+
+  $("#recEditSupplierWo").value = "SWO-999";
+  $("#recEditOutsourceWo").value = "OWO-888";
+  $("#recEditNote").value = "產線工程測試樣品";
+  $("#recEditSave").click();
+  assert.ok(await until(() => editModal.hidden), "儲存後修改彈窗應關閉");
+  assert.ok(await until(() => {
+    const t = $("#toast");
+    return t && t.textContent && /成功更新工單號與備註/.test(t.textContent);
+  }), "應提示成功更新");
+
+  assert.deepEqual(errs, []);
+});
+
