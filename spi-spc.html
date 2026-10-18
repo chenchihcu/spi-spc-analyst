@@ -682,6 +682,19 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </section>
 
 <section class="panel" id="p-capability" role="tabpanel" hidden>
+  <div class="toolbar" style="margin-bottom:12px;gap:12px;align-items:center;flex-wrap:wrap">
+    <div class="field"><label for="selCapDist">分佈擬合模型</label>
+      <select id="selCapDist">
+        <option value="auto" selected>自動最佳適配（Johnson / Box-Cox / 常態）</option>
+        <option value="normal">常態分佈假設（標準 Cpk）</option>
+        <option value="johnson">Johnson 系統轉換（SB / SL / SU）</option>
+        <option value="boxcox">Box-Cox 冪次轉換</option>
+        <option value="iso">ISO 21747 經驗百分位數法（Ppk 0.135%）</option>
+      </select>
+    </div>
+    <span id="capDistNote" class="note" style="align-self:center"></span>
+  </div>
+  <div class="card" id="capNonNormalCard" hidden style="margin-bottom:12px"></div>
   <div class="kpis" id="capKpis"></div>
   <div class="card" id="capGrp" hidden><h3>逐元件群組製程能力 <small>不同元件設計的平均差不是製程變異，混在一起算會低估能力；依 Cpk 由低到高排列</small></h3><div class="tbl"><table id="capGrpTbl"></table></div></div>
   <div class="grid2">
@@ -786,7 +799,33 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <div class="card"><h3>鋼板擦拭週期 <small id="wipeSub"></small></h3>
       <details class="how"><summary>怎麼看</summary><p>依擦拭後第幾片分組。面積或連錫風險隨片數上升，代表鋼板底面殘錫累積，可縮短擦拭間隔或改用濕擦 / 真空擦；高度隨片數下降則可能是孔壁殘留。</p></details>
       <div class="row"><div class="field"><label for="inWipe">每幾片擦拭一次</label><input type="number" id="inWipe" min="2" max="50" step="1" value="5"></div></div>
-      <div class="chartbox short" style="margin-top:8px"><canvas id="cWipe" role="img" aria-label="擦拭週期分析"></canvas></div><p id="wipeTxt" style="margin:8px 0 0"></p></div>
+  <div class="card" id="cardMorph">
+    <h3>3D 微觀形貌特徵指標 <small id="morphSub">橋接餘裕、脫模拉尖、共面性與覆蓋率</small></h3>
+    <details class="how"><summary>怎麼看</summary><p>現代 3D SPI 輸出的微觀幾何特徵：橋接餘裕（Bridge Margin，相鄰焊墊間實際最短間距比例，&lt;25% 具高短路風險）、脫模拉尖（Peaking，&gt;35µm 易引致回焊錫珠飛濺或貼片吸嘴排氣不良）、共面性（Coplanarity）與覆蓋率（Coverage）。</p></details>
+    <div class="kpis" id="morphKpis" style="margin-top:10px"></div>
+    <div class="tbl" style="margin-top:10px;max-height:280px;overflow:auto"><table id="morphTbl"></table></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card" id="cardPause">
+      <h3>停線時效與鋼板壽命衰退 <small id="pauseSub">停機間隔時間與首片體積衰退分析</small></h3>
+      <details class="how"><summary>怎麼看</summary><p>SMT 停線時鋼板上的錫膏溶劑揮發，黏度上升導致脫模轉移效率驟降。系統分析停機間隔（≥15分鐘）後首片板與穩態板的體積差，並推算建議的「安全靜置時間上限（Safe Dwell Limit）」。若停機超過上限，印刷機應強制執行自動溶劑擦拭與試刮。</p></details>
+      <div id="pauseMsg" style="margin:8px 0"></div>
+      <div class="tbl" style="max-height:260px;overflow:auto"><table id="pauseTbl"></table></div>
+    </div>
+    <div class="card" id="cardLISA">
+      <h3>空間自相關與局部聚類 (Moran's I & LISA) <small id="lisaSub">全板局部壓合下陷、頂針支撐與載具熱區鑑別</small></h3>
+      <details class="how"><summary>怎麼看</summary><p>以反距離權重 k-NN 空間權重矩陣計算全板 Moran's I 與 Anselin LISA 局部空間聚類。HH (高錫量熱區) 常見於頂針過高頂起 PCB 或載具鼓起；LL (低錫量冷區) 常見於 PCB 壓合下陷或缺乏下頂針支撐；LH/HL 為空間離群點。Z-score &gt; 2.58 代表空間群聚極顯著。</p></details>
+      <div id="lisaMsg" style="margin:8px 0"></div>
+      <div class="legend" id="lisaLeg">
+        <span><i class="sq" style="background:#ef4444"></i>HH 熱點</span>
+        <span><i class="sq" style="background:#3b82f6"></i>LL 冷點</span>
+        <span><i class="sq" style="background:#93c5fd"></i>LH 空間離群</span>
+        <span><i class="sq" style="background:#f97316"></i>HL 空間離群</span>
+        <span><i class="sq" style="background:#94a3b8"></i>NS 無顯著</span>
+      </div>
+      <div class="chartbox" style="height:320px;position:relative"><canvas id="cLISA" role="img" aria-label="LISA 空間聚類分佈圖"></canvas></div>
+    </div>
   </div>
 </section>
 
@@ -840,6 +879,15 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="grid2">
     <div class="card"><h3>風險分數組成 <small>各群組分數來源</small></h3><div class="legend" id="dfmLeg"></div><div class="chartbox"><canvas id="cDfm" role="img" aria-label="DFM 風險分數組成"></canvas></div></div>
     <div class="card"><h3>個別開孔檢查清單 <small>同群組中長期偏離的焊墊位置</small></h3><div class="tbl" style="max-height:340px;overflow:auto"><table id="dfmPads"></table></div></div>
+  </div>
+  <div class="card" id="cardClosedLoop" style="margin-top:16px">
+    <h3>印刷機閉環補償建議 (Closed-Loop Correction) <small id="printerCorrSub">基於最近 3 板量測之即時對位補償與動態擦拭觸發</small></h3>
+    <details class="how"><summary>怎麼看</summary><p>工業 4.0 閉環控制：依據最近 k 板（預設 3 板）的 X/Y 偏移與旋轉 θ 中位數，套用 0.6 阻尼濾波生成印刷機即時反向補償值，並受限於 ±20µm 安全 Clamp 上限與死區過濾。同時監控滲錫與坍塌累積，動態觸發鋼板清潔（AGI 指標）。</p></details>
+    <div class="kpis" id="printerCorrKpis" style="margin-top:10px"></div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <button type="button" class="primary" id="btnExportCorrectionJson">匯出印刷機補償參數 (.json)</button>
+      <span id="printerCorrNote" class="note"></span>
+    </div>
   </div>
 </section>
 
@@ -1724,7 +1772,41 @@ function analyze(st){
   const xOut=new Set(xs.pts.filter(p=>Math.abs(p.z)>3).map(p=>p.lab));
   const pOut=new Set(pc.pts.filter(p=>p.v>p.ucl||p.v<p.lcl).map(p=>p.lab));
   const worst=byBoard.reduce((w,b)=>!w||b.p>w.p||(b.p===w.p&&Math.abs(b.mean-gMean)>Math.abs(w.mean-gMean))?b:w,null);
-  const A={m,sp,rows,boards,byBoard,N,gMean,overallSd,sigmaW,sigmaLT,mixed,nbar,xs,xr,imr,pc,ewma,cusum,series,nel,nelX,stable,cap,hasSpec,unitMismatch,ad,sw,sk,groups,eta2,pareto,defRows,rHA,msa,rX,rY,coordN,xOut,pOut,worst,pads,sqDir:st.sqDir==="X"?"X":"Y"};
+
+  // 進階統計與物理因果模型計算
+  const nonNormal=hasSpec&&all.length>=10?calcNonNormalCapability(all,sp.lsl,sp.usl,st.capDistMode||"auto"):null;
+  if(cap)cap.nonNormal=nonNormal;
+  const pauseDecay=analyzePauseDecay(st.rows,st.pauseThreshold||15);
+  const printerCorr=calcPrinterCorrection(st.rows);
+  let spatialAutocorr = { valid: false, reason: "有效座標數不足（需 ≥10）" };
+  if (coordN >= 10) {
+    const grpMeans = {};
+    for (let i = 0; i < coordN; i++) {
+      const r = coordRows[i];
+      (grpMeans[r.group] = grpMeans[r.group] || []).push(r[m]);
+    }
+    for (const g in grpMeans) {
+      const arr = grpMeans[g];
+      grpMeans[g] = arr.reduce((s, x) => s + x, 0) / arr.length;
+    }
+    const padMap = new Map();
+    for (let i = 0; i < coordN; i++) {
+      const r = coordRows[i];
+      let p = padMap.get(r.pad);
+      if (!p) padMap.set(r.pad, p = { pad: r.pad, x: r.x, y: r.y, resSum: 0, cnt: 0 });
+      p.resSum += (r[m] - (grpMeans[r.group] || 0));
+      p.cnt++;
+    }
+    let pts = [];
+    for (const p of padMap.values()) pts.push({ pad: p.pad, x: p.x, y: p.y, val: p.resSum / p.cnt });
+    if (pts.length > 500) {
+      const step = Math.ceil(pts.length / 500);
+      pts = pts.filter((_, idx) => idx % step === 0);
+    }
+    spatialAutocorr = calcMoranAndLISA(pts, 6);
+  }
+
+  const A={m,sp,rows,boards,byBoard,N,gMean,overallSd,sigmaW,sigmaLT,mixed,nbar,xs,xr,imr,pc,ewma,cusum,series,nel,nelX,stable,cap,hasSpec,unitMismatch,ad,sw,sk,groups,eta2,pareto,defRows,rHA,msa,rX,rY,coordN,xOut,pOut,worst,pads,sqDir:st.sqDir==="X"?"X":"Y",nonNormal,pauseDecay,printerCorr,spatialAutocorr};
   A.xv=crossValidate(A);return A;
 }
 function crossValidate(A){
@@ -1907,8 +1989,14 @@ const FIELDS=[
  ["time","時間",["time","時間","insptime","timestamp","datetime","date time","inspectiontime","檢測時間"]],
  ["pressure","刮刀壓力",["pressure","壓力","printpressure","squeegeepressure","刮刀壓力"]],
  ["speed","印刷速度",["speed","速度","printspeed","印刷速度","squeegeespeed"]],
- ["sep","分離速度",["sep","sepspeed","separationspeed","分離速度","snapoffspeed","separation"]]];
-const NUMF=["x","y","volume","height","area","offx","offy","padl","padw","apl","apw","pressure","speed","sep"];
+ ["sep","分離速度",["sep","sepspeed","separationspeed","分離速度","snapoffspeed","separation"]],
+ ["bridgegap","橋接間距 µm",["bridgegap","gap","橋接間距","錫膏間距","soldergap","mingap","padgap"]],
+ ["bridgemargin","橋接裕度 %",["bridgemargin","bridgerisk","橋接裕度","間距比","gapmargin","gapratio"]],
+ ["peaking","拉尖高 µm",["peaking","dogear","拉尖","拉尖高","尖峰高","peakheight","tailing"]],
+ ["coplanarity","共面度 µm",["coplanarity","flatness","共面度","平整度","surfaceflatness","topflatness"]],
+ ["coverage","覆蓋率 %",["coverage","coverageratio","覆蓋率","潤濕覆蓋","padcoverage"]],
+ ["slump","坍塌量 µm",["slump","slumpmargin","坍塌","坍塌量","邊緣擴散","collapse","spreading"]]];
+const NUMF=["x","y","volume","height","area","offx","offy","padl","padw","apl","apw","pressure","speed","sep","bridgegap","bridgemargin","peaking","coplanarity","coverage","slump"];
 const OKCODES=["ok","pass","good","0","","g","合格","正常"];
 /* 識別字串（板號、焊墊、元件、判定碼、名稱）只保留可見文字：去除 < > " ' ` &，避免匯入資料被當成 HTML 執行 */
 const safeId=x=>x==null?x:String(x).replace(/[<>"'`&]/g,"").trim();
@@ -2508,8 +2596,474 @@ function strokeCalP(bm,cls){const n=bm.length;if(n<8)return{p:NaN};
 function inv4(M){const n=4,A=M.map((r,i)=>[...r,...Array.from({length:n},(_,j)=>i===j?1:0)]);
   for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;if(Math.abs(A[p][c])<1e-14)return null;[A[c],A[p]]=[A[p],A[c]];const d=A[c][c];for(let j=0;j<2*n;j++)A[c][j]/=d;for(let r=0;r<n;r++)if(r!==c){const f=A[r][c];if(f)for(let j=0;j<2*n;j++)A[r][j]-=f*A[c][j]}}
   return A.map(r=>r.slice(n))}
+
+/* =========================================================================
+   進階特徵分析引擎 (Advanced Analytics Engines - RFC-SPI-2026-001)
+   1. 非常態製程能力 (Box-Cox, Johnson, ISO 21747 經驗百分位數法)
+   2. 停線時效衰退與安全靜置分析 (analyzePauseDecay)
+   3. 空間自相關與局部 LISA 聚類 (calcMoranAndLISA)
+   4. 印刷機閉環補償計算 (calcPrinterCorrection)
+   ========================================================================= */
+
+// 1. Box-Cox 冪次轉換
+function fitBoxCox(vals) {
+  const sorted = Float64Array.from(vals.filter(v => v != null && isFinite(v))).sort();
+  const n = sorted.length;
+  if (n < 10) return { valid: false, reason: "樣本數不足 10" };
+  if (sorted[0] <= 0) return { valid: false, reason: "Box-Cox 需所有數據 > 0" };
+
+  let sumLog = 0;
+  for (let i = 0; i < n; i++) sumLog += Math.log(sorted[i]);
+
+  function logLikelihood(lambda) {
+    let sumY = 0, sumY2 = 0;
+    for (let i = 0; i < n; i++) {
+      const x = sorted[i];
+      const y = Math.abs(lambda) < 1e-4 ? Math.log(x) : (Math.pow(x, lambda) - 1) / lambda;
+      sumY += y;
+      sumY2 += y * y;
+    }
+    const my = sumY / n;
+    const varY = (sumY2 - n * my * my) / n;
+    if (varY <= 0) return -1e12;
+    return -0.5 * n * Math.log(varY) + (lambda - 1) * sumLog;
+  }
+
+  let a = -5, b = 5;
+  const phi = (1 + Math.sqrt(5)) / 2, resphi = 2 - phi;
+  let c = a + resphi * (b - a), d = b - resphi * (b - a);
+  let fc = logLikelihood(c), fd = logLikelihood(d);
+
+  for (let iter = 0; iter < 60; iter++) {
+    if (fc > fd) {
+      b = d; d = c; fd = fc;
+      c = a + resphi * (b - a); fc = logLikelihood(c);
+    } else {
+      a = c; c = d; fc = fd;
+      d = b - resphi * (b - a); fd = logLikelihood(d);
+    }
+    if (Math.abs(b - a) < 1e-4) break;
+  }
+  const bestLambda = (a + b) / 2;
+  const transform = (x) => (x <= 0 ? -10 : (Math.abs(bestLambda) < 1e-4 ? Math.log(x) : (Math.pow(x, bestLambda) - 1) / bestLambda));
+  const trans = sorted.map(transform);
+  const ym = mean(trans), ys = sd(trans);
+  const ad = andersonDarling(trans);
+
+  return {
+    valid: true,
+    method: "Box-Cox",
+    lambda: +bestLambda.toFixed(4),
+    mean: ym,
+    sd: ys,
+    adP: isFinite(ad.p) ? ad.p : 0,
+    transform
+  };
+}
+
+// 2. Slifker-Shapiro Johnson 系統轉換
+function fitJohnson(vals) {
+  const sorted = Float64Array.from(vals.filter(v => v != null && isFinite(v))).sort();
+  const n = sorted.length;
+  if (n < 10) return { valid: false, reason: "樣本數不足 10" };
+
+  const zCandidates = [0.50, 0.54, 0.56, 0.60];
+  let bestFit = null;
+
+  for (const z of zCandidates) {
+    const p1 = Phi(-3 * z), p2 = Phi(-z), p3 = Phi(z), p4 = Phi(3 * z);
+    const x_3z = quant(sorted, p1), x_z = quant(sorted, p2), xz = quant(sorted, p3), x3z = quant(sorted, p4);
+    const m = x3z - xz, p = xz - x_z, n_val = x_z - x_3z;
+    if (m <= 0 || p <= 0 || n_val <= 0) continue;
+
+    const qr = (m * n_val) / (p * p);
+    let family = "SL", gamma = 0, eta = 1, lambda = 1, epsilon = 0;
+
+    if (qr < 0.999) {
+      family = "SB";
+      const r1 = p / m, r2 = p / n_val, P = (1 + r1) * (1 + r2);
+      if (P > 4 && r1 * r2 > 1) {
+        eta = z / Math.acosh(0.5 * Math.sqrt(P));
+        const numGamma = (r2 - r1) * Math.sqrt(P - 4), denGamma = 2 * (r1 * r2 - 1);
+        gamma = eta * Math.asinh(numGamma / denGamma);
+        lambda = (p * Math.sqrt((P - 4) * P)) / (r1 * r2 - 1);
+        epsilon = 0.5 * (xz + x_z) - 0.5 * lambda + (p * (r2 - r1)) / (2 * (r1 * r2 - 1));
+      } else {
+        family = "SL";
+      }
+    } else if (qr > 1.001) {
+      family = "SU";
+      const r1 = m / p, r2 = n_val / p, P = 0.5 * (r1 + r2);
+      if (P > 1) {
+        eta = (2 * z) / Math.acosh(P);
+        gamma = eta * Math.asinh((r2 - r1) / (2 * Math.sqrt(P * P - 1)));
+        lambda = (2 * p * Math.sqrt(P * P - 1)) / (r1 + r2 - 2);
+        epsilon = 0.5 * (xz + x_z) + (p * (r2 - r1)) / (2 * (r1 + r2 - 2));
+      } else {
+        family = "SL";
+      }
+    }
+
+    if (family === "SL" || !isFinite(gamma) || !isFinite(eta) || !isFinite(lambda) || !isFinite(epsilon) || lambda <= 0) {
+      family = "SL";
+      const ratio = m / n_val;
+      if (ratio > 1) {
+        eta = 2 * z / Math.log(ratio);
+        gamma = eta * Math.log((ratio - 1) / (p * Math.sqrt(ratio)));
+        epsilon = 0.5 * (xz + x_z) - 0.5 * p * (ratio + 1) / (ratio - 1);
+        lambda = 1;
+      } else {
+        continue;
+      }
+    }
+
+    const transform = (x) => {
+      if (family === "SB") {
+        const u = (x - epsilon) / lambda;
+        if (u <= 1e-12) return -8;
+        if (u >= 1 - 1e-12) return 8;
+        return gamma + eta * Math.log(u / (1 - u));
+      } else if (family === "SU") {
+        const u = (x - epsilon) / lambda;
+        return gamma + eta * Math.asinh(u);
+      } else {
+        const u = x - epsilon;
+        if (u <= 1e-12) return -8;
+        return gamma + eta * Math.log(u);
+      }
+    };
+
+    const trans = sorted.map(transform);
+    const ad = andersonDarling(trans);
+    if (!bestFit || (isFinite(ad.p) && ad.p > bestFit.adP)) {
+      bestFit = {
+        valid: true,
+        method: "Johnson",
+        family,
+        z,
+        gamma: +gamma.toFixed(4),
+        eta: +eta.toFixed(4),
+        lambda: +lambda.toFixed(4),
+        epsilon: +epsilon.toFixed(4),
+        adP: isFinite(ad.p) ? ad.p : 0,
+        transform
+      };
+    }
+  }
+
+  return bestFit || { valid: false, reason: "Johnson 擬合無法收斂" };
+}
+
+// 3. ISO 21747 經驗百分位數法
+function fitIsoPercentile(vals, lsl, usl) {
+  const sorted = Float64Array.from(vals.filter(v => v != null && isFinite(v))).sort();
+  const n = sorted.length;
+  if (n < 10) return { valid: false, reason: `樣本數不足（需 ≥10，目前 n=${n}）` };
+
+  const x00135 = quant(sorted, 0.00135);
+  const x50 = quant(sorted, 0.50);
+  const x99865 = quant(sorted, 0.99865);
+
+  let ppk = NaN, pp = NaN;
+  if (isFinite(usl) && isFinite(lsl) && usl > lsl) {
+    const dUpper = x99865 - x50, dLower = x50 - x00135;
+    const ppu = dUpper > 0 ? (usl - x50) / dUpper : NaN;
+    const ppl = dLower > 0 ? (x50 - lsl) / dLower : NaN;
+    ppk = Math.min(ppu, ppl);
+    pp = (x99865 - x00135) > 0 ? (usl - lsl) / (x99865 - x00135) : NaN;
+  }
+
+  const nBelow = sorted.filter(v => isFinite(lsl) && v < lsl).length;
+  const nAbove = sorted.filter(v => isFinite(usl) && v > usl).length;
+  const ppmObs = (nBelow + nAbove) / n * 1e6;
+
+  return {
+    valid: true,
+    method: "ISO-Percentile",
+    x00135,
+    x50,
+    x99865,
+    pp,
+    ppk,
+    ppmObs
+  };
+}
+
+// 綜合非常態製程能力計算器
+function calcNonNormalCapability(vals, lsl, usl, mode = "auto") {
+  const clean = vals.filter(v => v != null && isFinite(v));
+  if (clean.length < 10) return { valid: false, reason: `樣本數不足（需 ≥10，目前 n=${clean.length}）` };
+
+  // 大數據抽樣守衛（與 Anderson-Darling 4000 點策略一致），防止超大型資料集計算逾時
+  const fitClean = clean.length > 4000
+    ? clean.filter((_, i) => i % Math.ceil(clean.length / 4000) === 0)
+    : clean;
+
+  let model = null;
+  if (mode === "boxcox") {
+    model = fitBoxCox(fitClean);
+  } else if (mode === "johnson") {
+    model = fitJohnson(fitClean);
+  } else if (mode === "iso") {
+    return fitIsoPercentile(clean, lsl, usl);
+  } else {
+    const jh = fitJohnson(fitClean);
+    if (jh.valid && jh.adP >= 0.05) {
+      model = jh;
+    } else {
+      const bc = fitBoxCox(fitClean);
+      if (bc.valid && (bc.adP >= 0.05 || !jh.valid || bc.adP > jh.adP)) {
+        model = bc;
+      } else if (jh.valid) {
+        model = jh;
+      }
+    }
+  }
+
+  if (!model || !model.valid) {
+    return fitIsoPercentile(clean, lsl, usl);
+  }
+
+  const tLsl = isFinite(lsl) ? model.transform(lsl) : -Infinity;
+  const tUsl = isFinite(usl) ? model.transform(usl) : Infinity;
+  const tVals = clean.map(model.transform).filter(isFinite);
+  const tMu = mean(tVals), tSd = sd(tVals);
+
+  let cpk = NaN, ppmExp = NaN;
+  if (tSd > 0) {
+    const zu = isFinite(tUsl) ? (tUsl - tMu) / tSd : Infinity;
+    const zl = isFinite(tLsl) ? (tMu - tLsl) / tSd : Infinity;
+    cpk = Math.min(zu, zl) / 3;
+    const pBelow = isFinite(tLsl) ? Phi((tLsl - tMu) / tSd) : 0;
+    const pAbove = isFinite(tUsl) ? 1 - Phi((tUsl - tMu) / tSd) : 0;
+    ppmExp = (pBelow + pAbove) * 1e6;
+  }
+
+  const nBelow = clean.filter(v => isFinite(lsl) && v < lsl).length;
+  const nAbove = clean.filter(v => isFinite(usl) && v > usl).length;
+  const ppmObs = (nBelow + nAbove) / clean.length * 1e6;
+
+  return {
+    valid: true,
+    method: model.method,
+    family: model.family || null,
+    lambda: model.lambda != null ? model.lambda : null,
+    adP: model.adP,
+    cpk,
+    ppk: cpk,
+    ppmExp,
+    ppmObs,
+    tMu,
+    tSd,
+    tLsl,
+    tUsl
+  };
+}
+
+// 4. 停線時效衰退與首片檢定分析
+function analyzePauseDecay(rows, pauseThresholdMin = 15) {
+  if (!rows || !rows.length) return { hasPause: false, events: [], safeDwellLimitMin: null };
+  const rowsWithTs = rows.filter(r => r.ts != null && isFinite(r.ts));
+  if (rowsWithTs.length < 5) return { hasPause: false, events: [], reason: "無足夠時間戳記資料" };
+
+  const bMap = new Map();
+  for (const r of rowsWithTs) {
+    const cur = bMap.get(r.board);
+    if (!cur || r.ts < cur.ts) bMap.set(r.board, { board: r.board, ts: r.ts });
+  }
+  const boardTimes = [...bMap.values()].sort((a, b) => a.ts - b.ts);
+  if (boardTimes.length < 2) return { hasPause: false, events: [] };
+
+  const pauseEvents = [];
+  const threshMs = pauseThresholdMin * 60 * 1000;
+  for (let i = 1; i < boardTimes.length; i++) {
+    const gapMs = boardTimes[i].ts - boardTimes[i - 1].ts;
+    if (gapMs >= threshMs) {
+      pauseEvents.push({
+        prevBoard: boardTimes[i - 1].board,
+        postBoard: boardTimes[i].board,
+        pauseDurationMin: +(gapMs / (60 * 1000)).toFixed(1),
+        postBoardIndex: i
+      });
+    }
+  }
+
+  if (!pauseEvents.length) return { hasPause: false, events: [], safeDwellLimitMin: null };
+
+  const postBoards = new Set(pauseEvents.map(e => e.postBoard));
+  const postRows = rows.filter(r => postBoards.has(r.board) && r.volume != null && isFinite(r.volume));
+  const steadyRows = rows.filter(r => !postBoards.has(r.board) && r.volume != null && isFinite(r.volume));
+
+  let dropPct = 0;
+  if (postRows.length && steadyRows.length) {
+    const postMu = mean(postRows.map(r => r.volume));
+    const steadyMu = mean(steadyRows.map(r => r.volume));
+    if (steadyMu > 0) dropPct = +(((steadyMu - postMu) / steadyMu) * 100).toFixed(1);
+  }
+
+  let safeDwellLimitMin = pauseThresholdMin;
+  if (dropPct > 0) {
+    safeDwellLimitMin = Math.max(5, Math.round(pauseThresholdMin * (8 / Math.max(dropPct, 1))));
+  }
+
+  return {
+    hasPause: true,
+    events: pauseEvents,
+    postBoardCount: postBoards.size,
+    avgVolumeDropPct: dropPct,
+    safeDwellLimitMin,
+    recommendedAction: dropPct > 8 ? "停線逾限請強制執行溶劑濕擦與試印" : "停線後首片印刷在容許規格內"
+  };
+}
+
+// 5. 空間自相關與局部 LISA 聚類分析
+function calcMoranAndLISA(points, k = 6) {
+  let validPts = (points || []).filter(p => p && isFinite(p.x) && isFinite(p.y) && isFinite(p.val));
+  const n0 = validPts.length;
+  if (n0 < 10) return { valid: false, reason: "有效座標焊墊數需 ≥ 10" };
+  if (n0 > 500) {
+    const step = Math.ceil(n0 / 500);
+    validPts = validPts.filter((_, i) => i % step === 0);
+  }
+  const n = validPts.length;
+
+  const vals = validPts.map(p => p.val);
+  const m = mean(vals);
+  const s2 = vals.reduce((sum, v) => sum + (v - m) ** 2, 0) / n;
+  if (s2 <= 1e-12) return { valid: false, reason: "數值變異為零" };
+
+  const neighbors = [];
+  for (let i = 0; i < n; i++) {
+    const dists = [];
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      const dx = validPts[i].x - validPts[j].x, dy = validPts[i].y - validPts[j].y;
+      dists.push({ j, d: Math.sqrt(dx * dx + dy * dy) });
+    }
+    dists.sort((a, b) => a.d - b.d);
+    const topK = dists.slice(0, Math.min(k, n - 1));
+    const invDists = topK.map(it => ({ j: it.j, w: it.d > 1e-6 ? 1 / it.d : 1e6 }));
+    const sumW = invDists.reduce((s, it) => s + it.w, 0);
+    neighbors.push(invDists.map(it => ({ j: it.j, w: it.w / sumW })));
+  }
+
+  const z = vals.map(v => v - m);
+  let numerator = 0;
+  for (let i = 0; i < n; i++) {
+    for (const nb of neighbors[i]) {
+      numerator += nb.w * z[i] * z[nb.j];
+    }
+  }
+  const denom = z.reduce((sum, val) => sum + val * val, 0);
+  const moranI = denom > 0 ? (numerator / denom) : 0;
+  const expectedI = -1 / (n - 1);
+  const seI = Math.sqrt(1 / (n * Math.min(k, n - 1)));
+  const zScore = (moranI - expectedI) / (seI > 0 ? seI : 1);
+
+  const lisa = [];
+  for (let i = 0; i < n; i++) {
+    let lag = 0;
+    for (const nb of neighbors[i]) {
+      lag += nb.w * z[nb.j];
+    }
+    const li = (z[i] / s2) * lag;
+    const localZ = li / Math.sqrt(1 / k);
+    const isSig = Math.abs(localZ) > 1.96;
+    let quad = "NS";
+    if (isSig) {
+      if (z[i] > 0 && lag > 0) quad = "HH";
+      else if (z[i] < 0 && lag < 0) quad = "LL";
+      else if (z[i] < 0 && lag > 0) quad = "LH";
+      else if (z[i] > 0 && lag < 0) quad = "HL";
+    }
+    lisa.push({
+      pad: validPts[i].pad,
+      x: validPts[i].x,
+      y: validPts[i].y,
+      val: validPts[i].val,
+      z: +z[i].toFixed(2),
+      lag: +lag.toFixed(2),
+      quad,
+      isSig
+    });
+  }
+
+  const counts = {
+    HH: lisa.filter(x => x.quad === "HH").length,
+    LL: lisa.filter(x => x.quad === "LL").length,
+    LH: lisa.filter(x => x.quad === "LH").length,
+    HL: lisa.filter(x => x.quad === "HL").length,
+    NS: lisa.filter(x => x.quad === "NS").length
+  };
+
+  return {
+    valid: true,
+    n,
+    moranI: +moranI.toFixed(4),
+    expectedI: +expectedI.toFixed(4),
+    zScore: +zScore.toFixed(2),
+    isSignificant: zScore > 2.58,
+    counts,
+    lisa
+  };
+}
+
+// 6. 印刷機閉環補償計算器
+function calcPrinterCorrection(rows, kBoards = 3, damping = 0.6) {
+  if (!rows || !rows.length) return { valid: false, reason: "無資料" };
+  const boards = [...new Set(rows.map(r => r.board))];
+  if (!boards.length) return { valid: false, reason: "無板號" };
+
+  const evalBoards = boards.slice(-Math.min(boards.length, kBoards));
+  const evalRows = rows.filter(r => evalBoards.includes(r.board));
+
+  const offxVals = evalRows.map(r => r.offx).filter(v => v != null && isFinite(v));
+  const offyVals = evalRows.map(r => r.offy).filter(v => v != null && isFinite(v));
+  if (!offxVals.length && !offyVals.length) return { valid: false, reason: "無偏移量測資料" };
+
+  const medX = offxVals.length ? med(offxVals) : 0;
+  const medY = offyVals.length ? med(offyVals) : 0;
+
+  let medTheta = 0;
+  const xyRows = evalRows.filter(r => realXY(r) && r.offx != null && r.offy != null);
+  if (xyRows.length >= 10) {
+    const fit = alignFit(xyRows);
+    if (fit && isFinite(fit.theta)) medTheta = fit.theta;
+  }
+
+  let rawCorrX = -damping * medX;
+  let rawCorrY = -damping * medY;
+  let rawCorrTheta = -damping * medTheta;
+
+  const corrX = Math.abs(rawCorrX) >= 3 ? Math.max(-20, Math.min(20, rawCorrX)) : 0;
+  const corrY = Math.abs(rawCorrY) >= 3 ? Math.max(-20, Math.min(20, rawCorrY)) : 0;
+  const corrTheta = Math.abs(rawCorrTheta) >= 0.005 ? Math.max(-0.05, Math.min(0.05, rawCorrTheta)) : 0;
+
+  let agiPoints = 0;
+  for (const r of evalRows) {
+    if (r.bridgemargin != null && r.bridgemargin < 30) agiPoints += 1;
+    if (r.slump != null && r.slump > 25) agiPoints += 1;
+  }
+  const cleanNeeded = agiPoints > (evalRows.length * 0.02);
+  const needsAction = corrX !== 0 || corrY !== 0 || corrTheta !== 0 || cleanNeeded;
+
+  return {
+    valid: true,
+    evaluatedBoards: evalBoards,
+    damping,
+    observedOffset: { x: +medX.toFixed(2), y: +medY.toFixed(2), theta: +medTheta.toFixed(4) },
+    correction: { offsetX_um: +corrX.toFixed(2), offsetY_um: +corrY.toFixed(2), offsetTheta_deg: +corrTheta.toFixed(4) },
+    stencilCleaning: {
+      agiPoints,
+      triggerClean: cleanNeeded,
+      recommendedMode: cleanNeeded ? "WET_VACUUM" : "NORMAL"
+    },
+    actionRecommended: needsAction ? "APPLY_ON_NEXT_BOARD" : "MAINTAIN"
+  };
+}
+
 /* ---- D-29 證據族 ---- */
-const FAMILY={fig:"空間",grad:"空間",pad:"空間",board:"形狀",local:"形狀",sys:"形狀",iso:"形狀",drift:"時間",stroke:"時間",wipe:"時間",nelson:"時間",align:"對位",dfm:"DFM",lowte:"DFM",msa:"量測",unit:"量測",repeated:"零件/焊墊",mcd:"多變量離群"};
+const FAMILY={fig:"空間",grad:"空間",pad:"空間",board:"形狀",local:"形狀",sys:"形狀",iso:"形狀",drift:"時間",stroke:"時間",wipe:"時間",nelson:"時間",align:"對位",dfm:"DFM",lowte:"DFM",msa:"量測",unit:"量測",repeated:"零件/焊墊",mcd:"多變量離群",morph:"形狀",pause:"時間",spatial:"空間",closedloop:"對位"};
 const LVL_MAP={ng:"嚴重",warn:"警示",info:"資訊"};
 function detectIssues(st){
   const R=st.rows;if(!R.length)return[];
@@ -3025,6 +3579,108 @@ function detectIssues(st){
           ],
           cause:r.hint,conf:lv==="ng"?"高":lv==="warn"?"中":"低",action:ACT.nelson,
           ev:evSeries(k,null,hitB,`各板平均${lab(k)}（X̄ 圖 Nelson 規則 ${r.id}）`,bm),go:{tab:"control",chart:"xbars",metric:k,group:"ALL"}})}}}
+
+  /* ---- 進階分析特徵問題偵測 (RFC-SPI-2026-001) ---- */
+  // 1. 形貌缺陷：橋接餘裕不足 (Bridge Margin)
+  const bmRows=R.filter(r=>r.bridgemargin!=null&&isFinite(r.bridgemargin));
+  if(bmRows.length){
+    const badBm=bmRows.filter(r=>r.bridgemargin<25||(r.bridgegap!=null&&r.bridgegap<40));
+    if(badBm.length>=3){
+      const hitB=[...new Set(badBm.map(r=>r.board))];
+      add({lv:"ng",cat:"形貌缺陷",sig:{t:"morph",k:"bridgemargin",boards:hitB},
+        title:`焊墊橋接間距餘裕不足（共 ${badBm.length} 處 Bridge Margin < 25%）`,
+        ents:hitB.map(b=>"b:"+b),score:3.2,
+        rule_id:"形貌缺陷 BridgeMargin",rule_name:"橋接安全裕度不足",metric:"橋接裕度",
+        boards:fmtBoards(hitB.map(b=>boards.indexOf(b)).filter(i=>i>=0)),subboard:subOf(R),group:"ALL",refdes:"多個元件",
+        pads:badBm.slice(0,5).map(r=>`${r.board}:${r.pad}(${f(r.bridgemargin,1)}%)`).join("; ")+(badBm.length>5?` 等 ${badBm.length} 處`:""),
+        observed:topList(badBm.map(r=>`${r.board} ${r.pad}: 裕度 ${f(r.bridgemargin,1)}%${r.bridgegap!=null?`，間距 ${f(r.bridgegap,1)}µm`:""}`),10),
+        limit:"LSL = 25%（或間距 < 40µm）",z:"不適用",p:"不適用",
+        facts:[`全批共檢出 ${badBm.length} 處焊墊橋接安全裕度低於 25%（最窄 ${f(Math.min(...badBm.map(r=>r.bridgemargin)),1)}%）`],
+        cause:"鋼網開孔邊緣滲錫、開孔與焊墊間隙密封（Gasketing）不良、或下頂針支撐剛性不足導致印刷中下陷",conf:"高",action:"建議檢查鋼板底面清潔、更換擦拭溶劑，並在該元件下方補強頂針支撐",
+        ev:evSeries("volume",null,hitB,"橋接高風險焊墊",boards.map(()=>badBm.length)),go:{tab:"adv"}})
+    }
+  }
+
+  // 2. 形貌缺陷：脫模拉尖 (Peaking)
+  const pkRows=R.filter(r=>r.peaking!=null&&isFinite(r.peaking));
+  if(pkRows.length){
+    const badPk=pkRows.filter(r=>r.peaking>35);
+    if(badPk.length>=3){
+      const hitB=[...new Set(badPk.map(r=>r.board))];
+      add({lv:"warn",cat:"形貌缺陷",sig:{t:"morph",k:"peaking",boards:hitB},
+        title:`焊墊脫模拉尖超標（共 ${badPk.length} 處 Peaking > 35 µm）`,
+        ents:hitB.map(b=>"b:"+b),score:2.4,
+        rule_id:"形貌缺陷 Peaking",rule_name:"脫模拉尖突起",metric:"拉尖高",
+        boards:fmtBoards(hitB.map(b=>boards.indexOf(b)).filter(i=>i>=0)),subboard:subOf(R),group:"ALL",refdes:"多個元件",
+        pads:badPk.slice(0,5).map(r=>`${r.board}:${r.pad}(${f(r.peaking,1)}µm)`).join("; ")+(badPk.length>5?` 等 ${badPk.length} 處`:""),
+        observed:topList(badPk.map(r=>`${r.board} ${r.pad}: 拉尖 ${f(r.peaking,1)} µm`),10),
+        limit:"USL = 35 µm",z:"不適用",p:"不適用",
+        facts:[`全批共檢出 ${badPk.length} 處焊墊拉尖高度超過 35 µm（最高 ${f(Math.max(...badPk.map(r=>r.peaking)),1)} µm）`],
+        cause:"鋼網脫模分離速度過快、開孔孔壁粗糙（Laser Burr 未拋光）、或錫膏溶劑過度揮發黏度上升",conf:"中",action:"調降印刷機分離速度（Separation Speed，建議 0.5~1.0 mm/s），或更換新錫膏",
+        ev:evSeries("height",null,hitB,"拉尖超標焊墊",boards.map(()=>badPk.length)),go:{tab:"adv"}})
+    }
+  }
+
+  // 3. 停線時效衰退檢定
+  const pauseDecayRes=analyzePauseDecay(R,15);
+  if(pauseDecayRes&&pauseDecayRes.hasPause&&pauseDecayRes.avgVolumeDropPct>8){
+    const postB=pauseDecayRes.events.map(e=>e.postBoard);
+    add({lv:"warn",cat:"停線時效",sig:{t:"pause",k:"volume",boards:postB},
+      title:`停線後首片印刷品質顯著衰退（平均體積下降 ${pauseDecayRes.avgVolumeDropPct}%）`,
+      ents:postB.map(b=>"b:"+b),score:2.6,
+      rule_id:"停線時效 PauseDecay",rule_name:"停線首片揮發衰退",metric:"體積 %",
+      boards:postB.join("; "),subboard:subOf(R),group:"ALL",refdes:"全部元件",
+      pads:`停線後首片板（${postB.join("、")}），共 ${pauseDecayRes.events.length} 次停線`,
+      observed:pauseDecayRes.events.map(e=>`前板 ${e.prevBoard} 停線 ${e.pauseDurationMin} 分鐘 → 首板 ${e.postBoard}`).join("; "),
+      limit:`建議安全靜置上限 ≤ ${pauseDecayRes.safeDwellLimitMin} 分鐘`,z:"不適用",p:"不適用",
+      facts:[`檢出 ${pauseDecayRes.events.length} 次停線（≥ 15 分鐘），停線後首片焊墊平均體積較正常穩態板下降 ${pauseDecayRes.avgVolumeDropPct}%`],
+      cause:"錫膏長時間暴露於鋼網表面，溶劑揮發使黏度上升，導致脫模轉移效率驟降",conf:"高",action:`停線超過 ${pauseDecayRes.safeDwellLimitMin} 分鐘時，強制執行印刷機自動溶劑濕擦（Wet Wipe）與試刮印`,
+      ev:evSeries("volume",null,postB,"停線後首片體積",boards.map(b=>postB.includes(b)?100-pauseDecayRes.avgVolumeDropPct:100)),go:{tab:"adv"}})
+  }
+
+  // 4. 空間自相關與群聚 (LISA)
+  const realPtsList=R.filter(r=>realXY(r)&&r.volume!=null&&isFinite(r.volume));
+  if(realPtsList.length>=10){
+    const grpMeans={};
+    for(let i=0;i<realPtsList.length;i++){
+      const r=realPtsList[i];
+      (grpMeans[r.group]=grpMeans[r.group]||[]).push(r.volume);
+    }
+    for(const g in grpMeans){
+      const arr=grpMeans[g];
+      grpMeans[g]=arr.reduce((s,x)=>s+x,0)/arr.length;
+    }
+    const padResMap=new Map();
+    for(let i=0;i<realPtsList.length;i++){
+      const r=realPtsList[i];
+      let it=padResMap.get(r.pad);
+      if(!it)padResMap.set(r.pad,it={pad:r.pad,x:r.x,y:r.y,resSum:0,cnt:0});
+      it.resSum+=(r.volume-(grpMeans[r.group]||0));
+      it.cnt++;
+    }
+    let padPoints=[];
+    for(const p of padResMap.values())padPoints.push({pad:p.pad,x:p.x,y:p.y,val:p.resSum/p.cnt});
+    if(padPoints.length>500){
+      const step=Math.ceil(padPoints.length/500);
+      padPoints=padPoints.filter((_,idx)=>idx%step===0);
+    }
+    if(padPoints.length>=10){
+      const sa=calcMoranAndLISA(padPoints,6);
+      if(sa.valid&&sa.isSignificant&&(sa.counts.HH>=3||sa.counts.LL>=3)){
+        add({lv:"warn",cat:"空間群聚",sig:{t:"spatial",k:"volume"},
+          title:`焊墊呈現顯著空間群聚效應（Moran's I = ${sa.moranI}，Z = ${sa.zScore}）`,
+          ents:[],score:2.5,
+          rule_id:"空間自相關 MoranLISA",rule_name:"局部空間聚集 (LISA)",metric:"體積 %",
+          boards:"全部板",subboard:subOf(R),group:"ALL",refdes:"多個元件",
+          pads:`高錫量熱區 (HH) ${sa.counts.HH} 處，低錫量冷區 (LL) ${sa.counts.LL} 處`,
+          observed:`全局 Moran's I = ${sa.moranI} (Z-score = ${sa.zScore} > 2.58)`,
+          limit:"Z ≤ 2.58（無顯著群聚）",z:String(sa.zScore),p:"p < 0.01",
+          facts:[`焊墊印刷體積在板面空間非隨機分佈：檢出 ${sa.counts.HH} 處高錫量相鄰熱區與 ${sa.counts.LL} 處低錫量相鄰冷區`],
+          cause:"PCB 局部壓合下陷或缺乏下頂針支撐（冷區），或載具局部鼓起/頂針過高頂起 PCB（熱區）",conf:"高",action:"對照進階分析頁之 LISA 空間聚類分佈圖，檢查冷區下方是否懸空未落頂針，或熱區頂針高度是否過高",
+          ev:evSeries("volume",null,[],"空間群聚程度",boards.map(()=>sa.moranI)),go:{tab:"adv"}})
+      }
+    }
+  }
 
   // D-29 佐證與同一現象：只有來自不同證據族（FAMILY）且非衍生關係的發現才互相佐證；
   // 同期間、同量測項目的 Nelson 卡與趨勢／單板／孤立極端焊墊卡，或同族／衍生關係（MC.derived 為真時的 volume 與 hpct/area）列為 same_phenomenon
@@ -3590,7 +4246,7 @@ function issuesXlsx(F){
   ]);
 }
 
-if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter};
+if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection};
 </script>
 <script>
 "use strict";
@@ -3912,6 +4568,7 @@ if($("#selXrMode"))$("#selXrMode").onchange=e=>{S.xrMode=e.target.value;recomput
 $("#selPad").onchange=e=>{S.pad=e.target.value;recompute()};
 if($("#btnStatsCsv"))$("#btnStatsCsv").onclick=()=>save("spi-stats-anomalies.csv",statsDataCsv(S));
 if($("#selBoxGroup"))$("#selBoxGroup").onchange=e=>{S.boxGroup=e.target.value;renderCap()};
+if($("#selCapDist"))$("#selCapDist").onchange=e=>{S.capDistMode=e.target.value;S.A=analyze(S);renderCap()};
 if($("#selParetoDim"))$("#selParetoDim").onchange=e=>{S.paretoDim=e.target.value;drawPareto("cOvPareto",e.target.value)};
 /* WAI-ARIA 頁籤：關聯面板、方向鍵切換、只有目前頁籤可 Tab 聚焦 */
 $$(".tab").forEach(t=>{const p=$("#p-"+t.dataset.tab);t.id="tab-"+t.dataset.tab;t.setAttribute("aria-controls","p-"+t.dataset.tab);if(p)p.setAttribute("aria-labelledby",t.id);t.onclick=()=>setTab(t.dataset.tab)});
@@ -4121,6 +4778,38 @@ function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
     kpi("製程能力", "無法定義", cap.reason, "warn") + (isFinite(cap.ppmObs) ? kpi(`超規 PPM（${specTitle}）`,fmtPpm(cap.ppmObs),"實際超規比例",cap.ppmObs>2700?"ng":cap.ppmObs>63?"warn":"ok") : "")
   ) : kpi("規格","未設定","請於上方輸入 LSL / USL");
   $("#capKpis").innerHTML = unitWarn + cpkPpkNotice + capCards;
+
+  // 非常態分佈模型狀態與卡片渲染
+  const nn = A.nonNormal;
+  const selDist = $("#selCapDist");
+  if (selDist) selDist.value = S.capDistMode || "auto";
+  const nnCard = $("#capNonNormalCard");
+  if (nnCard) {
+    if (nn && nn.valid) {
+      nnCard.hidden = false;
+      const isIso = nn.method === "ISO-Percentile";
+      const fitDetail = isIso
+        ? `X0.135% = ${f(nn.x00135,1)}，X50% = ${f(nn.x50,1)}，X99.865% = ${f(nn.x99865,1)}`
+        : nn.method === "Johnson"
+        ? `Johnson ${nn.family}（AD p = ${f(nn.adP, 3)}）`
+        : `Box-Cox（λ = ${nn.lambda}，AD p = ${f(nn.adP, 3)}）`;
+      const ppkVal = f(nn.ppk);
+      const ppmVal = fmtPpm(nn.ppmExp || nn.ppmObs);
+      const isSkewed = Math.abs(A.sk.skew) > 0.5 || (A.ad && A.ad.p < 0.05);
+      nnCard.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <h4 style="margin:0 0 4px"><span class="pill ${capCls(nn.ppk)}">${nn.method}</span> 非常態製程能力分析 <small>${fitDetail}</small></h4>
+          <p class="note" style="margin:0">${isSkewed ? `⚠️ 原始數據偏離常態分佈（偏態 ${f(A.sk.skew, 2)}），常態 Cpk 可能失真；建議依 ${nn.method} 評估能力。` : `數據經 ${nn.method} 檢驗轉換，提供非對稱公差之等效能力評估。`}</p>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center">
+          <div style="text-align:right"><span class="note">轉換等效 Ppk</span><div class="num" style="font-size:18px;font-weight:600">${ppkVal}</div></div>
+          <div style="text-align:right"><span class="note">等效預估 PPM</span><div class="num" style="font-size:18px;font-weight:600">${ppmVal}</div></div>
+        </div>
+      </div>`;
+    } else {
+      nnCard.hidden = true;
+    }
+  }
   const all=A.rows.map(r=>r[A.m]).sort((a,b)=>a-b),n=all.length,iqr=quant(all,.75)-quant(all,.25);
   let bw=2*iqr/Math.cbrt(n)||1;const lo=Math.min(all[0],A.hasSpec?A.sp.lsl:all[0]),hi=Math.max(all[n-1],A.hasSpec?A.sp.usl:all[n-1]);let nb=Math.ceil((all[n-1]-all[0])/bw);if(nb>45){bw=(all[n-1]-all[0])/45;nb=45}if(nb<8){bw=(all[n-1]-all[0])/8||1;nb=8}
   const bins=Array.from({length:nb},(_,i)=>({x:all[0]+bw*(i+.5),y:0}));all.forEach(v=>{const i=Math.min(nb-1,Math.floor((v-all[0])/bw));bins[i].y++});
@@ -4342,8 +5031,10 @@ function renderAdv(){const A=S.A;V=advAnalyze(S,A);const ink=css("--muted"),grid
   mk("cWipe",{type:"bar",data:{labels:W.rows.map(w=>"第 "+w.k+" 片"),datasets:[{data:W.rows.map(w=>w.mean),backgroundColor:css("--series2")+"AA",yAxisID:"y",order:2},{type:"line",data:W.rows.map(w=>w.p*100),borderColor:css("--accent"),pointRadius:3,borderWidth:1.6,yAxisID:"y2",order:1}]},
     options:baseOpts({scales:{x:{ticks:{color:ink,font:{size:11}},grid:{display:false}},y:{...ax(METRICS[A.m].short+" 平均"),min:Math.min(...W.rows.map(w=>w.mean))-Math.max(1,A.overallSd*.3)},y2:{position:"right",min:0,ticks:{color:ink,callback:v=>v+"%",font:{family:"IBM Plex Mono",size:10}},grid:{display:false},title:{display:true,text:"不良率",color:ink,font:{size:11}}}},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>i.datasetIndex?"不良率 "+f(i.raw,2)+" %":"平均 "+f(i.raw,2)+" "+METRICS[A.m].unit}}}})});
-  $("#wipeTxt").innerHTML=`<span class="pill ${W.p<.05?"warn":"ok"}">${W.p<.05?"與擦拭週期相關":"無明顯相關"}</span> 每多印 1 片變化 <b class="mono">${f(W.slope,2)}</b> ${METRICS[A.m].unit}，r = ${f(W.r,2)}，p = <b class="mono">${W.p<.001?"< 0.001":f(W.p,3)}</b>`;
   renderHotellingT2UI();
+  renderMorphologyUI();
+  renderPauseDecayUI();
+  renderLISAUI();
 }
 
 function getT2BoardsData(rows, dims){
@@ -4450,6 +5141,204 @@ if ($("#btnT2Freeze")) $("#btnT2Freeze").onclick = () => {
   }
   renderHotellingT2UI();
 };
+
+function renderMorphologyUI(){
+  const R = S.rows || [];
+  const bmRows = R.filter(r => r.bridgemargin != null && isFinite(r.bridgemargin));
+  const pkRows = R.filter(r => r.peaking != null && isFinite(r.peaking));
+  const cpRows = R.filter(r => r.coplanarity != null && isFinite(r.coplanarity));
+  const cvRows = R.filter(r => r.coverage != null && isFinite(r.coverage));
+
+  const kpisEl = $("#morphKpis");
+  const subEl = $("#morphSub");
+  const tblEl = $("#morphTbl");
+  if (!kpisEl || !tblEl) return;
+
+  const hasMorph = bmRows.length > 0 || pkRows.length > 0 || cpRows.length > 0 || cvRows.length > 0;
+  if (!hasMorph) {
+    if (subEl) subEl.textContent = "此資料未包含 3D 形貌特徵欄位（BridgeMargin / Peaking / Coplanarity / Coverage）";
+    kpisEl.innerHTML = `<span class="note">此匯入檔案未包含 3D 形貌特徵欄位；若 SPI 機台支援輸出焊墊間隙、表面平整度或拉尖高度，可於資料匯入時對應。</span>`;
+    tblEl.innerHTML = `<tbody><tr><td class="note">無形貌資料</td></tr></tbody>`;
+    return;
+  }
+
+  const minBm = bmRows.length ? Math.min(...bmRows.map(r => r.bridgemargin)) : NaN;
+  const maxPk = pkRows.length ? Math.max(...pkRows.map(r => r.peaking)) : NaN;
+  const avgCp = cpRows.length ? mean(cpRows.map(r => r.coplanarity)) : NaN;
+  const avgCv = cvRows.length ? mean(cvRows.map(r => r.coverage)) : NaN;
+
+  if (subEl) subEl.textContent = `檢測 ${bmRows.length} 處間距、${pkRows.length} 處拉尖`;
+  kpisEl.innerHTML =
+    kpi("最小橋接餘裕", isFinite(minBm) ? f(minBm, 1) + " %" : "—", "目標 ≥ 25%（焊墊間最短間隙）", minBm < 25 ? "ng" : minBm < 35 ? "warn" : "ok") +
+    kpi("最大脫模拉尖", isFinite(maxPk) ? f(maxPk, 1) + " µm" : "—", "規格 ≤ 35 µm（頂部突起毛刺）", maxPk > 35 ? "ng" : maxPk > 25 ? "warn" : "ok") +
+    kpi("平均共面性", isFinite(avgCp) ? f(avgCp, 1) + " µm" : "—", "表面高低差", "ok") +
+    kpi("平均覆蓋率", isFinite(avgCv) ? f(avgCv, 1) + " %" : "—", "焊墊同心覆蓋面積比", avgCv < 80 ? "warn" : "ok");
+
+  const badMorph = R.filter(r => (r.bridgemargin != null && r.bridgemargin < 35) || (r.peaking != null && r.peaking > 25))
+    .sort((a, b) => (a.bridgemargin ?? 100) - (b.bridgemargin ?? 100) || (b.peaking ?? 0) - (a.peaking ?? 0))
+    .slice(0, 15);
+
+  tblEl.innerHTML = badMorph.length ? `<thead><tr><th>板號</th><th>位號 / 焊墊</th><th>群組</th><th class="num">橋接餘裕 %</th><th class="num">拉尖 µm</th><th class="num">共面性 µm</th><th class="num">覆蓋率 %</th><th>狀態</th></tr></thead><tbody>`
+    + badMorph.map(r => {
+      const bmNg = r.bridgemargin != null && r.bridgemargin < 25;
+      const pkNg = r.peaking != null && r.peaking > 35;
+      const st = (bmNg || pkNg) ? '<span class="pill ng">高風險</span>' : '<span class="pill warn">注意</span>';
+      return `<tr><td class="mono">${r.board}</td><td class="mono">${r.pad}</td><td>${r.group}</td>
+        <td class="num mono" style="${bmNg ? 'color:var(--ng)' : ''}">${r.bridgemargin != null ? f(r.bridgemargin, 1) : '—'}</td>
+        <td class="num mono" style="${pkNg ? 'color:var(--ng)' : ''}">${r.peaking != null ? f(r.peaking, 1) : '—'}</td>
+        <td class="num mono">${r.coplanarity != null ? f(r.coplanarity, 1) : '—'}</td>
+        <td class="num mono">${r.coverage != null ? f(r.coverage, 1) : '—'}</td>
+        <td>${st}</td></tr>`;
+    }).join("") + `</tbody>` : `<tbody><tr><td class="note">全批焊墊形貌特徵均符合標準規範（無橋接餘裕 &lt; 35% 或拉尖 &gt; 25 µm）。</td></tr></tbody>`;
+}
+
+function renderPauseDecayUI(){
+  const A = S.A;
+  const pauseRes = (A && A.pauseDecay) || analyzePauseDecay(S.rows, S.pauseThreshold || 15);
+  const msgEl = $("#pauseMsg");
+  const subEl = $("#pauseSub");
+  const tblEl = $("#pauseTbl");
+  if (!msgEl || !tblEl) return;
+
+  if (!pauseRes || !pauseRes.hasPause) {
+    if (subEl) subEl.textContent = "未檢出停線事件（停機間隔均 < 15 分鐘）";
+    msgEl.innerHTML = `<span class="pill ok">連續生產</span> <span class="note">${pauseRes && pauseRes.reason ? esc(pauseRes.reason) : "本批印刷未發生超過 15 分鐘之停線中斷，錫膏維持穩態連續滾動。"}</span>`;
+    tblEl.innerHTML = `<tbody><tr><td class="note">無停線事件紀錄</td></tr></tbody>`;
+    return;
+  }
+
+  const drop = pauseRes.avgVolumeDropPct;
+  const isNg = drop > 8;
+  if (subEl) subEl.textContent = `共 ${pauseRes.events.length} 次停線（≥15分）· 建議靜置上限 ≤ ${pauseRes.safeDwellLimitMin} 分鐘`;
+  msgEl.innerHTML = `<span class="pill ${isNg ? 'ng' : 'ok'}">${isNg ? `首片平均體積下降 ${drop}%` : '停線影響輕微'}</span> `
+    + `<span class="note">建議鋼板安全靜置時間上限 ≤ <b class="mono">${pauseRes.safeDwellLimitMin}</b> 分鐘 · 處置：${esc(pauseRes.recommendedAction)}</span>`;
+
+  tblEl.innerHTML = `<thead><tr><th>事件</th><th>停線前最後板</th><th class="num">停線間隔 (分)</th><th>停線後第一板</th><th>處置指示</th></tr></thead><tbody>`
+    + pauseRes.events.map((e, idx) => `<tr>
+      <td class="num mono">#${idx + 1}</td>
+      <td class="mono">${e.prevBoard}</td>
+      <td class="num mono" style="${e.pauseDurationMin > pauseRes.safeDwellLimitMin ? 'color:var(--ng);font-weight:600' : ''}">${e.pauseDurationMin}</td>
+      <td class="mono">${e.postBoard}</td>
+      <td>${e.pauseDurationMin > pauseRes.safeDwellLimitMin ? '<span class="pill warn">強制執行溶劑擦拭</span>' : '<span class="pill ok">常態印刷</span>'}</td>
+    </tr>`).join("") + `</tbody>`;
+}
+
+function renderLISAUI(){
+  const A = S.A;
+  const sa = (A && A.spatialAutocorr) || { valid: false, reason: "有效座標數不足" };
+  const msgEl = $("#lisaMsg");
+  const subEl = $("#lisaSub");
+  const cv = $("#cLISA");
+  if (!msgEl || !cv) return;
+
+  if (!sa.valid) {
+    if (subEl) subEl.textContent = "座標或資料不足，無法計算空間自相關";
+    msgEl.innerHTML = `<span class="pill na">未啟用</span> <span class="note">${esc(sa.reason)}</span>`;
+    const ctx = cv.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, cv.width, cv.height);
+    return;
+  }
+
+  const isSig = sa.isSignificant;
+  if (subEl) subEl.textContent = `Moran's I = ${sa.moranI} · Z = ${sa.zScore} · ${isSig ? "空間顯著群聚" : "空間隨機分佈"}`;
+  msgEl.innerHTML = `<span class="pill ${isSig ? 'warn' : 'ok'}">${isSig ? `顯著空間群聚 (Z=${sa.zScore})` : '空間隨機無群聚'}</span> `
+    + `<span class="note">熱點 (HH): ${sa.counts.HH} 處 · 冷點 (LL): ${sa.counts.LL} 處 · 空間離群: ${sa.counts.LH + sa.counts.HL} 處</span>`;
+
+  const ctx = cv.getContext("2d");
+  if (!ctx) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  const W = rect.width > 50 ? rect.width : 600;
+  const H = rect.height > 50 ? rect.height : 320;
+  cv.width = W * dpr;
+  cv.height = H * dpr;
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const pts = sa.lisa || [];
+  if (!pts.length) { ctx.restore(); return; }
+
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const pad = 24;
+  const spanX = Math.max(maxX - minX, 1);
+  const spanY = Math.max(maxY - minY, 1);
+
+  const colorMap = {
+    HH: "#ef4444",
+    LL: "#3b82f6",
+    LH: "#93c5fd",
+    HL: "#f97316",
+    NS: "rgba(148, 163, 184, 0.45)"
+  };
+
+  for (const p of pts) {
+    const px = pad + ((p.x - minX) / spanX) * (W - 2 * pad);
+    const py = H - pad - ((p.y - minY) / spanY) * (H - 2 * pad);
+    ctx.beginPath();
+    const r = p.quad === "NS" ? 3 : 5.5;
+    ctx.arc(px, py, r, 0, 2 * Math.PI);
+    ctx.fillStyle = colorMap[p.quad] || colorMap.NS;
+    ctx.fill();
+    if (p.quad !== "NS") {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function renderClosedLoopUI(){
+  const A = S.A;
+  const pc = (A && A.printerCorr) || calcPrinterCorrection(S.rows);
+  const kpisEl = $("#printerCorrKpis");
+  const subEl = $("#printerCorrSub");
+  const noteEl = $("#printerCorrNote");
+  const btnExport = $("#btnExportCorrectionJson");
+  if (!kpisEl) return;
+
+  if (!pc || !pc.valid) {
+    if (subEl) subEl.textContent = "資料不足，無法計算閉環補償";
+    kpisEl.innerHTML = `<span class="note">無有效偏移量測數據，需匯入包含 offx / offy 之 SPI 資料。</span>`;
+    return;
+  }
+
+  const cx = pc.correction.offsetX_um;
+  const cy = pc.correction.offsetY_um;
+  const ct = pc.correction.offsetTheta_deg;
+  const cleanTriggered = pc.stencilCleaning.triggerClean;
+
+  if (subEl) subEl.textContent = `評估板別：${pc.evaluatedBoards.join("、")} · 阻尼係數 ${pc.damping} · 上限 ±20 µm`;
+  kpisEl.innerHTML =
+    kpi("ΔX 補償量", `${cx > 0 ? "+" : ""}${cx} µm`, Math.abs(cx) >= 20 ? "⚠️ 已達 Clamp 最大安全上限" : "印刷機 X 軸即時微調", Math.abs(cx) >= 20 ? "warn" : Math.abs(cx) >= 5 ? "warn" : "ok") +
+    kpi("ΔY 補償量", `${cy > 0 ? "+" : ""}${cy} µm`, Math.abs(cy) >= 20 ? "⚠️ 已達 Clamp 最大安全上限" : "印刷機 Y 軸即時微調", Math.abs(cy) >= 20 ? "warn" : Math.abs(cy) >= 5 ? "warn" : "ok") +
+    kpi("Δθ 補償角度", `${ct > 0 ? "+" : ""}${ct} °`, "旋轉角即時微調", Math.abs(ct) >= 0.02 ? "warn" : "ok") +
+    kpi("動態鋼板清潔", cleanTriggered ? "觸發擦拭" : "維持常態", cleanTriggered ? "AGI 滲錫累積超標，建議 WET_VACUUM" : "開孔邊緣滲錫量在受控範圍", cleanTriggered ? "ng" : "ok");
+
+  if (noteEl) {
+    noteEl.textContent = pc.actionRecommended === "APPLY_ON_NEXT_BOARD"
+      ? "建議將補償值套用於下一片印刷板；死區門檻：|ΔX|,|ΔY| < 3µm, |Δθ| < 0.005° 靜音。"
+      : "目前對位狀態優良，維持現有設定即可。";
+  }
+
+  if (btnExport) {
+    btnExport.onclick = () => {
+      const payload = {
+        timestamp: fmtNowUtc8(),
+        version: "RFC-SPI-2026-001",
+        evaluatedBoards: pc.evaluatedBoards,
+        damping: pc.damping,
+        correction: pc.correction,
+        stencilCleaning: pc.stencilCleaning,
+        actionRecommended: pc.actionRecommended
+      };
+      save("printer-correction.json", JSON.stringify(payload, null, 2));
+    };
+  }
+}
 function drawVec(){const cv=$("#vecCv");if(!cv.offsetParent)return;const ctx=cv.getContext("2d"),b=$("#selAlignBoard").value,a=V&&V.align.find(x=>x.board===b),rs=S.rows.filter(r=>r.board===b&&(S.group==="ALL"||r.group===S.group)&&r.offx!=null),k=+$("#inVec").value/1000;
   const X=mapXf(cv);ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle=css("--surface2");ctx.fillRect(0,0,cv.width,cv.height);
   const arrow=(x,y,dx,dy,col,w)=>{const[px,py]=X.toPx(x,y),[qx,qy]=X.toPx(x+dx*k,y+dy*k);ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(qx,qy);ctx.stroke();const an=Math.atan2(qy-py,qx-px),hl=Math.min(9,Math.hypot(qx-px,qy-py)*.4);ctx.beginPath();ctx.moveTo(qx,qy);ctx.lineTo(qx-hl*Math.cos(an-.45),qy-hl*Math.sin(an-.45));ctx.lineTo(qx-hl*Math.cos(an+.45),qy-hl*Math.sin(an+.45));ctx.fill()};
@@ -4532,6 +5421,7 @@ function renderDfm(){const D=dfmTable(S);DFM=D;const r=curRun();
     options:baseOpts({indexAxis:"y",plugins:{legend:{display:false},vlines:{lines:[{v:2,c:css("--warn"),t:"中"},{v:4,c:css("--ng"),t:"高"}]}},scales:{x:{stacked:true,ticks:{color:css("--muted"),font:{family:"IBM Plex Mono",size:10}},grid:{color:css("--grid")},title:{display:true,text:"風險分數",color:css("--muted"),font:{size:11}}},y:{stacked:true,ticks:{color:css("--muted"),font:{size:11}},grid:{display:false}}}})});
   const PF=S.F.filter(x=>x.cat==="焊墊位置");
   $("#dfmPads").innerHTML=PF.length?`<thead><tr><th>群組／項目</th><th>焊墊與數值</th></tr></thead><tbody>${PF.map(x=>`<tr><td>${esc(x.title)}</td><td class="note">${x.facts.map(esc).join("<br>")}</td></tr>`).join("")}</tbody>`:'<tbody><tr><td class="note">沒有長期偏離的個別焊墊位置。</td></tr></tbody>';
+  renderClosedLoopUI();
 }
 function dfmRows(){return DFM||dfmTable(S)}
 $("#btnDfmCsv").onclick=()=>save("stencil-dfm.csv",toCSV([["rank","group","aperture_mm","source","stencil_um","area_ratio","aspect_ratio","max_thk_for_AR066_um","transfer_eff_pct","cv_pct","robust_cpk","defect_ppm","risk","actions"],
@@ -4714,7 +5604,11 @@ function build3D(){renderBoard2D();if(!T.ok||!window.THREE||!T||!T.root||!T.root
     const cu=new THREE.Mesh(r.shape==="round"?new THREE.CylinderGeometry(r.w/2,r.w/2,0.06,20):new THREE.BoxGeometry(r.w,0.06,r.d),cuMat.clone());cu.position.set(x,0.03,z);T.root.add(cu);
     const thk=S.step.on?padThk(r,S):hs.tgt,half=S.step.on?thk*(S.htol.hi-S.htol.lo)/200:(hs.usl-hs.lsl)/2;
     let col;if(S.colorMode==="status")col=statusCol(r);else if(S.colorMode==="height")col=divColor(((r.height??thk)-thk)/half);else col=divColor(((r.volume??vs.tgt)-vs.tgt)/((vs.usl-vs.lsl)/2));
-    const geo=ap.shape==="round"?new THREE.CylinderGeometry(w/2*.92,w/2,h,20):new THREE.BoxGeometry(w,h,d);
+    const hasPk = r.peaking != null && r.peaking > 20;
+    const topFactor = hasPk ? Math.max(0.4, 0.92 - (r.peaking - 20) / 60) : 0.92;
+    const geo = ap.shape === "round"
+      ? new THREE.CylinderGeometry(w / 2 * topFactor, w / 2, h, 20)
+      : new THREE.BoxGeometry(w, h, d);
     const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(col),roughness:.55,metalness:.15}));m.position.set(x+dx,0.06+h/2,z+dz);m.userData=r;T.root.add(m);T.meshes.push(m);
     if(S.ghost){const gh=thk*ex,gg=ap.shape==="round"?new THREE.CylinderGeometry(ap.L/2,ap.L/2,gh,16):new THREE.BoxGeometry(ap.L,gh,ap.W);const e=new THREE.LineSegments(new THREE.EdgesGeometry(gg),new THREE.LineBasicMaterial({color:0x9aa3a0,transparent:true,opacity:.45}));gg.dispose();e.position.set(x,0.06+gh/2,z);T.root.add(e)}}
   if(S.step.on)S.step.zones.forEach((z,i)=>{const R=zoneRect(z);if(!R)return;const w=R.x1-R.x0,d=R.y1-R.y0,col=new THREE.Color(ZCOL[i%ZCOL.length]);
@@ -4724,7 +5618,11 @@ function build3D(){renderBoard2D();if(!T.ok||!window.THREE||!T||!T.root||!T.root
   if(typeof scheduleUpdatePrint3D==="function")scheduleUpdatePrint3D();
 }
 function pick(e){if(!T.ok||!window.THREE||!T.cam)return;const el=$("#view3d"),rc=el.getBoundingClientRect(),v=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(v,T.cam);const hit=ray.intersectObjects(T.meshes||[])[0];if(!hit)return;const r=hit.object.userData,d=classify(r,S.specs,S);
-  $("#hud").innerHTML=`<b>${r.board} · ${r.pad}</b>（${r.group}）<br>體積 <b>${f(r.volume,1)}%</b> · 高度 <b>${f(r.height,1)}µm</b> · 面積 <b>${f(r.area,1)}%</b><br>偏移 X <b>${f(r.offx,0)}</b> / Y <b>${f(r.offy,0)}</b> µm<br>鋼板 <b>${padThk(r,S)} µm</b>${zoneOf(r,S)?"（"+zoneOf(r,S).name+"）":""} · 高度 <b>${f(r.height/padThk(r,S)*100,0)}%</b> 厚度<br>${d.length?d.map(c=>DEFECTS[c]).join("、"):"規格內"}`}
+  const morphTxt = (r.bridgemargin != null ? ` · 橋接餘裕 <b>${f(r.bridgemargin, 1)}%</b>` : "")
+    + (r.peaking != null ? ` · 拉尖 <b>${f(r.peaking, 1)} µm</b>` : "")
+    + (r.coplanarity != null ? ` · 共面性 <b>${f(r.coplanarity, 1)} µm</b>` : "")
+    + (r.coverage != null ? ` · 覆蓋率 <b>${f(r.coverage, 1)}%</b>` : "");
+  $("#hud").innerHTML=`<b>${r.board} · ${r.pad}</b>（${r.group}）<br>體積 <b>${f(r.volume,1)}%</b> · 高度 <b>${f(r.height,1)}µm</b> · 面積 <b>${f(r.area,1)}%</b><br>偏移 X <b>${f(r.offx,0)}</b> / Y <b>${f(r.offy,0)}</b> µm<br>鋼板 <b>${padThk(r,S)} µm</b>${zoneOf(r,S)?"（"+zoneOf(r,S).name+"）":""} · 高度 <b>${f(r.height/padThk(r,S)*100,0)}%</b> 厚度${morphTxt}<br>${d.length?d.map(c=>DEFECTS[c]).join("、"):"規格內"}`}
 /* three.js 只在第一次開啟 3D 頁籤時載入（約 600 KB），先用網站自帶檔，沒有才用 CDN */
 let threeP=null;
 function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;let done=false;const tm=setTimeout(()=>{if(done)return;done=true;s.remove();no(new Error("載入腳本逾時: "+src))},2500);s.onload=()=>{if(done)return;done=true;clearTimeout(tm);ok()};s.onerror=()=>{if(done)return;done=true;clearTimeout(tm);s.remove();no(new Error(src))};document.head.appendChild(s)})}
