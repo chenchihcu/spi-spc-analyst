@@ -548,7 +548,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.11.0</b> · 更新 <b class="num" id="appBuilt">2026-10-16 22:45:00</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.12.0</b> · 更新 <b class="num" id="appBuilt">2026-10-18 13:00:00</b></span>
   </div>
   <div class="row toprow">
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
@@ -733,6 +733,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <button data-v="status" aria-pressed="true">判定</button><button data-v="height">高度偏差</button><button data-v="volume">體積偏差</button></div></div>
       <div class="field"><label for="inExag">高度放大 <span id="exagOut" class="num">20×</span></label><input type="range" id="inExag" min="5" max="60" step="1" value="20"></div>
       <label class="row" style="font-size:13px"><input type="checkbox" id="chkGhost" checked> 顯示鋼板開孔標稱外框</label>
+      <label class="row" style="font-size:13px"><input type="checkbox" id="chkBridgeWarn" checked> 標示橋接警戒圈</label>
     </div>
     <div class="legend" id="leg3d" style="margin-top:10px"></div>
     <div class="view3d" id="view3d" aria-label="錫膏沉積 3D 模擬，拖曳旋轉、滾輪縮放、點選焊墊看數據">
@@ -741,9 +742,22 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <p class="note">模擬依量測值重建：底面積按 Area% 等比縮放開孔尺寸，高度按 Height 乘以放大倍率；灰色外框高度＝您輸入的鋼板厚度，屬視覺化近似，非實際 3D 點雲。</p>
   </div>
   <div class="grid2">
-    <div class="card"><h3>本板不良焊墊 <small id="boardDefSub"></small></h3><div class="tbl" style="max-height:320px;overflow:auto"><table id="boardDefTbl"></table></div></div>
-    <div class="card"><h3>本板 vs 全體 <small>各元件群組平均</small></h3><div class="chartbox"><canvas id="cBoardCmp" role="img" aria-label="本板與全體比較"></canvas></div></div>
+    <div class="card" id="csCard">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">焊墊 2D 剖面切片 <small id="csPadTitle">點選 3D 焊墊查看</small></h3>
+        <div class="seg" id="segCsAxis">
+          <button type="button" data-axis="X" aria-pressed="true">X 軸剖面</button>
+          <button type="button" data-axis="Y" aria-pressed="false">Y 軸剖面</button>
+        </div>
+      </div>
+      <div style="position:relative;background:#0d1117;border-radius:6px;padding:8px">
+        <canvas id="cProfile" width="460" height="190" role="img" aria-label="焊墊 2D 剖面切片曲線圖" style="display:block;width:100%;height:auto"></canvas>
+      </div>
+      <div id="csLegend" style="font-size:12px;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;color:var(--muted)"></div>
+    </div>
+    <div class="card"><h3>本板不良焊墊 <small id="boardDefSub"></small></h3><div class="tbl" style="max-height:280px;overflow:auto"><table id="boardDefTbl"></table></div></div>
   </div>
+  <div class="card"><h3>本板 vs 全體 <small>各元件群組平均</small></h3><div class="chartbox"><canvas id="cBoardCmp" role="img" aria-label="本板與全體比較"></canvas></div></div>
 </section>
 
 <section class="panel" id="p-cross" role="tabpanel" hidden>
@@ -1580,7 +1594,7 @@ const DEFECTS={MNG:"機台判 NG（其他條件）",INS:"少錫（體積 < LSL�
 const ALL_GRP="__ALL__";
 const isAllGrp=g=>g===ALL_GRP||g==="ALL";
 const realXY=r=>Boolean(r&&!r.gridPos&&isFinite(r.x)&&isFinite(r.y));
-const S={rows:[],metrics:[],metric:"volume",group:ALL_GRP,chart:"xbars",pad:null,board:null,specSrc:"custom",specsCustom:null,specsG:null,sqDir:"Y",specs:JSON.parse(JSON.stringify(DEF_SPECS)),stencil:120,htol:{lo:75,hi:125},step:{on:false,zones:[{id:1,name:"BGA 減薄區",mode:"group",group:"U2 BGA",x0:36,y0:8,x1:48,y1:20,t:100}]},selZone:1,wipe:5,aperture:{groups:{}},source:"範例資料",tab:"issues",F:[],issLv:"all",issCat:"all",issEnt:null,ctx:null,colorMode:"status",exag:20,ghost:true,A:null,ai:""};
+const S={rows:[],metrics:[],metric:"volume",group:ALL_GRP,chart:"xbars",pad:null,board:null,specSrc:"custom",specsCustom:null,specsG:null,sqDir:"Y",specs:JSON.parse(JSON.stringify(DEF_SPECS)),stencil:120,htol:{lo:75,hi:125},step:{on:false,zones:[{id:1,name:"BGA 減薄區",mode:"group",group:"U2 BGA",x0:36,y0:8,x1:48,y1:20,t:100}]},selZone:1,wipe:5,aperture:{groups:{}},source:"範例資料",tab:"issues",F:[],issLv:"all",issCat:"all",issEnt:null,ctx:null,colorMode:"status",exag:20,ghost:true,bridgeWarn:true,csAxis:"X",selectedPad:null,A:null,ai:""};
 
 /* 階梯鋼板：由上而下第一個符合的區域生效，否則用基礎厚度 */
 function zoneOf(r,st){if(!st.step||!st.step.on)return null;for(const z of st.step.zones){if(!(z.t>0))continue;
@@ -5524,7 +5538,7 @@ $("#grrM").onchange=e=>{S.grrM=e.target.value;renderGRR()};
 /* ---------- 3D ---------- */
 const T={ok:false};
 function set3DCtrls(on){
-  ["#selBoard","#btnWorst","#btnPlay","#inExag","#chkGhost"].forEach(q=>{const el=$(q);if(el)el.disabled=!on});
+  ["#selBoard","#btnWorst","#btnPlay","#inExag","#chkGhost","#chkBridgeWarn"].forEach(q=>{const el=$(q);if(el)el.disabled=!on});
   $$("#segColor button").forEach(b=>b.disabled=!on);
 }
 function show3DFallback(msg){
@@ -5536,6 +5550,141 @@ function show3DFallback(msg){
 function clear3DFallback(){
   const fb=$("#view3d .webgl-fallback");if(fb)fb.remove();
 }
+function drawCrossSectionProfile(r){
+  const cvs=$("#cProfile");
+  if(!cvs||!cvs.getContext)return;
+  const ctx=cvs.getContext("2d");
+  if(!ctx||typeof ctx.fillRect!=="function")return;
+  const W=cvs.width,H=cvs.height;
+  try{
+    ctx.clearRect(0,0,W,H);
+    if(!r){
+      ctx.fillStyle="#6b7280";ctx.font="12px sans-serif";ctx.textAlign="center";
+      ctx.fillText("請在 3D 視圖點選焊墊查看剖面曲線",W/2,H/2);
+      return;
+    }
+    const axis=S.csAxis||"X";
+    const ap=aperture(r,S);
+    const thk=S.step.on?padThk(r,S):S.specs.height.tgt;
+    const hs=S.specs.height;
+    const hActual=r.height!=null?r.height:hs.tgt;
+    const pk=r.peaking||0;
+    const off=axis==="X"?(r.offx||0):(r.offy||0);
+    const nomW_mm=axis==="X"?ap.L:ap.W;
+    const nomW_um=nomW_mm*1000;
+    const kArea=Math.sqrt(Math.max((r.area??100)/100,0.05));
+    const actW_um=nomW_um*kArea;
+    const slump_um=Math.max(0,((r.area||100)-100)*0.8);
+    const baseW_um=actW_um+2*slump_um;
+
+    const maxW=Math.max(nomW_um,baseW_um+Math.abs(off))*0.85;
+    const maxH=Math.max(thk*1.35,hs.usl*1.2,(hActual+pk)*1.2,10);
+
+    const toPx=x_um=>50+((x_um+maxW)/(2*maxW))*(W-90);
+    const toPy=y_um=>(H-30)-(y_um/maxH)*(H-55);
+
+    ctx.strokeStyle="#1f2937";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(50,toPy(0));ctx.lineTo(W-40,toPy(0));ctx.stroke();
+
+    const setDash=dash=>{if(typeof ctx.setLineDash==="function")ctx.setLineDash(dash)};
+    const drawRefH=(val,color,dash,label)=>{
+      if(!val||!isFinite(val))return;
+      const py=toPy(val);
+      ctx.strokeStyle=color;setDash(dash);
+      ctx.beginPath();ctx.moveTo(50,py);ctx.lineTo(W-40,py);ctx.stroke();
+      setDash([]);
+      ctx.fillStyle=color;ctx.font="10px monospace";ctx.textAlign="left";
+      ctx.fillText(`${label} ${f(val,0)}`,8,py+3);
+    };
+    drawRefH(hs.lsl,"#f59e0b88",[4,4],"LSL");
+    drawRefH(hs.tgt,"#10b98188",[2,2],"TGT");
+    drawRefH(hs.usl,"#ef444488",[4,4],"USL");
+    drawRefH(thk,"#9ca3af88",[6,4],"鋼板");
+
+    const padW_um=(axis==="X"?r.w:r.d)*1000;
+    const pLeft=toPx(-padW_um/2),pRight=toPx(padW_um/2);
+    ctx.fillStyle="#b87333";
+    ctx.fillRect(pLeft,toPy(0),Math.max(2,pRight-pLeft),4);
+
+    const aLeft=toPx(-nomW_um/2),aRight=toPx(nomW_um/2),aTop=toPy(thk);
+    ctx.strokeStyle="#9ca3af";ctx.lineWidth=1.5;setDash([4,3]);
+    if(typeof ctx.strokeRect==="function")ctx.strokeRect(aLeft,aTop,aRight-aLeft,toPy(0)-aTop);
+    else if(typeof ctx.rect==="function"){ctx.beginPath();ctx.rect(aLeft,aTop,aRight-aLeft,toPy(0)-aTop);ctx.stroke()}
+    setDash([]);
+
+    const cX=off;
+    const bL=cX-baseW_um/2,bR=cX+baseW_um/2;
+    const pts=[];
+    const N=40;
+    for(let i=0;i<=N;i++){
+      const t=i/N;
+      const x=bL+t*(bR-bL);
+      const u=(x-cX)/((bR-bL)/2||1);
+      let y=0;
+      if(Math.abs(u)<=1.0){
+        const core=Math.max(0,1-Math.pow(Math.abs(u),3.5));
+        y=hActual*core;
+        if(pk>10&&core>0.08){
+          const rim=Math.pow(Math.abs(u),2.5);
+          y+=pk*rim;
+        }
+      }
+      pts.push({x:toPx(x),y:toPy(Math.max(0,y))});
+    }
+
+    let fillStyle="rgba(16, 185, 129, 0.25)";
+    if(typeof ctx.createLinearGradient==="function"){
+      try{
+        const grad=ctx.createLinearGradient(0,toPy(hActual+pk),0,toPy(0));
+        grad.addColorStop(0,"rgba(16, 185, 129, 0.45)");
+        grad.addColorStop(1,"rgba(16, 185, 129, 0.05)");
+        fillStyle=grad;
+      }catch(e){}
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(toPx(bL),toPy(0));
+    for(const p of pts)ctx.lineTo(p.x,p.y);
+    ctx.lineTo(toPx(bR),toPy(0));
+    ctx.closePath();
+    ctx.fillStyle=fillStyle;ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(toPx(bL),toPy(0));
+    for(const p of pts)ctx.lineTo(p.x,p.y);
+    ctx.lineTo(toPx(bR),toPy(0));
+    ctx.strokeStyle="#10b981";ctx.lineWidth=2.2;ctx.stroke();
+
+    const peakY_um=hActual+(pk>10?pk:0);
+    const peakPy=toPy(peakY_um);
+    ctx.fillStyle="#10b981";
+    ctx.beginPath();ctx.arc(toPx(cX),peakPy,3.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle="#e5e7eb";ctx.font="bold 11px sans-serif";ctx.textAlign="center";
+    ctx.fillText(`峰值 ${f(peakY_um,1)} µm`,toPx(cX),Math.max(14,peakPy-6));
+
+    if(Math.abs(off)>5){
+      ctx.strokeStyle="#f59e0b";ctx.lineWidth=1;setDash([2,2]);
+      ctx.beginPath();
+      ctx.moveTo(toPx(0),toPy(0));ctx.lineTo(toPx(0),toPy(thk*0.5));
+      ctx.moveTo(toPx(cX),toPy(0));ctx.lineTo(toPx(cX),toPy(thk*0.5));
+      ctx.stroke();setDash([]);
+      ctx.fillStyle="#f59e0b";ctx.font="10px monospace";
+      ctx.fillText(`Δ${axis}=${f(off,0)}µm`,toPx(cX/2),toPy(thk*0.25));
+    }
+  }catch(err){}
+}
+function selectPadForProfile(r){
+  if(!r)return;
+  S.selectedPad=r;
+  const d=classify(r,S.specs,S);
+  const morphTxt = (r.bridgemargin != null ? ` · 橋接餘裕 <b>${f(r.bridgemargin, 1)}%</b>` : "")
+    + (r.peaking != null ? ` · 拉尖 <b>${f(r.peaking, 1)} µm</b>` : "")
+    + (r.coplanarity != null ? ` · 共面性 <b>${f(r.coplanarity, 1)} µm</b>` : "")
+    + (r.coverage != null ? ` · 覆蓋率 <b>${f(r.coverage, 1)}%</b>` : "");
+  $("#hud").innerHTML=`<b>${r.board} · ${r.pad}</b>（${r.group}）<br>體積 <b>${f(r.volume,1)}%</b> · 高度 <b>${f(r.height,1)}µm</b> · 面積 <b>${f(r.area,1)}%</b><br>偏移 X <b>${f(r.offx,0)}</b> / Y <b>${f(r.offy,0)}</b> µm<br>鋼板 <b>${padThk(r,S)} µm</b>${zoneOf(r,S)?"（"+zoneOf(r,S).name+"）":""} · 高度 <b>${f(r.height/padThk(r,S)*100,0)}%</b> 厚度${morphTxt}<br>${d.length?d.map(c=>DEFECTS[c]).join("、"):"規格內"}`;
+  if($("#csPadTitle"))$("#csPadTitle").innerHTML=`${esc(r.pad)} <span class="note">（${esc(r.group)}）</span>`;
+  drawCrossSectionProfile(r);
+}
 function renderBoard2D(){
   const A=S.A;if(!A||!S.board)return;
   const rows=S.rows.filter(r=>r.board===S.board&&(S.group==="ALL"||r.group===S.group));
@@ -5543,13 +5692,39 @@ function renderBoard2D(){
   const kV=A.msa&&isFinite(A.msa.med)&&A.msa.med>0?A.msa.med:1,vc=rows.filter(r=>r.volume!=null&&r.area!=null&&r.height!=null),vBad=vc.filter(r=>Math.abs(r.volume-kV*r.area*(r.height/padThk(r,S)*100)/100)>10).length;
   $("#hud").innerHTML=`<b>${S.board}</b> · ${rows.length} 焊墊 · 不良 <b>${defs.length}</b>${bd?` · 平均${METRICS[A.m].short} <b>${f(bd.mean,1)}</b>`:""}${vc.length?`<br>體積 vs 面積×高度：${vBad?`<b style="color:var(--ng)">${vBad} 處不吻合（差 > 10%）</b>`:"一致"}`:""}<br><span class="note">點選錫膏查看量測值 · 錫膏位置含 X／Y 偏移</span>`;
   $("#boardDefSub").textContent=`${S.board} · ${defs.length} 處`;
-  $("#boardDefTbl").innerHTML=defs.length?`<thead><tr><th>焊墊</th><th class="num">體積%</th><th class="num">高度µm</th><th class="num">面積%</th><th class="num">偏移X/Y</th><th>判定</th></tr></thead><tbody>`+defs.map(r=>`<tr><td class="mono">${r.pad}</td><td class="num mono">${f(r.volume,1)}</td><td class="num mono">${f(r.height,1)}</td><td class="num mono">${f(r.area,1)}</td><td class="num mono">${f(r.offx,0)}/${f(r.offy,0)}</td><td>${r.codes.map(c=>`<span class="pill ${c==="OFF"||c==="LOWH"||c==="HIH"?"warn":"ng"}">${DEFECTS[c].replace(/（.*）/,"")}</span>`).join(" ")}</td></tr>`).join("")+"</tbody>":'<tbody><tr><td class="note">本板無超規焊墊</td></tr></tbody>';
+  $("#boardDefTbl").innerHTML=defs.length?`<thead><tr><th>焊墊</th><th class="num">體積%</th><th class="num">高度µm</th><th class="num">面積%</th><th class="num">偏移X/Y</th><th>判定</th></tr></thead><tbody>`+defs.map(r=>`<tr data-pad="${esc(r.pad)}" style="cursor:pointer"><td class="mono">${r.pad}</td><td class="num mono">${f(r.volume,1)}</td><td class="num mono">${f(r.height,1)}</td><td class="num mono">${f(r.area,1)}</td><td class="num mono">${f(r.offx,0)}/${f(r.offy,0)}</td><td>${r.codes.map(c=>`<span class="pill ${c==="OFF"||c==="LOWH"||c==="HIH"?"warn":"ng"}">${DEFECTS[c].replace(/（.*）/,"")}</span>`).join(" ")}</td></tr>`).join("")+"</tbody>":'<tbody><tr><td class="note">本板無超規焊墊</td></tr></tbody>';
+  $$("#boardDefTbl tbody tr[data-pad]").forEach(tr=>{
+    tr.onclick=()=>{
+      const padId=tr.dataset.pad;
+      const target=rows.find(x=>x.pad===padId);
+      if(target)selectPadForProfile(target);
+    };
+  });
   const G=[...new Set(S.rows.map(r=>r.group))],m=A.m,gm=g=>{const v=S.rows.filter(r=>r.group===g&&r[m]!=null).map(r=>r[m]);return v.length?mean(v):null},bm=g=>{const v=S.rows.filter(r=>r.group===g&&r.board===S.board&&r[m]!=null).map(r=>r[m]);return v.length?mean(v):null};
   mk("cBoardCmp",{type:"bar",data:{labels:G,datasets:[{label:"全體",data:G.map(gm),backgroundColor:css("--muted")+"66"},{label:S.board,data:G.map(bm),backgroundColor:css("--accent")}]},
     options:baseOpts({plugins:{legend:{display:true,labels:{color:css("--muted"),boxWidth:10,font:{size:11}}}},scales:{x:{ticks:{color:css("--muted"),font:{size:11}},grid:{display:false}},y:{ticks:{color:css("--muted"),font:{family:"IBM Plex Mono",size:10}},grid:{color:css("--grid")},title:{display:true,text:METRICS[m].short+" ("+METRICS[m].unit+")",color:css("--muted"),font:{size:11}}}}})});
   const L={status:[[css("--ok"),"規格內"],[css("--warn"),"高度 / 偏移超規"],[css("--ng"),"少錫・多錫・連錫風險"]],height:[[divColor(-1),"高度低於目標"],[divColor(0),"接近目標"],[divColor(1),"高度高於目標"]],volume:[[divColor(-1),"體積低於目標"],[divColor(0),"接近目標"],[divColor(1),"體積高於目標"]]}[S.colorMode];
-  $("#leg3d").innerHTML=L.map(l=>`<span><i class="sq" style="background:${l[0]}"></i>${l[1]}</span>`).join("")+(S.ghost?`<span><i class="sq" style="background:transparent;outline:1px solid #9aa3a0"></i>標稱開孔（${S.step.on?"所在區域鋼板厚度":"鋼板厚度 "+S.stencil+" µm"}）</span>`:"")
+  let legHtml = L.map(l=>`<span><i class="sq" style="background:${l[0]}"></i>${l[1]}</span>`).join("");
+  if(S.colorMode==="height"){
+    legHtml+=`<span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px"><span style="display:inline-block;width:75px;height:10px;border-radius:2px;background:linear-gradient(to right, #2563eb, #06b6d4, #10b981, #f59e0b, #ef4444)"></span><span class="note" style="font-size:11px">LSL ➔ USL</span></span>`;
+  }
+  $("#leg3d").innerHTML=legHtml+(S.ghost?`<span><i class="sq" style="background:transparent;outline:1px solid #9aa3a0"></i>標稱開孔（${S.step.on?"所在區域鋼板厚度":"鋼板厚度 "+S.stencil+" µm"}）</span>`:"")
+    +(S.bridgeWarn?`<span><i class="sq" style="background:transparent;outline:1.5px solid #ef4444;border-radius:50%"></i>橋接風險（間距<40µm或餘裕<25%）</span>`:"")
     +(S.step.on?S.step.zones.map((z,i)=>`<span><i class="sq" style="background:${ZCOL[i%ZCOL.length]};opacity:.6"></i>${z.name} ${z.t} µm</span>`).join(""):"");
+
+  if($("#csLegend")){
+    $("#csLegend").innerHTML=`<span style="color:#10b981;font-weight:500">── 實測截面</span><span style="color:#9ca3af;border-bottom:1px dashed #9ca3af">--- 標稱開孔</span><span style="color:#b87333">■ 銅箔基底</span><span style="color:#f59e0b;border-bottom:1px dashed #f59e0b">--- 規格 LSL/USL</span>`;
+  }
+  if(!S.selectedPad||S.selectedPad.board!==S.board){
+    S.selectedPad=defs[0]||rows[0]||null;
+  }
+  if(S.selectedPad){
+    if($("#csPadTitle"))$("#csPadTitle").innerHTML=`${esc(S.selectedPad.pad)} <span class="note">（${esc(S.selectedPad.group)}）</span>`;
+    drawCrossSectionProfile(S.selectedPad);
+  } else {
+    if($("#csPadTitle"))$("#csPadTitle").textContent="無選取焊墊";
+    drawCrossSectionProfile(null);
+  }
 }
 function dispose3D(){
   if(T.raf){cancelAnimationFrame(T.raf);T.raf=0}
@@ -5605,35 +5780,125 @@ function init3D(){if(T.ok)return true;const el=$("#view3d");
 function size3(){const el=$("#view3d");if(!T.ok||!T.renderer||!el||!el.clientWidth)return;T.renderer.setSize(el.clientWidth,el.clientHeight);T.cam.aspect=el.clientWidth/el.clientHeight;T.cam.updateProjectionMatrix();draw3()}
 function draw3(){if(!T.ok||!T.renderer)return;if(T.raf)return;T.raf=requestAnimationFrame(()=>{T.raf=0;if(!T.ok||!T.renderer)return;const c=T.cam;c.position.set(T.tx+T.rad*Math.sin(T.phi)*Math.sin(T.theta),T.rad*Math.cos(T.phi),T.tz+T.rad*Math.sin(T.phi)*Math.cos(T.theta));c.lookAt(T.tx,0,T.tz);T.renderer.render(T.scene,c)})}
 function statusCol(r){const d=classify(r,S.specs,S);if(!d.length)return css("--ok");return d.some(c=>c==="INS"||c==="BRG"||c==="EXC")?css("--ng"):css("--warn")}
+function createSolderPasteGeometry(w,h,d,r,ex,shape){
+  const pkMicron=(r&&r.peaking!=null)?Math.max(0,r.peaking):0;
+  const hPeak=(pkMicron*ex)/1000;
+  const coplMicron=(r&&r.coplanarity!=null)?Math.max(0,r.coplanarity):0;
+  const hScoop=(coplMicron*ex)/1000;
+  const slump=Math.max(0,((r&&r.area?r.area:100)-100)*0.0008)+Math.max(0,(r&&r.bridgemargin!=null&&r.bridgemargin<30?(30-r.bridgemargin)*0.0015:0));
+  if(shape==="round"){
+    const rBase=(w/2)+slump;
+    const rTop=(w/2)*(pkMicron>20?Math.max(0.45,0.88-(pkMicron-20)/75):0.88);
+    const geo=new THREE.CylinderGeometry(rTop,rBase,h,24,4);
+    const pos=geo&&geo.attributes?geo.attributes.position:null;
+    if(pos&&typeof pos.getY==="function"){
+      const halfH=h/2;
+      for(let i=0;i<pos.count;i++){
+        const py=pos.getY(i);
+        if(Math.abs(py-halfH)<0.001){
+          const px=pos.getX(i),pz=pos.getZ(i);
+          const distNorm=Math.min(1,Math.hypot(px,pz)/(rTop||0.01));
+          if(pkMicron>20)pos.setY(i,py+hPeak*Math.pow(distNorm,2));
+          else pos.setY(i,py+Math.min(h*0.12,0.06)*(1-Math.pow(distNorm,2)));
+        }
+      }
+      if(typeof geo.computeVertexNormals==="function")geo.computeVertexNormals();
+    }
+    return geo;
+  }
+  if(typeof THREE.BufferGeometry!=="function"||typeof THREE.Float32BufferAttribute!=="function"){
+    return new THREE.BoxGeometry(w,h,d);
+  }
+  const wBase=w+2*slump,dBase=d+2*slump,wTop=w*0.90,dTop=d*0.90;
+  const NX=6,NZ=6,verts=[],indices=[];
+  const topStart=0;
+  for(let j=0;j<=NZ;j++){
+    const v=(j/NZ)*2-1;
+    for(let i=0;i<=NX;i++){
+      const u=(i/NX)*2-1;
+      const px=u*(wTop/2),pz=v*(dTop/2);
+      let elev=h/2;
+      const rim=Math.pow(Math.max(Math.abs(u),Math.abs(v)),2.5);
+      if(pkMicron>15)elev+=hPeak*rim;
+      else elev+=Math.min(h*0.12,0.05)*(1-Math.pow(Math.hypot(u,v)/1.414,2));
+      if(hScoop>0)elev-=Math.min(h*0.35,hScoop)*Math.max(0,1-Math.hypot(u,v));
+      verts.push(px,elev,pz);
+    }
+  }
+  for(let j=0;j<NZ;j++){
+    for(let i=0;i<NX;i++){
+      const a=j*(NX+1)+i,b=j*(NX+1)+(i+1),c=(j+1)*(NX+1)+(i+1),d=(j+1)*(NX+1)+i;
+      indices.push(a,b,c,a,c,d);
+    }
+  }
+  const botStart=verts.length/3;
+  for(let j=0;j<=NZ;j++){
+    const v=(j/NZ)*2-1;
+    for(let i=0;i<=NX;i++){
+      const u=(i/NX)*2-1;
+      verts.push(u*(wBase/2),-h/2,v*(dBase/2));
+    }
+  }
+  for(let j=0;j<NZ;j++){
+    for(let i=0;i<NX;i++){
+      const a=botStart+j*(NX+1)+i,b=botStart+j*(NX+1)+(i+1),c=botStart+(j+1)*(NX+1)+(i+1),d=botStart+(j+1)*(NX+1)+i;
+      indices.push(a,c,b,a,d,c);
+    }
+  }
+  for(let i=0;i<NX;i++){
+    const tA=topStart+i,tB=topStart+i+1,bA=botStart+i,bB=botStart+i+1;
+    indices.push(tA,bA,tB,bA,bB,tB);
+  }
+  for(let i=0;i<NX;i++){
+    const tA=topStart+NZ*(NX+1)+i,tB=topStart+NZ*(NX+1)+i+1,bA=botStart+NZ*(NX+1)+i,bB=botStart+NZ*(NX+1)+i+1;
+    indices.push(tA,tB,bA,tB,bB,bA);
+  }
+  for(let j=0;j<NZ;j++){
+    const tA=topStart+j*(NX+1),tB=topStart+(j+1)*(NX+1),bA=botStart+j*(NX+1),bB=botStart+(j+1)*(NX+1);
+    indices.push(tA,tB,bA,tB,bB,bA);
+  }
+  for(let j=0;j<NZ;j++){
+    const tA=topStart+j*(NX+1)+NX,tB=topStart+(j+1)*(NX+1)+NX,bA=botStart+j*(NX+1)+NX,bB=botStart+(j+1)*(NX+1)+NX;
+    indices.push(tA,bA,tB,bA,bB,tB);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+  geo.setIndex(indices);
+  if(typeof geo.computeVertexNormals==="function")geo.computeVertexNormals();
+  return geo;
+}
 function build3D(){renderBoard2D();if(!T.ok||!window.THREE||!T||!T.root||!T.root.children)return;const A=S.A;while(T.root.children.length){const o=T.root.children.pop();o.geometry&&o.geometry.dispose();o.material&&o.material.dispose()}
   const all=S.rows,xs=all.map(r=>r.x),ys=all.map(r=>r.y),x0=Math.min(...xs)-4,x1=Math.max(...xs)+4,y0=Math.min(...ys)-4,y1=Math.max(...ys)+4,cx=(x0+x1)/2,cy=(y0+y1)/2;
   const brd=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,1.2,y1-y0),new THREE.MeshStandardMaterial({color:0x1f4a3a,roughness:.75}));brd.position.y=-0.6;T.root.add(brd);
   const rows=S.rows.filter(r=>r.board===S.board&&(S.group==="ALL"||r.group===S.group)),ex=S.exag/1000;T.meshes=[];
   const cuMat=new THREE.MeshStandardMaterial({color:0xb87333,metalness:.6,roughness:.35});
   const hs=S.specs.height,vs=S.specs.volume;
-  for(const r of rows){const ap=aperture(r,S),k=Math.sqrt(Math.max((r.area??100)/100,.05)),w=ap.L*k,d=ap.W*k,h=Math.max((r.height??hs.tgt)*ex,0.05),x=r.x-cx,z=cy-r.y,dx=(r.offx||0)/1000,dz=-(r.offy||0)/1000; /* CAD 座標 Y 向上；錫膏依量測偏移（µm→mm）位移，銅墊不動 */
+  for(const r of rows){const ap=aperture(r,S),k=Math.sqrt(Math.max((r.area??100)/100,.05)),w=ap.L*k,d=ap.W*k,h=Math.max((r.height??hs.tgt)*ex,0.05),x=r.x-cx,z=cy-r.y,dx=(r.offx||0)/1000,dz=-(r.offy||0)/1000;
     const cu=new THREE.Mesh(r.shape==="round"?new THREE.CylinderGeometry(r.w/2,r.w/2,0.06,20):new THREE.BoxGeometry(r.w,0.06,r.d),cuMat.clone());cu.position.set(x,0.03,z);T.root.add(cu);
     const thk=S.step.on?padThk(r,S):hs.tgt,half=S.step.on?thk*(S.htol.hi-S.htol.lo)/200:(hs.usl-hs.lsl)/2;
     let col;if(S.colorMode==="status")col=statusCol(r);else if(S.colorMode==="height")col=divColor(((r.height??thk)-thk)/half);else col=divColor(((r.volume??vs.tgt)-vs.tgt)/((vs.usl-vs.lsl)/2));
-    const hasPk = r.peaking != null && r.peaking > 20;
-    const topFactor = hasPk ? Math.max(0.4, 0.92 - (r.peaking - 20) / 60) : 0.92;
-    const geo = ap.shape === "round"
-      ? new THREE.CylinderGeometry(w / 2 * topFactor, w / 2, h, 20)
-      : new THREE.BoxGeometry(w, h, d);
+    const geo = createSolderPasteGeometry(w, h, d, r, ex, ap.shape);
     const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(col),roughness:.55,metalness:.15}));m.position.set(x+dx,0.06+h/2,z+dz);m.userData=r;T.root.add(m);T.meshes.push(m);
     if(S.ghost){const gh=thk*ex,gg=ap.shape==="round"?new THREE.CylinderGeometry(ap.L/2,ap.L/2,gh,16):new THREE.BoxGeometry(ap.L,gh,ap.W);const e=new THREE.LineSegments(new THREE.EdgesGeometry(gg),new THREE.LineBasicMaterial({color:0x9aa3a0,transparent:true,opacity:.45}));gg.dispose();e.position.set(x,0.06+gh/2,z);T.root.add(e)}}
+  if(S.bridgeWarn&&typeof THREE.RingGeometry==="function"){
+    const warnMat=new THREE.MeshBasicMaterial({color:0xef4444,transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false});
+    for(const r of rows){
+      const isBrgRisk=(r.bridgemargin!=null&&r.bridgemargin<25)||(r.bridgegap!=null&&r.bridgegap<40)||(classify(r,S.specs,S).includes("BRG"));
+      if(isBrgRisk){
+        const ap=aperture(r,S),k=Math.sqrt(Math.max((r.area??100)/100,.05)),w=ap.L*k,d=ap.W*k,x=r.x-cx,z=cy-r.y,dx=(r.offx||0)/1000,dz=-(r.offy||0)/1000;
+        const rad=Math.max(w,d)/2+0.08;
+        const ring=new THREE.Mesh(new THREE.RingGeometry(rad*0.85,rad*1.15,20),warnMat);
+        ring.rotation.x=Math.PI/2;ring.position.set(x+dx,0.04,z+dz);T.root.add(ring);
+      }
+    }
+  }
   if(S.step.on)S.step.zones.forEach((z,i)=>{const R=zoneRect(z);if(!R)return;const w=R.x1-R.x0,d=R.y1-R.y0,col=new THREE.Color(ZCOL[i%ZCOL.length]);
     const pl=new THREE.Mesh(new THREE.BoxGeometry(w,0.02,d),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.22,depthWrite:false}));pl.position.set((R.x0+R.x1)/2-cx,0.012,cy-(R.y0+R.y1)/2);T.root.add(pl);
     const eg=new THREE.EdgesGeometry(new THREE.BoxGeometry(w,0.02,d)),ln=new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:col}));ln.position.copy(pl.position);T.root.add(ln)});
   draw3();
   if(typeof scheduleUpdatePrint3D==="function")scheduleUpdatePrint3D();
 }
-function pick(e){if(!T.ok||!window.THREE||!T.cam)return;const el=$("#view3d"),rc=el.getBoundingClientRect(),v=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(v,T.cam);const hit=ray.intersectObjects(T.meshes||[])[0];if(!hit)return;const r=hit.object.userData,d=classify(r,S.specs,S);
-  const morphTxt = (r.bridgemargin != null ? ` · 橋接餘裕 <b>${f(r.bridgemargin, 1)}%</b>` : "")
-    + (r.peaking != null ? ` · 拉尖 <b>${f(r.peaking, 1)} µm</b>` : "")
-    + (r.coplanarity != null ? ` · 共面性 <b>${f(r.coplanarity, 1)} µm</b>` : "")
-    + (r.coverage != null ? ` · 覆蓋率 <b>${f(r.coverage, 1)}%</b>` : "");
-  $("#hud").innerHTML=`<b>${r.board} · ${r.pad}</b>（${r.group}）<br>體積 <b>${f(r.volume,1)}%</b> · 高度 <b>${f(r.height,1)}µm</b> · 面積 <b>${f(r.area,1)}%</b><br>偏移 X <b>${f(r.offx,0)}</b> / Y <b>${f(r.offy,0)}</b> µm<br>鋼板 <b>${padThk(r,S)} µm</b>${zoneOf(r,S)?"（"+zoneOf(r,S).name+"）":""} · 高度 <b>${f(r.height/padThk(r,S)*100,0)}%</b> 厚度${morphTxt}<br>${d.length?d.map(c=>DEFECTS[c]).join("、"):"規格內"}`}
+function pick(e){if(!T.ok||!window.THREE||!T.cam)return;const el=$("#view3d"),rc=el.getBoundingClientRect(),v=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(v,T.cam);const hit=ray.intersectObjects(T.meshes||[])[0];if(!hit)return;const r=hit.object.userData;selectPadForProfile(r)}
 /* three.js 只在第一次開啟 3D 頁籤時載入（約 600 KB），先用網站自帶檔，沒有才用 CDN */
 let threeP=null;
 function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;let done=false;const tm=setTimeout(()=>{if(done)return;done=true;s.remove();no(new Error("載入腳本逾時: "+src))},2500);s.onload=()=>{if(done)return;done=true;clearTimeout(tm);ok()};s.onerror=()=>{if(done)return;done=true;clearTimeout(tm);s.remove();no(new Error(src))};document.head.appendChild(s)})}
@@ -5647,6 +5912,8 @@ if($("#btn3dTouch"))$("#btn3dTouch").onclick=()=>{const b=$("#btn3dTouch"),el=$(
 $$("#segColor button").forEach(b=>b.onclick=()=>{S.colorMode=b.dataset.v;$$("#segColor button").forEach(x=>x.setAttribute("aria-pressed",x===b));if(!T.ok){renderBoard2D();return}build3D()});
 $("#inExag").oninput=e=>{S.exag=+e.target.value;$("#exagOut").textContent=S.exag+"×";if(!T.ok)return;build3D()};
 $("#chkGhost").onchange=e=>{S.ghost=e.target.checked;if(!T.ok){renderBoard2D();return}build3D()};
+if($("#chkBridgeWarn"))$("#chkBridgeWarn").onchange=e=>{S.bridgeWarn=e.target.checked;if(!T.ok){renderBoard2D();return}build3D()};
+if($("#segCsAxis"))$$("#segCsAxis button").forEach(b=>b.onclick=()=>{S.csAxis=b.dataset.axis;$$("#segCsAxis button").forEach(x=>x.setAttribute("aria-pressed",x===b));drawCrossSectionProfile(S.selectedPad)});
 
 /* ---------- 資料與規格 ---------- */
 function renderSpecTbl(){$("#specTbl").innerHTML=`<thead><tr><th>項目</th><th>LSL</th><th>目標</th><th>USL</th></tr></thead><tbody>`+Object.keys(METRICS).map(k=>`<tr><td>${METRICS[k].label} <span class="note">${METRICS[k].unit}</span></td>${["lsl","tgt","usl"].map(q=>`<td><input type="number" step="any" id="sp-${k}-${q}" value="${S.specs[k][q]}" data-k="${k}" data-q="${q}"${S.specSrc==="machine"?" disabled":""}></td>`).join("")}</tr>`).join("")+"</tbody>";
