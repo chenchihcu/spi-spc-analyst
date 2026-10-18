@@ -1885,7 +1885,7 @@ function specClassify(r,sp,st){const d=[];let hl=sp&&sp.height?sp.height.lsl:NaN
 
 /* ============ 分析 ============ */
 function analyze(st){
-  for(const r of st.rows){if(r.height!=null)r.hpct=+(r.height/padThk(r,st)*100).toFixed(1)}
+  for(const r of st.rows){if(r.height!=null)r.hpct=Math.round((r.height/padThk(r,st))*1000)/10}
   const m=st.metric,sp=!isAllGrp(st.group)?specOfGroup(st,st.group,m):st.specs[m];
   const rows=st.rows.filter(r=>(isAllGrp(st.group)||r.group===st.group)&&r[m]!=null&&isFinite(r[m]));
   const boards=[...new Set(rows.map(r=>r.board))];
@@ -1897,12 +1897,16 @@ function analyze(st){
   const gMean=mean(all),overallSd=sd(all);
   // 組內 σ（短期）：同一片板、同一元件群組內的合併標準差。不同元件的設計差異不是製程變異，不算進 σ（全部元件模式也正確）
   const nbar=mean(byBoard.map(b=>b.n)),gList=[...new Set(rows.map(r=>r.group))],mixed=gList.length>1;
-  const cellsB=new Map();for(const r of rows){let bm=cellsB.get(r.board);if(!bm)cellsB.set(r.board,bm=new Map());let a=bm.get(r.group);if(!a)bm.set(r.group,a=[]);a.push(r[m])}
+  const cellsB=new Map(),gRowMap=new Map();
+  for(const r of rows){
+    let bm=cellsB.get(r.board);if(!bm)cellsB.set(r.board,bm=new Map());let a=bm.get(r.group);if(!a)bm.set(r.group,a=[]);a.push(r[m]);
+    let ga=gRowMap.get(r.group);if(!ga)gRowMap.set(r.group,ga=[]);ga.push(r[m]);
+  }
   let ssw=0,dfw=0;const bPool=new Map();
-  for(const[b,bm]of cellsB){let ss=0,df=0;for(const v of bm.values())if(v.length>1){const mu=mean(v);ss+=v.reduce((s,x)=>s+(x-mu)**2,0);df+=v.length-1}bPool.set(b,{s:df>0?Math.sqrt(ss/df):0,df});ssw+=ss;dfw+=df}
+  for(const[b,bm]of cellsB){let ss=0,df=0;for(const v of bm.values())if(v.length>1){const mu=mean(v);for(let vi=0;vi<v.length;vi++)ss+=(v[vi]-mu)**2;df+=v.length-1}bPool.set(b,{s:df>0?Math.sqrt(ss/df):0,df});ssw+=ss;dfw+=df}
   const sigmaW=(dfw>0&&ssw>0)?Math.sqrt(ssw/dfw):overallSd;
   // 長期 σ：扣除各群組平均後的整體標準差（只有一個群組時即整體標準差）
-  const gStat=gList.map(g=>{const v=rows.filter(r=>r.group===g).map(r=>r[m]);return{g,v,mu:mean(v)}});
+  const gStat=gList.map(g=>{const v=gRowMap.get(g)||[];return{g,v,mu:mean(v)}});
   const sigmaLT=mixed?Math.sqrt(gStat.reduce((s,x)=>s+x.v.reduce((t,y)=>t+(y-x.mu)**2,0),0)/Math.max(1,N-gList.length)):overallSd;
   // 三向管制圖：X̄ 界限以板平均的移動全距估計板間 σ（每板焊墊多且元件混合時，板內 σ 會讓界限過窄而大量誤報）
   const isZeroSd=overallSd===0;
@@ -2279,7 +2283,7 @@ const FIELDS=[
 const NUMF=["x","y","volume","height","area","offx","offy","padl","padw","apl","apw","pressure","speed","sep","bridgegap","bridgemargin","peaking","coplanarity","coverage","slump"];
 const OKCODES=["ok","pass","good","0","","g","合格","正常"];
 /* 識別字串（板號、焊墊、元件、判定碼、名稱）只保留可見文字：去除 < > " ' ` &，避免匯入資料被當成 HTML 執行 */
-const safeId=x=>x==null?x:String(x).replace(/[<>"'`&]/g,"").trim();
+const safeId=x=>x==null?x:(typeof x==="string"&&!/[<>"'`&]/.test(x)?x.trim():String(x).replace(/[<>"'`&]/g,"").trim());
 const normH=h=>String(h||"").replace(/\u03BC/g,"\u00B5").toLowerCase().replace(/[\s_()（）\[\]\-.:]/g,"").replace(/(µm|um|mm|%)$/,"");
 function csvTable(text){
   const clean=String(text||"").replace(/^\uFEFF/,"");
@@ -2329,12 +2333,25 @@ function buildRows(tab,map,opts={},sub=5){
   if(!mets.length){const ni=(tab.data[0]||[]).findIndex((v,i)=>v!==""&&isFinite(+v)&&!Object.values(map).includes(i));if(ni<0)throw new Error("找不到數值欄位（高度 / 面積 / 體積 / 偏移），請在欄位對應中指定");map={...map,volume:ni};mets.push("volume")}
 
   const isSemi=tab.delim===";";
+  const activeNumFields=NUMF.filter(k=>col(k)!=null);
   const numColModes={};
-  for(const k of NUMF){
+  for(const k of activeNumFields){
     const cIdx=col(k);
-    if(cIdx==null)continue;
-    const rawVals=tab.data.map(r=>r[cIdx]!=null?String(r[cIdx]).trim():"");
-    const hasCommaDec=rawVals.some(v=>/^-?\d+,\d{1,2}$/.test(v)||/^-?\d+,\d{4,}$/.test(v));
+    let hasCommaDec=false;
+    if(!isSemi){
+      let checked=0;
+      for(let i=0;i<tab.data.length&&checked<200;i++){
+        const row=tab.data[i];
+        if(!row||row[cIdx]==null)continue;
+        const v=String(row[cIdx]).trim();
+        if(!v)continue;
+        checked++;
+        if(/^-?\d+,\d{1,2}$/.test(v)||/^-?\d+,\d{4,}$/.test(v)){
+          hasCommaDec=true;
+          break;
+        }
+      }
+    }
     numColModes[k]=isSemi||hasCommaDec;
   }
   const unparsed=[];
@@ -2342,13 +2359,13 @@ function buildRows(tab,map,opts={},sub=5){
   let detectedDateFmt=o.dateFormat;
   let ambiguousDate=false;
   if(detectedDateFmt==="auto"&&(col("date")!=null||col("time")!=null)){
-    const dateVals=tab.data.map(r=>{
+    let hasYMD=false,hasDMY=false,hasMDY=false,hasAmb=false,checked=0;
+    for(let i=0;i<tab.data.length&&checked<200;i++){
+      const r=tab.data[i];if(!r)continue;
       const d=col("date")!=null?r[col("date")]:null;
       const t=col("time")!=null?r[col("time")]:null;
-      return(d||t||"");
-    }).filter(Boolean);
-    let hasYMD=false,hasDMY=false,hasMDY=false,hasAmb=false;
-    for(const s of dateVals){
+      const s=d||t;if(!s)continue;
+      checked++;
       const seg=String(s).trim().split(/[ T]/)[0];
       const pts=seg.split(/[\/\-\.]/);
       if(pts.length>=3){
@@ -2402,36 +2419,39 @@ function buildRows(tab,map,opts={},sub=5){
 
   const hasBoardCol=col("board")!=null||col("panel")!=null;
   const rawRows=[];
-
-  tab.data.forEach((c,i)=>{
-    const g=k=>col(k)!=null?(NUMF.includes(k)?c[col(k)]:safeId(c[col(k)])):undefined;
-    const num=k=>{
-      const v=g(k);
-      if(v==null)return null;
-      let s=String(v).trim();
-      if(s==="")return null;
-      s=s.replace(/%$/,"").trim();
-      if(numColModes[k]){
-        s=s.replace(/,/g,".");
-        if(isFinite(+s))return +s;
-        unparsed.push({col:k,colName:tab.head[col(k)],rowIdx:i+1,val:v});
-        return null;
-      }else{
-        if(!isSemi&&/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,"");
-        if(isFinite(+s))return +s;
-        unparsed.push({col:k,colName:tab.head[col(k)],rowIdx:i+1,val:v});
-        return null;
-      }
+  const cBoard=col("board"),cPanel=col("panel"),cFig=col("figure");
+  const cComp=col("comp"),cPin=col("pin"),cPad=col("pad");
+  const cPkg=col("pkg"),cRes=col("result"),cStrk=col("stroke");
+  const cDate=col("date"),cTime=col("time");
+  const numGetters=activeNumFields.map(k=>{
+    const cIdx=col(k),isComma=numColModes[k],colName=tab.head[cIdx];
+    return isComma?(c,i)=>{
+      const v=c[cIdx];if(v==null)return null;let s=String(v).trim();if(s==="")return null;
+      if(s.endsWith("%"))s=s.slice(0,-1).trim();s=s.replace(/,/g,".");
+      const n=+s;if(isFinite(n))return n;
+      unparsed.push({col:k,colName,rowIdx:i+1,val:v});return null;
+    }:(c,i)=>{
+      const v=c[cIdx];if(v==null)return null;let s=String(v).trim();if(s==="")return null;
+      if(s.endsWith("%"))s=s.slice(0,-1).trim();
+      if(!isSemi&&/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,"");
+      const n=+s;if(isFinite(n))return n;
+      unparsed.push({col:k,colName,rowIdx:i+1,val:v});return null;
     };
-    const panel=g("panel"),figure=g("figure");
-    let board=g("board");
+  });
+  const numMets=mets.map(k=>col(k));
+
+  for(let i=0;i<tab.data.length;i++){
+    const c=tab.data[i];
+    let panel=cPanel!=null?safeId(c[cPanel]):undefined;
+    let figure=cFig!=null?safeId(c[cFig]):undefined;
+    let board=cBoard!=null?safeId(c[cBoard]):undefined;
     if(hasBoardCol){
       if(board==null||board===""){
         board=panel!=null&&figure!=null?`${panel}-${figure}`:panel!=null?panel:"B01";
       }else if(figure!=null&&figure!=="")board=`${board}-${figure}`;
     }
-    let comp=g("comp")||null;
-    let pin=g("pin"),padId=g("pad");
+    let comp=cComp!=null?safeId(c[cComp]):null;
+    let pin=cPin!=null?safeId(c[cPin]):undefined,padId=cPad!=null?safeId(c[cPad]):undefined;
     let sufFig=null;
     if(comp){
       const sm=String(comp).match(/^(.*?)_(\d+)$/);
@@ -2449,11 +2469,11 @@ function buildRows(tab,map,opts={},sub=5){
     const r={board:board!=null?String(board):null,pad,comp};
     if(panel!=null)r.panel=String(panel);
     if(effFig!=null)r.figure=String(effFig);
-    const pk=g("pkg");if(pk)r.pkg=String(pk);
-    for(const k of NUMF)r[k]=num(k);
+    if(cPkg!=null&&c[cPkg]!=null)r.pkg=String(safeId(c[cPkg]));
+    for(let j=0;j<activeNumFields.length;j++)r[activeNumFields[j]]=numGetters[j](c,i);
     if(r.height!=null&&o.heightUnit==="mm")r.height=+(r.height*1000).toFixed(2);
-    const res=g("result");
-    if(res!=null){
+    if(cRes!=null&&c[cRes]!=null){
+      const res=safeId(c[cRes]);
       r.result=String(res);
       const rk=String(res).trim().toLowerCase();
       if(o&&o.codeMap&&o.codeMap[rk]!=null){
@@ -2463,15 +2483,17 @@ function buildRows(tab,map,opts={},sub=5){
         r.mNG=!OKCODES.includes(rk);
       }
     }
-    const sk=g("stroke");if(sk!=null&&sk!=="")r.stroke=String(sk);
-    const d=g("date"),t=g("time");
+    if(cStrk!=null&&c[cStrk]!=null&&c[cStrk]!=="")r.stroke=String(safeId(c[cStrk]));
+    const d=cDate!=null?c[cDate]:null,t=cTime!=null?c[cTime]:null;
     if(d||t){
       const ts=parseDt(d,t);
       if(isFinite(ts))r.ts=ts;
     }
-    if(mets.every(k=>r[k]==null))return;
+    let hasAnyMet=false;
+    for(let j=0;j<numMets.length;j++){if(c[numMets[j]]!=null&&c[numMets[j]]!==""){hasAnyMet=true;break}}
+    if(!hasAnyMet)continue;
     rawRows.push(r);
-  });
+  }
 
   if(!rawRows.length)throw new Error("沒有可用的數值列");
 
@@ -2573,15 +2595,34 @@ function buildRows(tab,map,opts={},sub=5){
     delete r.padl;delete r.padw;delete r.apl;delete r.apw;
   });
 
+  const bSet=new Set(),pnlSet=new Set(),figSet=new Set();
+  const resCounts={};
+  let hasRes=false,hasPressure=false,hasSpeed=false,hasSep=false,hasStroke=false,hasTs=false;
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    bSet.add(r.board);
+    if(r.panel)pnlSet.add(r.panel);
+    if(r.figure)figSet.add(r.figure);
+    if(r.result!=null){hasRes=true;resCounts[r.result]=(resCounts[r.result]||0)+1;}
+    if(r.pressure!=null)hasPressure=true;
+    if(r.speed!=null)hasSpeed=true;
+    if(r.sep!=null)hasSep=true;
+    if(r.stroke!=null)hasStroke=true;
+    if(r.ts!=null)hasTs=true;
+  }
+  const factors=[];
+  if(hasPressure)factors.push("pressure");
+  if(hasSpeed)factors.push("speed");
+  if(hasSep)factors.push("sep");
   const info={
-    boards:new Set(rows.map(r=>r.board)).size,
+    boards:bSet.size,
     pads:pads.length,
-    panels:new Set(rows.map(r=>r.panel).filter(Boolean)).size,
-    figures:new Set(rows.map(r=>r.figure).filter(Boolean)).size,
-    results:rows.some(r=>r.result!=null)?Object.entries(rows.reduce((m,r)=>(r.result!=null&&(m[r.result]=(m[r.result]||0)+1),m),{})).sort((a,b)=>b[1]-a[1]):null,
-    factors:["pressure","speed","sep"].filter(k=>rows.some(r=>r[k]!=null)),
-    stroke:rows.some(r=>r.stroke!=null),
-    ts:rows.some(r=>r.ts!=null),
+    panels:pnlSet.size,
+    figures:figSet.size,
+    results:hasRes?Object.entries(resCounts).sort((a,b)=>b[1]-a[1]):null,
+    factors,
+    stroke:hasStroke,
+    ts:hasTs,
     unparsed,
     duplicates:dupCount,
     ambiguousDate,
@@ -3213,15 +3254,22 @@ function calcMoranAndLISA(points, k = 6) {
   if (s2 <= 1e-12) return { valid: false, reason: "數值變異為零" };
 
   const neighbors = [];
+  const targetK = Math.min(k, n - 1);
   for (let i = 0; i < n; i++) {
-    const dists = [];
+    const topK = [];
+    const xi = validPts[i].x, yi = validPts[i].y;
     for (let j = 0; j < n; j++) {
       if (i === j) continue;
-      const dx = validPts[i].x - validPts[j].x, dy = validPts[i].y - validPts[j].y;
-      dists.push({ j, d: Math.sqrt(dx * dx + dy * dy) });
+      const dx = xi - validPts[j].x, dy = yi - validPts[j].y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (topK.length < targetK) {
+        topK.push({ j, d });
+        if (topK.length === targetK) topK.sort((a, b) => a.d - b.d);
+      } else if (d < topK[targetK - 1].d) {
+        topK[targetK - 1] = { j, d };
+        topK.sort((a, b) => a.d - b.d);
+      }
     }
-    dists.sort((a, b) => a.d - b.d);
-    const topK = dists.slice(0, Math.min(k, n - 1));
     const invDists = topK.map(it => ({ j: it.j, w: it.d > 1e-6 ? 1 / it.d : 1e6 }));
     const sumW = invDists.reduce((s, it) => s + it.w, 0);
     neighbors.push(invDists.map(it => ({ j: it.j, w: it.w / sumW })));
@@ -3531,8 +3579,17 @@ function detectIssues(st){
   // 2. 系統性問題：元件群組整體能力不足 / 個別焊墊位置長期偏離（焊墊位置穩健 Cpk，排除單板突發，D-62、N7-5）
   const gPads={};for(const g of groups){const pads={};(gIdx[g]||[]).forEach(r=>{const p=pads[r.pad]||(pads[r.pad]={r,rows:[]});p.rows.push(r)});gPads[g]=Object.values(pads).filter(p=>p.rows.length>=5)}
   for(const k of MS)for(const g of groups){
-    const P=gPads[g].map(p=>{const vals=p.rows.map(r=>r[k]).filter(v=>v!=null);if(vals.length<5)return null;const sp=specFor(p.r,k,st),{m,s}=robust(vals);return{pad:p.r.pad,r:p.r,n:vals.length,m,s,cpk:sp&&sp.usl>sp.lsl?Math.min(sp.usl-m,m-sp.lsl)/(3*s):NaN}}).filter(p=>p&&isFinite(p.cpk));
-    if(P.length<2)continue;const mc=med(P.map(p=>p.cpk)),sp=specOfGroup(st,g,k);
+    const sp=specOfGroup(st,g,k);
+    if(!sp||!isFinite(sp.lsl)||!isFinite(sp.usl)||!(sp.usl>sp.lsl))continue;
+    const P=gPads[g].map(p=>{
+      const spP=specFor(p.r,k,st);
+      if(!spP||!isFinite(spP.lsl)||!isFinite(spP.usl)||!(spP.usl>spP.lsl))return null;
+      const vals=p.rows.map(r=>r[k]).filter(v=>v!=null);
+      if(vals.length<5)return null;
+      const{m,s}=robust(vals);
+      return{pad:p.r.pad,r:p.r,n:vals.length,m,s,cpk:Math.min(spP.usl-m,m-spP.lsl)/(3*s)};
+    }).filter(p=>p&&isFinite(p.cpk));
+    if(P.length<2)continue;const mc=med(P.map(p=>p.cpk));
     if(mc<1){
       const worstP=[...P].sort((a,b)=>a.cpk-b.cpk),cc=capCells.find(c=>c.k===k&&c.g===g),nB=P[0]?P[0].n:nb;
       const limStr=`規格 ${f(sp.lsl,0)}–${f(sp.usl,0)} ${u(k)}${k==="hpct"&&st.step&&st.step.on?"（依區域厚度）":""}`;
@@ -6070,9 +6127,9 @@ function init3D(){if(T.ok)return true;const el=$("#view3d");
     el.addEventListener("pointermove",e=>{if(!T.ok||!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
       if(pts.size===2){const[a,b]=[...pts.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch0){T.rad=Math.min(160,Math.max(20,T.rad*pinch0/d))}pinch0=d;draw3();return}
       if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;T.theta-=dx*0.008;T.phi=Math.min(1.5,Math.max(0.15,T.phi-dy*0.008));drag.x=e.clientX;drag.y=e.clientY;draw3()});
-    const up=e=>{pts.delete(e.pointerId);pinch0=0;el.style.cursor="grab";if(T.ok&&drag&&!drag.moved&&e.type==="pointerup")pick(e);drag=null;if(typeof scheduleUpdatePrint3D==="function")scheduleUpdatePrint3D()};
+    const up=e=>{pts.delete(e.pointerId);pinch0=0;el.style.cursor="grab";if(T.ok&&drag&&!drag.moved&&e.type==="pointerup")pick(e);drag=null;};
     el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);
-    el.addEventListener("wheel",e=>{if(!T.ok)return;e.preventDefault();T.rad=Math.min(160,Math.max(20,T.rad*(1+Math.sign(e.deltaY)*0.08)));draw3();if(typeof scheduleUpdatePrint3D==="function")scheduleUpdatePrint3D()},{passive:false});
+    el.addEventListener("wheel",e=>{if(!T.ok)return;e.preventDefault();T.rad=Math.min(160,Math.max(20,T.rad*(1+Math.sign(e.deltaY)*0.08)));draw3();},{passive:false});
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>size3()).observe(el);
   }
   T.ok=true;size3();return true}
@@ -6167,17 +6224,21 @@ function createSolderPasteGeometry(w,h,d,r,ex,shape){
   return geo;
 }
 function build3D(){renderBoard2D();if(!T.ok||!window.THREE||!T||!T.root||!T.root.children)return;const A=S.A;while(T.root.children.length){const o=T.root.children.pop();o.geometry&&o.geometry.dispose();o.material&&o.material.dispose()}
-  const all=S.rows,xs=all.map(r=>r.x),ys=all.map(r=>r.y),x0=Math.min(...xs)-4,x1=Math.max(...xs)+4,y0=Math.min(...ys)-4,y1=Math.max(...ys)+4,cx=(x0+x1)/2,cy=(y0+y1)/2;
+  const all=S.rows;let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(let i=0;i<all.length;i++){const rx=all[i].x,ry=all[i].y;if(rx<x0)x0=rx;if(rx>x1)x1=rx;if(ry<y0)y0=ry;if(ry>y1)y1=ry}
+  x0-=4;x1+=4;y0-=4;y1+=4;const cx=(x0+x1)/2,cy=(y0+y1)/2;
   const brd=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,1.2,y1-y0),new THREE.MeshStandardMaterial({color:0x1f4a3a,roughness:.75}));brd.position.y=-0.6;T.root.add(brd);
   const rows=S.rows.filter(r=>r.board===S.board&&(S.group==="ALL"||r.group===S.group)),ex=S.exag/1000;T.meshes=[];
   const cuMat=new THREE.MeshStandardMaterial({color:0xb87333,metalness:.6,roughness:.35});
   const hs=S.specs.height,vs=S.specs.volume;
+  const pasteMats=new Map();
+  const getPasteMat=colStr=>{let m=pasteMats.get(colStr);if(!m)pasteMats.set(colStr,m=new THREE.MeshStandardMaterial({color:new THREE.Color(colStr),roughness:.55,metalness:.15}));return m;};
   for(const r of rows){const ap=aperture(r,S),k=Math.sqrt(Math.max((r.area??100)/100,.05)),w=ap.L*k,d=ap.W*k,h=Math.max((r.height??hs.tgt)*ex,0.05),x=r.x-cx,z=cy-r.y,dx=(r.offx||0)/1000,dz=-(r.offy||0)/1000;
-    const cu=new THREE.Mesh(r.shape==="round"?new THREE.CylinderGeometry(r.w/2,r.w/2,0.06,20):new THREE.BoxGeometry(r.w,0.06,r.d),cuMat.clone());cu.position.set(x,0.03,z);T.root.add(cu);
+    const cu=new THREE.Mesh(r.shape==="round"?new THREE.CylinderGeometry(r.w/2,r.w/2,0.06,20):new THREE.BoxGeometry(r.w,0.06,r.d),cuMat);cu.position.set(x,0.03,z);T.root.add(cu);
     const thk=S.step.on?padThk(r,S):hs.tgt,half=S.step.on?thk*(S.htol.hi-S.htol.lo)/200:(hs.usl-hs.lsl)/2;
     let col;if(S.colorMode==="status")col=statusCol(r);else if(S.colorMode==="height")col=divColor(((r.height??thk)-thk)/half);else col=divColor(((r.volume??vs.tgt)-vs.tgt)/((vs.usl-vs.lsl)/2));
     const geo = createSolderPasteGeometry(w, h, d, r, ex, ap.shape);
-    const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(col),roughness:.55,metalness:.15}));m.position.set(x+dx,0.06+h/2,z+dz);m.userData=r;T.root.add(m);T.meshes.push(m);
+    const m=new THREE.Mesh(geo,getPasteMat(col));m.position.set(x+dx,0.06+h/2,z+dz);m.userData=r;T.root.add(m);T.meshes.push(m);
     if(S.ghost){const gh=thk*ex,gg=ap.shape==="round"?new THREE.CylinderGeometry(ap.L/2,ap.L/2,gh,16):new THREE.BoxGeometry(ap.L,gh,ap.W);const e=new THREE.LineSegments(new THREE.EdgesGeometry(gg),new THREE.LineBasicMaterial({color:0x9aa3a0,transparent:true,opacity:.45}));gg.dispose();e.position.set(x,0.06+gh/2,z);T.root.add(e)}}
   if(S.bridgeWarn&&typeof THREE.RingGeometry==="function"){
     const warnMat=new THREE.MeshBasicMaterial({color:0xef4444,transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false});
@@ -6195,7 +6256,6 @@ function build3D(){renderBoard2D();if(!T.ok||!window.THREE||!T||!T.root||!T.root
     const pl=new THREE.Mesh(new THREE.BoxGeometry(w,0.02,d),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.22,depthWrite:false}));pl.position.set((R.x0+R.x1)/2-cx,0.012,cy-(R.y0+R.y1)/2);T.root.add(pl);
     const eg=new THREE.EdgesGeometry(new THREE.BoxGeometry(w,0.02,d)),ln=new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:col}));ln.position.copy(pl.position);T.root.add(ln)});
   draw3();
-  if(typeof scheduleUpdatePrint3D==="function")scheduleUpdatePrint3D();
 }
 function pick(e){if(!T.ok||!window.THREE||!T.cam)return;const el=$("#view3d"),rc=el.getBoundingClientRect(),v=new THREE.Vector2((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1),ray=new THREE.Raycaster();ray.setFromCamera(v,T.cam);const hit=ray.intersectObjects(T.meshes||[])[0];if(!hit)return;const r=hit.object.userData;selectPadForProfile(r)}
 /* three.js 只在第一次開啟 3D 頁籤時載入（約 600 KB），先用網站自帶檔，沒有才用 CDN */
@@ -6602,11 +6662,11 @@ async function xlsxTable(buf){if(!window.DecompressionStream)throw new Error("�
   if(fallback)[pick,name]=fallback;
   if(!pick)throw new Error("Excel 檔中找不到有資料的工作表（至少需要標題列與 1 列資料）");
   const grid=pick;
-  function sheetGrid(rowsEl){const grid=[];for(const row of rowsEl){const line=[];for(const c of X(row,"c")){const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t"),v=X(c,"v")[0];let val="";
-      if(t==="s")val=v?strs[+v.textContent]??"":"";else if(t==="inlineStr")val=X(c,"t").map(x=>x.textContent).join("");else if(t==="b")val=v&&v.textContent==="1"?"TRUE":"FALSE";
-      else if(v){val=v.textContent;const sIdx=+c.getAttribute("s")||0;if(t!=="str"&&t!=="e"){if(dateXf[sIdx]&&isFinite(+val))val=xlDate(+val);else if(pctXf[sIdx]&&isFinite(+val)){val=String(+(+val*100).toFixed(6));pctCount++;}}}
-      line[i]=safeId(String(val).replace(/[\r\n\t]+/g," "))}
-    if(line.some(x=>x!=null&&x!==""))grid.push(Array.from(line,x=>x??""))}return grid}
+  function sheetGrid(rowsEl){const grid=[];for(let ri=0;ri<rowsEl.length;ri++){const row=rowsEl[ri],line=[];const cells=row.children||X(row,"c");for(let ci=0;ci<cells.length;ci++){const c=cells[ci];if(c.nodeName&&!c.nodeName.endsWith("c")&&c.nodeName!=="c")continue;const ref=c.getAttribute("r"),i=ref?colIdx(ref):line.length,t=c.getAttribute("t");let val="",vEl=null;if(c.children)for(let k=0;k<c.children.length;k++){const nn=c.children[k].nodeName;if(nn==="v"||nn.endsWith(":v")){vEl=c.children[k];break}}else vEl=X(c,"v")[0];
+      if(t==="s")val=vEl?strs[+vEl.textContent]??"":"";else if(t==="inlineStr"){const tEls=X(c,"t");val=tEls.map(x=>x.textContent).join("");}else if(t==="b")val=vEl&&vEl.textContent==="1"?"TRUE":"FALSE";
+      else if(vEl){val=vEl.textContent;const sIdx=+c.getAttribute("s")||0;if(t!=="str"&&t!=="e"){if(dateXf[sIdx]&&isFinite(+val))val=xlDate(+val);else if(pctXf[sIdx]&&isFinite(+val)){val=String(+(+val*100).toFixed(6));pctCount++;}}}
+      line[i]=safeId(String(val).replace(/[\r\n\t]+/g," "));}
+    if(line.some(x=>x!=null&&x!==""))grid.push(Array.from(line,x=>x??""));}return grid;}
   if(grid.length<2)throw new Error("至少需要標題列與 1 列資料");
   const w=grid[0].length,head=grid[0].map(h=>h.trim()),data=grid.slice(1).map(r=>{const o=r.slice(0,w);while(o.length<w)o.push("");return o.map(x=>x.trim())});
   const notes=[];if(sheets.length>1)notes.push(`已讀取第一個有資料的工作表「${safeId(name)}」（共 ${sheets.length} 個工作表）`);
