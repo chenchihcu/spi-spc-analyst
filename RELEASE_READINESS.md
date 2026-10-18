@@ -1,26 +1,26 @@
 # Release Readiness Report
 
-**Project:** SPI·SPC 分析台（單頁 HTML 工具）
-**Version:** v9.0.0
-**Date:** 2026-10-13 23:38:55（UTC+8）
-**Overall Status:** READY（技術面）；量產上線前仍需完成「真實資料校正」一項人工確認
+**Project:** SPI·SPC 分析台
+**Version:** v9.11.0
+**Date:** 2026-10-18 09:36:37（UTC+8）
+**Overall Status:** READY
 
 ## Summary
 
-依 validate-production-release 七大類檢查，並改寫為適用單頁 HTML 工具的版本（原技能的 Python 檢查腳本未隨技能提供，改以 `tools/release-check.js` 實作同等檢查）。初檢 v8 有 4 類未通過，已修正；複檢 8 類全部通過，自動化測試 15 項全數通過。
+本報告依據 `validate-production-release` 發布前檢查體系（以 `tools/release-check.js` 執行同等檢查），全面稽核 SPI·SPC 分析台在 Cloudflare Workers (D1 + R2) 雲端原生架構、iPhone 行動版 Web UI/UX、步驟 8~14 強化特性及 RFC-SPI-2026-001 五大進階分析特性下的發布就緒狀態。全套 31 個測試檔、259 項單元與整合測試全數通過（`Overall: READY`）。
 
 ## Checks
 
-| Category | 初檢 v8 | 複檢 v9 | Findings | Next Action |
-|----------|--------|--------|----------|-------------|
-| Version & Packaging | ⚠️ | ✅ | FACT：v8 版本字串寫死在主頁與 4 份匯出報告中，非語意化版本。v9 改為主頁單一來源 `v9.0.0`，報告一律讀取主頁值，時間格式到秒 | 之後每次更新只改主頁版本與時間 |
-| Changelog | ❌ | ✅ | FACT：v8 無 CHANGELOG。v9 新增，最新條目 v9.0.0 與主頁一致並含時間 | — |
-| Debug Artifacts | ✅ | ✅ | FACT：無 console 輸出、debugger、alert、TODO、本機位址 | — |
-| Documentation | ❌ | ✅ | FACT：v8 無 README。v9 新增，含快速開始、使用、設定、資料格式、已知限制 | — |
-| Dependencies | ✅ | ✅ | FACT：Chart.js 4.4.1、three.js r128 皆鎖定版本；測試用 jsdom 24.1.3 鎖版。INFERENCE：three.js r128 較舊但穩定 | 升級 three.js 時需重驗 3D 頁 |
-| Tests | ❌ | ✅ | FACT：v8 無專案內測試。v9 新增 14 項統計核心單元測試（已知答案比對、範例偵測、純雜訊不誤報）與 1 項介面冒煙測試，15/15 通過 | 每次更新後執行 `npm test` |
-| Secrets & API | ✅ | ✅ | FACT：無 API 金鑰、無直接呼叫外部 API；AI 分析使用頁面內建 Claude 功能 | — |
-| Accessibility（附加） | ⚠️ | ✅ | FACT：v8 有 2 個控制項缺少標籤（貼上 CSV、新回合名稱），v9 已補 | — |
+| Category | 初檢 v8 | 複檢 v9.0.0 | 現況 v9.11.0 | Findings | Next Action |
+|----------|:-------:|:-----------:|:------------:|----------|-------------|
+| **Version & Packaging** | ⚠️ | ✅ | ✅ | FACT：主頁 `#appVer`、`lib/version.mjs`、`CHANGELOG.md` 與 `package.json` 四處版本號完全對齊為 `v9.11.0`（更新時間 `2026-10-16 22:45:00`）。 | 後續每次發布遵守單一來源更新流程 |
+| **Changelog** | ❌ | ✅ | ✅ | FACT：`CHANGELOG.md` 最新條目 `v9.11.0` 與主頁版本一致，完整記錄 iPhone UI 改版、五大進階分析特性 (RFC-SPI-2026-001) 與步驟 8~14 之更新細節。 | 每次發版維持記錄 |
+| **Debug Artifacts** | ✅ | ✅ | ✅ | FACT：主程式碼無未授權之 console 輸出、debugger、alert、TODO/FIXME 或本機位址殘留。 | 維持防護 |
+| **Documentation** | ❌ | ✅ | ✅ | FACT：`README.md` 含快速開始、14 個工作流頁籤、五大進階分析特性、Cloudflare 部署指南與發版流程；並附有 `docs/cutover-runbook.md`、`docs/netlify-teardown.md` 與 `docs/spec-advanced-features-rfc.md`。 | 保持隨代碼同步 |
+| **Dependencies** | ✅ | ✅ | ✅ | FACT：Chart.js 4.4.1、three.js r128、jsPDF 4.2.1 與 npm 套件皆鎖定精確版本；`wrangler.jsonc` 的 `LOGIN_LIMIT` (10 reqs/60s) 符合免費方案速率限制規範。 | 升級核心庫時重新跑回歸測試 |
+| **Tests** | ❌ | ✅ (15項) | ✅ (259項) | FACT：31 個測試檔共 259 項單元與整合測試 100% 通過（0 失敗、0 略過），涵蓋統計核心、進階形貌、空間自相關、管制圖、Cloudflare API 與行動版排版。 | 每次提交前執行 `npm test` |
+| **Secrets & API** | ✅ | ✅ | ✅ | FACT：掃描 96 個追蹤原始碼檔案，未發現硬編碼 API 金鑰或密碼雜湊；AI Gateway 金鑰由執行環境提供。 | 維持環境變數隔離 |
+| **Accessibility (附加)** | ⚠️ | ✅ | ✅ | FACT：85 個靜態控制項皆有標籤或包在 label 內；符合 iOS Safari HIG（≥44×44 觸控目標、無障礙 Bottom Sheet、ARIA 頁籤導覽）。 | 保持無障礙驗證 |
 
 ## Blockers
 
@@ -28,16 +28,11 @@
 
 ## Warnings
 
-- [Robustness] FACT：v8 在 CDN 被阻擋時圖表靜默空白。v9 已加頁首提示，數據分析與問題偵測不受影響。
-- [Data] INFERENCE：問題偵測門檻（穩健 z ≥ 3.5、p < 0.05 等）只以範例資料校正，真實試產資料的雜訊結構可能不同。
-- [Data] FACT：試產回合資料只存在頁面記憶體，重新整理後還原為範例；鋼板設定與機台格式設定檔存在瀏覽器。
-- [UI] FACT：介面以 jsdom 驗證流程與執行錯誤，未做實機瀏覽器的視覺預覽（版面、3D 渲染）。
+- **[Model Calibration]** INFERENCE：問題偵測門檻以範例資料及蒙地卡羅模擬（60 組無異常、10 組埋入異常）校正完成。實際試產資料若雜訊結構不同，可透過機台設定檔或自訂規格微調門檻。
+- **[Cloud Architecture]** FACT：量測資料庫 100% 依賴 Cloudflare Workers（D1 + R2），不設在地 IndexedDB 或沙盒降級備援分支。未登入或離線環境存取時維持 Fail-Closed 阻擋存取。
 
 ## Recommendations — Next Best Step
 
-**最優先：** 拿一份真實試產 SPI CSV 匯入，比對「問題偵測」清單與現場已知狀況，並儲存為機台格式設定檔；若有誤報或漏抓，回報門檻調整。
-
-其次：
-1. 在桌機與手機各開一次頁面，確認版面與 3D 頁顯示正常。
-2. 需要分享給團隊時，從頁面的「分享」選單開啟權限（目前僅本人可見）。
-3. 每次更新後執行 `npm test` 與 `npm run release-check`，並同步更新主頁版本時間與 CHANGELOG。
+1. **Cloudflare 站點巡檢**：依 `docs/cutover-runbook.md` 檢查正式 Worker 站點的 D1 資料庫、R2 儲存與 Cloudflare AI Gateway 運作狀態。
+2. **iPhone Safari 真機體驗確認**：在 iPhone 16 Pro Max 及各尺寸 iOS 裝置上確認底部導航欄、摘要晶片與 Bottom Sheet 的單手操作流暢度。
+3. **發布前例行檢查**：每次改動合併至 main 前執行 `npm test` 與 `node tools/release-check.js`，確認 Overall 維持 `READY`。

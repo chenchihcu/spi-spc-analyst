@@ -4,13 +4,29 @@
 
 ## v9.11.0 — 2026-10-16 22:45:00（iPhone 行動版 UI 改版）
 
+五大進階分析特性 (RFC-SPI-2026-001)
+- 非常態製程能力分析：整合 Anderson-Darling 檢定，針對偏態與厚尾數據支援 Box-Cox 冪次轉換、Johnson SB/SU/SL 體系轉換與 ISO 21747 經驗百分位數法，客觀估算理論 PPM 與能力指標
+- 3D 微觀形貌指標：擴充資料契約，解析五大立體形貌幾何特徵（相鄰焊墊橋接間距餘裕 Bridge Margin、脫模拉尖 Peaking、頂部平整度/共面性 Coplanarity、孔壁覆蓋率 Coverage 與坍塌 Slump），連動 3D 沉積幾何渲染
+- 停線時效與鋼板壽命衰退分析：時間戳記差分模型自動標定「停線首片（First Print After Pause）」，迴歸停線靜置時間（Dwell Time）與體積衰退斜率，計算產線安全靜置上限
+- 印刷機閉環補償計算：滾動阻尼濾波計算印刷機台即時補償向量（Offset X/Y 與角度 Theta），設置 Clamp 上限防護，並提供孔周溢錫動態清潔指標（動態 AGI）
+- 空間自相關與局部群聚統計：以全局 Moran's I 與局部 LISA 聚類熱圖（High-High、Low-Low、High-Low、Low-High）精準標定頂針懸空與載具局部塌陷熱區
+
+統計分析與找問題能力強化（步驟 8~14）
+- 管制圖擴充：新增 Xbar-R 管制圖（含 AIAG 常數體系）、Hotelling T² 多變量管制圖與 FastMCD 2D 雙變數離群值檢定（卡方門檻保護）
+- 常態性雙重檢定：新增 Shapiro-Wilk 常態性第二意見檢定（TV-11）
+- 製程知識庫：導入 SPI 製程知識庫 R001–R030，連動 12 類失效模式工程防範指引
+- 工單與匯入穩健性：支援雙工單欄位（原廠 supplierWo 與委外 outsourceWo）；強化 RFC 4180 CSV 狀態機解析、立榮寬表缺失欄位別名推估、機台判定碼自訂 codeMap 對照與階梯鋼板推估規格窗重算（recomputeMachineSpecs）
+- 結構化報告與分享：新增整頁「分析報告」分頁，支援 10 個章節勾選、多頁 PDF 報告輸出並嵌入 Noto Sans TC TrueType 子集中文字型；3D 快照下載與不良柏拉圖（Pareto）；Web Share API、整頁安全轉寄（#mail）與 mailto 1800 字元長度截斷防護
+- 雲端資料庫架構：量測資料庫 100% 依賴 Cloudflare Workers（D1 + R2），不設在地 IndexedDB 或沙盒備援分支，未登入或離線環境維持 Fail-Closed 阻擋存取
+
+iPhone 行動版 UI 改版
 - 登入頁：input 計算字級 ≥16px（17px）防止 iOS Safari 聚焦放大；label 調為 15px；.toggle 顯示密碼按鈕觸控區域達 44×44；≤720px 品牌插圖區高度精簡至 ≤160px，確保登入按鈕頂端 y ≤ 600px 首屏可點擊；移除帳號欄位 autofocus；加入 color-scheme 與 theme-color（淺 #F2F4F0、深 #0F1311）
 - 主頁 Meta 與 Design Tokens：<head> 加入 color-scheme 與 theme-color；:root 與深色模式注入 --tap-min、--tabbar-h、--navbar-h、--safe-*、--r-card、--r-sheet、--c-bar、--c-hairline；Chart.js 在手機寬度下預設字級 12px
 - 底部分頁列：≤767px 新增毛玻璃固定底欄（5 項：問題、總覽、管制圖、能力、更多），連動既有頁籤切換與 aria 狀態；當前分頁在次級頁籤時「更多」顯示作用中
 - 更多 Bottom Sheet：符合 role="dialog" aria-modal="true" 與 focus trap，整合看證據、改善與驗證、設定等全部 12 個分頁導覽，以及列印、分享、我的分享、登出與版本資訊；每列 ≥52px
 - 頂部與分析設定：header.top 精簡為 44px + safe-top 頂欄（標題 17px semibold）；.rail 收合成 44px sticky 摘要 chip（{回合} · {項目} · {群組} ▾），點開 Bottom Sheet 容納原有 select 與規格按鈕，選擇後即時更新摘要；覆寫 ≤720px 對 sticky 的 static 影響
 - 觸控與排版修正：.card .cbtn、.toc button、.how summary 最小高度補足 ≥44px；.subtab 改為 44px 等分 Segmented 樣式；.pmap-cells 每格 min-width:28px、高 ≥44px 且支援容器橫捲；資料表首欄 sticky 固定並加漸層陰影；#toTop 與 #toast 向上避讓底欄
-- 發行閘門與相容性：桌機版（≥1024px）視覺零回歸；未加入 user-scalable=no 或 overflow-x:hidden；通過 release-check 與自動化測試
+- 發行閘門與相容性：桌機版（≥1024px）視覺零回歸；未加入 user-scalable=no 或 overflow-x:hidden；通過 release-check 與自動化測試（31 個測試檔、全數 259 項測試通過）
 
 ## v9.10.2 — 2026-10-14 20:54:16（Codex 第二輪審查修正）
 

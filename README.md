@@ -10,51 +10,60 @@
 2. 首頁「問題偵測」會自動列出問題（每項預設收合成一行，點一下展開，或按「全部展開」）：上方「問題地圖」一眼看出哪幾片板、哪個元件群組有問題（點格子可篩選）；每張卡片附事實、推論（含信心）、證據迷你圖、相關佐證，以及「前往」證據圖表的按鈕，查證後可用「回到問題清單」返回。
 3. 匯入自己的資料：到「資料與規格」→ 拖放或貼上 SPI 匯出 CSV，或直接選 Excel（.xlsx）→「讀取欄位」→ 確認欄位對應與單位 →「套用匯入」（可新增為新回合）。
 4. 同一台機台的格式可「儲存設定檔」，下次匯入自動套用。
-5. 回合資料自動保存在這台電腦的瀏覽器，重新整理不會遺失；要清除，按「還原範例並清除已保存的回合」。
-6. 頁首「分享連結」把目前回合與畫面做成連結傳給同事（對方需登入，30 天失效）；「列印／存成 PDF」列印目前頁籤。
+5. 量測紀錄與原始檔案自動同步至 Cloudflare 雲端資料庫（D1 + R2），登入後重新整理不會遺失；亦可在「資料與規格 → 資料庫」隨時調閱、下載原始檔、驗證 SHA-256 指紋或重新開啟分析。
+6. 頁首「分享連結」把目前回合與畫面做成連結傳給同事（對方需登入，30 天失效）；「列印／存成 PDF」或「分析報告」可產生多頁結構化 PDF 報告（內嵌中文字型）與 3D 快照。
 
 ## 使用
 
-| 頁籤 | 用途 |
-|---|---|
-| 問題偵測 | 十個面向自動掃描：單板突發、子板位置、系統性能力、焊墊位置、持續漂移、空間梯度、刮刀方向、擦拭週期、對位、設計 DFM、量測一致性 |
-| 試產比較 | A／B 兩回合逐元件群組比較，附顯著性與改善判定 |
-| DFM 建議 | 元件群組風險排行與鋼板開孔修改建議，可匯出 |
-| 管制圖 | X̄-S（三向法）、I-MR、P、EWMA、CUSUM，Nelson 8 條規則 |
-| 製程能力 | Cp／Cpk／Pp／Ppk、PPM、直方圖、Q-Q、盒鬚圖 |
-| 3D 錫膏模擬 | 依量測值重建錫膏沉積，可點選焊墊 |
-| 交叉驗證、進階分析 | 多圖表互相佐證；面積比、對位分解、刮刀前後、擦拭週期等 |
-| 實驗驗證 | SPI × 回焊 AOI 關聯、印刷參數 DOE、簡易 GR&R |
-| AI 分析 | 由 Claude 審查問題清單、補漏、提出驗證實驗 |
+系統介面依品質工程工作流程劃分為四大階段、共 14 個核心分頁：
+
+| 階段 | 頁籤 | 用途 |
+|---|---|---|
+| **找問題** | 問題偵測 | 十個面向自動掃描：單板突發、子板位置、系統性能力、焊墊位置、持續漂移、空間梯度、刮刀方向、擦拭週期、對位、設計 DFM、量測一致性；附問題地圖與迷你趨勢圖 |
+| | 總覽 | 試產整體品質評級、良率分佈、最差群組與關鍵指標摘要卡片 |
+| **看證據** | 管制圖 | X̄-S（三向法）、X̄-R（AIAG 常數）、I-MR、Laney P′ 圖（過度離散校正）、EWMA、CUSUM、Hotelling T² 多變量管制圖；Nelson 8 條判異規則 |
+| | 製程能力 | Cp／Cpk／Pp／Ppk、PPM、直方圖、Q-Q 圖、盒鬚圖；常態檢定（Anderson-Darling、Shapiro-Wilk）與非常態轉換（Box-Cox、Johnson 體系、ISO 21747 經驗百分位數法） |
+| | 3D 錫膏模擬 | 依量測值立體重建錫膏沉積，支援焊墊點選、X/Y 偏移位移、微觀形貌（拉尖/共面性/橋接）渲染與 3D 快照下載 |
+| | 交叉驗證 | 12 種錫膏印刷失效模式交叉比對矩陣（支持/矛盾證據鏈），多圖表互相佐證與常態性檢核 |
+| | 進階分析 | 面積比 × 轉移效率、焊墊 Cpk 排行、對位分解、刮刀前後、擦拭週期、停線時效衰退迴歸、空間自相關（全局 Moran's I 與局部 LISA 聚類熱圖） |
+| | 統計資料 | 跨板統計特徵萃取、FastMCD 2D 雙變數離群值分析、不良矩陣與 OOC 數據匯出 |
+| **改善與驗證** | 試產比較 | A／B 兩回合逐元件群組比較，附每板不良率 Welch 檢定與改善判定 |
+| | DFM 建議 | 元件群組風險排行、面積比檢核與鋼板開孔修改建議表（可直接匯出給鋼板廠與 Layout） |
+| | 實驗驗證 | SPI × 回焊 AOI 關聯（推算最佳規格窗口）、印刷參數 DOE、GR&R（交叉 ANOVA，包含交互作用評估） |
+| | AI 分析 | 透過 Cloudflare Workers 後端經 AI Gateway 呼叫 Claude 進行高維度工程診斷、補漏與實驗建議 |
+| | 分析報告 | 結構化整頁報告，支援 10 個章節自訂勾選，可生成多頁專業 PDF 報告（內嵌 Noto Sans TC 子集中文字型），或透過 Web Share / 安全轉寄（#mail）分享 |
+| **設定** | 資料與規格 | 雲端量測資料庫（D1 + R2，批號/料號回溯）、CSV/Excel 匯入、加工廠格式（通用、立榮等）、座標檔對應、鋼板與規格設定（支援階梯鋼板推估窗重算） |
 
 ## 設定
 
-- **鋼板**：厚度、高度規格（佔厚度 %）、階梯鋼板區域、開孔（縮減 % 或指定尺寸）
+- **鋼板**：厚度、高度規格（佔厚度 %）、階梯鋼板區域（支援推估規格窗重算 `recomputeMachineSpecs`）、開孔（縮減 % 或指定尺寸）
 - **規格**：各量測項目 LSL／目標／USL。規格來源可選「與機台判定一致」（資料有機台判定碼時的預設：好壞直接採用機台結果，規格窗由各元件群組的 PASS 範圍推估；真正規格只會更寬，所以能力指標為下限）或「自訂規格」
-- **刮刀行程方向**：沿 PCB X 或 Y（預設 Y），用於判讀空間梯度的成因
-- **擦拭間隔**：每幾片擦拭一次（預設 5）；第一次擦拭在哪片板不必知道，系統會掃描所有起點
+- **刮刀行程方向**：沿 PCB X 或 Y（預設 Y），用於判讀空間梯度的成因；若資料無方向欄位或不完整，自動顯示「無法比較」並略過刮刀檢定
+- **擦拭間隔**：每幾片擦拭一次（預設 5）；第一次擦拭在哪片板不必知道，系統會掃描所有起點並以 Bonferroni 校正
 
 ## 統計方法重點
 
-- **製程能力**：Cp／Cpk 用組內 σ（同板、同元件群組內的合併標準差），Pp／Ppk 用長期 σ（扣除群組平均）。全部元件模式下逐群組計算並以最差群組為代表，預估 PPM 為各群組加權；Cpk 附 95% 信賴區間（NIST 公式）；製程未穩定時標示「僅供參考」
-- **管制圖**：S 圖中心線 c4(n)·σ̂、界限 ±3σ̂√(1−c4²)；不良率採 Laney P′ 圖（板間過度離散時放寬界限）；判異規則依圖別：X̄／I-MR 用 8 條，P′ 用 1–4，EWMA／CUSUM 只用規則 1；管制狀態一律以 X̄ 圖判斷
-- **問題偵測**：揭露單板異常的檢定次數與預期誤報數；擦拭週期掃描所有起點並以 Bonferroni 校正；CUSUM 起點上、下兩向分別回推
-- **失效模式交叉比對**（交叉驗證頁）：12 種錫膏印刷失效模式，各列支持與矛盾證據，證據分屬形狀、時間、空間、設計、對位、量測六個獨立面向；至少兩個面向支持、含必要面向且無矛盾才判「可能」
-- **報告與 AI 分析**：分析報告 .md 與 AI 分析都包含失效模式交叉比對、Cpk 信賴區間、逐群組能力與 X̄ 管制狀態
-- **量測一致性**：若機台體積由面積 × 高度計算而得，標示「不適用」，改以 GR&R 評估
-- **圖面方向**：焊墊熱圖、區域圖、偏移向量圖與 3D 模擬一律採 CAD 座標（Y 向上）；3D 錫膏位置含 X／Y 偏移
-- **匯入**：偏移單位（µm／焊墊 %／mm）、高度單位、體積%分母（開孔或焊墊面積 × 厚度）
+- **製程能力**：Cp／Cpk 用組內 σ（同板、同元件群組內的合併標準差），Pp／Ppk 用長期 σ（扣除群組平均）。全部元件模式下逐群組計算並以最差群組為代表，預估 PPM 為各群組加權；Cpk 附 95% 信賴區間（NIST 公式）；製程未穩定時標示「僅供參考」。
+- **非常態能力分析 (RFC-SPI-2026-001)**：結合 Anderson-Darling 檢定，偏態或厚尾數據可自動或手動切換 Box-Cox 冪次轉換、Johnson SB/SU/SL 體系轉換，或採 ISO 21747 經驗百分位數法，客觀評估非常態 PPM 與能力指標。
+- **3D 微觀形貌指標 (RFC-SPI-2026-001)**：擴充五大幾何指標——相鄰焊墊橋接間距餘裕（Bridge Margin）、脫模拉尖（Peaking）、頂部平整度/共面性（Coplanarity）、孔壁覆蓋率（Coverage）與坍塌（Slump），連動 3D 沉積幾何拉尖渲染。
+- **停線時效衰退模型 (RFC-SPI-2026-001)**：以時間戳記差分模型自動標定「停線首片（First Print After Pause）」，迴歸停線靜置時間（Dwell Time）與體積衰退曲線，推算產線安全靜置上限。
+- **印刷機閉環補償 (RFC-SPI-2026-001)**：滾動阻尼濾波計算印刷機台即時補償向量（Offset X/Y 與角度 Theta），設置 Clamp 上限防護，並提供動態 AGI 鋼板擦拭觸發指標。
+- **空間自相關分析 (RFC-SPI-2026-001)**：實作空間統計自相關引擎，以全局 Moran's I 與局部 LISA 聚類熱圖（High-High/Low-Low）精準標定頂針懸空與載具局部塌陷熱區。
+- **管制圖體系**：S 圖中心線 c4(n)·σ̂、界限 ±3σ̂√(1−c4²)；不良率採 Laney P′ 圖（板間過度離散時放寬界限，揭露 σz）；判異規則依圖別套用；擴充 Xbar-R 管制圖（AIAG 常數）與 Hotelling T² 多變量管制圖；以 FastMCD 2D 雙變數離群值演算法進行卡方門檻保護。
+- **失效模式交叉比對**（交叉驗證頁）：12 種錫膏印刷失效模式，各列支持與矛盾證據，證據分屬形狀、時間、空間、設計、對位、量測六個獨立面向；至少兩個面向支持、含必要面向且無矛盾才判「可能」；連動 SPI 製程知識庫 R001–R030。
+- **結構化報告與分享**：支援多頁整頁結構化 PDF 報告輸出，嵌入 Noto Sans TC TrueType 子集中文字型（無豆腐字）；提供 Web Share 原生分享與整頁安全轉寄（#mail，mailto 1800 字元截斷防護）。
 
 ## 資料格式
 
 最少需要一個數值欄位。建議欄位（中英文欄名自動辨識）：
 
-`Board`、`Panel`、`Figure`、`Component`、`Package`（封裝，作為元件群組）、`Pin`／`Pad`、`PosX`、`PosY`、`Volume(%)`、`Height(um)`、`Area(%)`、`OffsetX`、`OffsetY`、`Pad L/W`、`Aperture L/W`、`Result`、`Stroke`、`Date`、`Time`、`Pressure`、`Speed`、`Separation speed`
+`Board`、`Panel`、`Figure`、`Component`、`Package`（封裝，作為元件群組）、`Pin`／`Pad`、`PosX`、`PosY`、`Volume(%)`、`Height(um)`、`Area(%)`、`OffsetX`、`OffsetY`、`Pad L/W`、`Aperture L/W`、`Result`、`Stroke`、`Date`、`Time`、`Pressure`、`Speed`、`Separation speed`、`supplierWo`、`outsourceWo`
 
-### 資料回溯（資料庫）
+### 資料回溯（雲端資料庫）
 
-- 匯入量測紀錄前填寫**批號**與**產品料號**（必填）；上傳座標檔前填寫**產品料號**與**版本**（必填）。原始檔自動存入資料庫，之後在「資料與規格 → 資料庫」可搜尋、開啟分析、下載原始檔、驗證指紋與刪除（限上傳者）。
+- 匯入量測紀錄前填寫**批號**與**產品料號**（必填）；上傳座標檔前填寫**產品料號**與**版本**（必填）。原始檔自動上傳存入 Cloudflare 雲端資料庫（D1 + R2），之後在「資料與規格 → 資料庫」可搜尋、開啟分析、下載原始檔、驗證 SHA-256 指紋與刪除（限上傳者）。
 - 回合、列印與分析報告都會帶批號、料號與原始檔指紋，可回溯到當初上傳的檔案。
+- 量測資料庫 100% 依賴 Cloudflare 雲端（D1 + R2），不設在地 IndexedDB 或沙盒降級備援分支；未登入狀態維持 Fail-Closed 阻擋存取。
 
 ### 加工廠 SPI 格式
 
@@ -63,46 +72,29 @@
 - **通用格式**：一列一筆量測，依欄名自動對應（也可存成機台格式設定檔）。
 - **立榮電子**：一列一個焊墊，各板量測橫向排列（`Component ID`、`PAD ID`、`Height(%)1`、`Volume(%)1`、`Area(%)1`、`Result1`…`Result20`）。系統轉成一列一筆；高度 % 依鋼板厚度換算成 µm，**匯入前請先確認鋼板厚度**。TOP、BOT 各匯入成一個回合（依檔名判斷，也可手動指定）。
 - **座標檔（選用）**：Layout 匯出的元件座標（`PartType`、`RefDes`、`X`、`Y`、`Layer`、`Orient.`），以位號對應補上板面位置並依封裝分群；單位 mil／mm／inch 可自動判斷。座標檔只有元件中心，同一元件的焊墊位置為近似。
-- 新增其他加工廠格式時，在 `spi-spc.html` 的「加工廠 SPI 格式」選單加一個選項，並在 `convertImp` 加入對應的轉換。
+- 新增其他加工廠格式時，在 `spi-spc.html` 的「加工廠 SPI格式」選單加一個選項，並在 `convertImp` 加入對應的轉換。
 
 ## 開發與測試
 
 ```bash
-npm install            # 安裝測試用 jsdom
-npm test               # 統計核心單元測試 + 介面冒煙測試
-npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文件、相依、測試、機密）
+npm install            # 安裝測試用依賴 (jsdom, fake-indexeddb, wrangler)
+npm test               # 執行全套 31 個測試檔、共 259 項單元與整合測試
+npm run release-check  # 上線前檢查（版本、更新紀錄、除錯殘留、文件、相依、測試、機密、無障礙）
+npm run test:slow      # 執行蒙地卡羅慢速整體判定模擬測試
 ```
 
 ## 部署
 
-- Netlify：根目錄直接發布（見 `netlify.toml`），首頁即分析台，不需建置。
-- Cloudflare Workers：使用 `npm run build:cloudflare`，由 `wrangler.jsonc` 發布 Worker 與 `dist/` 中精選的首頁和 `vendor/`。這是含登入、API、D1、R2 的 Worker 專案；只在 Pages 上傳 HTML 會失去這些功能。手動移植步驟見下方。
-- AI 分析：在 claude.ai 內使用頁內 Claude；部署在 Netlify 時改由後端函式 `/api/analyze` 透過 Netlify AI Gateway 呼叫 Claude（不需自備金鑰，依用量扣 Netlify 點數）。
-  - 只送統計摘要與問題清單，不送原始 SPI 資料；可用環境變數 `AI_MODEL` 指定模型。
-  - `GET /api/analyze` 可檢查 AI Gateway 是否啟用。
-- 登入保護：`netlify/edge-functions/auth.mjs` 對全站（含 `/api/*`）要求帳號＋密碼。
-  - 帳號：環境變數 `AUTH_USERS`（多帳號 JSON，`{"帳號":"密碼紀錄"}`；密碼紀錄建議用加鹽 PBKDF2 格式 `pbkdf2-sha256$…`，仍相容舊式 SHA-256），或舊設定 `AUTH_USER`＋`AUTH_PASS_SHA256`（兩者可並存）；另需 `AUTH_SECRET`（≥ 32 字元隨機字串）。沒有有效帳號或密鑰時網站回 503。Free 方案下環境變數不可設為「機密」（設定後邊緣函式讀不到），因此以一般變數存放；不存明文密碼。
-  - 新增／變更帳號：執行 `node tools/hash-password.mjs '<現有 AUTH_USERS>'`，輸入帳號與兩次密碼，把輸出貼到 `AUTH_USERS`，重新部署後生效。改密碼或刪帳號後，該帳號的舊登入立即失效；更換 `AUTH_SECRET` 會讓所有人重新登入。
-  - 同一帳號或同一來源 IP 在 15 分鐘內登入失敗 5 次，鎖定 15 分鐘（紀錄存在 Netlify Blobs `spi-auth-lock`，每次嘗試先登記再驗證，同時大量嘗試也無法繞過）。
-  - `/__me` 回傳目前登入帳號；AI 分析與分享會記錄使用者（函式記錄檔）。
-- 量測紀錄與座標檔資料庫：`/api/records` 把原始檔（gzip，上限 4 MB）存在 Netlify Blobs `spi-records`，永久保存（不會自動刪除）。
-  - 只有新增、查詢／下載、刪除，沒有修改；只有上傳者可刪除；`index.json` 以條件寫入更新，多人同時上傳不會互相覆蓋；`log/` 為稽核紀錄（新增與刪除）。
-  - 量測紀錄必填批號、產品料號；座標檔必填產品料號、版本；每筆記錄 SHA-256 指紋、上傳者、時間。
-  - claude.ai 成品與本機檔案沒有後端，改存在瀏覽器 IndexedDB（只有那台電腦看得到）。
-- 分享連結：`/api/share` 把瀏覽器壓縮後的回合資料（上限 4 MB）存在 Netlify Blobs `spi-share`，30 天後失效；排程函式 `share-cleanup` 每日刪除過期資料。
-- 安全標頭（CSP、X-Frame-Options、HSTS、Permissions-Policy）設定在 `netlify.toml` 與登入頁。
-
-### Cloudflare 手動移植（CF-SPI-001）
-
-1. 在自己的 Cloudflare 帳戶確認 R2 訂閱、費用與付款條件，並建立**私有** R2 bucket `spi-spc-record` 與 D1 資料庫 `spi-spc`。`wrangler.jsonc` 的 D1 UUID 必須對應這個資料庫；不要公開 R2 bucket。
-2. 透過 Cloudflare Workers 的 Git 連接部署本儲存庫（Worker 名稱須與 `wrangler.jsonc` 的 `name` 一致）：Build command 設 `npm run build:cloudflare`，Deploy command 設 `npx wrangler deploy`；也可在本機依序執行這兩個命令。確認 Cloudflare Workers and Pages GitHub App 已獲授權存取 `chenchihcu/spi-spc-analyst`，否則 Git 觸發的建置可能失敗。先保持 `AUTH_*` 未設定，Worker 對受保護頁面與 API 回 503。`npm test`、`npm run release-check`、`npx wrangler deploy --dry-run` 都應先通過。
-3. 對 D1 執行 `npx wrangler d1 execute spi-spc --remote --file cloudflare/migrations/0001.sql`。確認 Worker 的 `DB`、`BLOBS` 和 `ASSETS` bindings 與 `wrangler.jsonc` 相同。
-4. 在**儲存庫以外**建立受控資料夾，將 `NETLIFY_SITE_ID`、`NETLIFY_AUTH_TOKEN` 只放於執行環境。執行 `node tools/migrate-netlify-blobs.mjs export <絕對資料夾>`，唯讀列舉 `spi-records`、`spi-share`、`spi-maint`、`spi-auth-lock`；輸出 `manifest.json`、原始位元組及 SHA-256。先查看數量、來源紀錄指紋與分享期限。此資料夾包含正式資料，勿提交 Git 或公開分享。
-5. 執行 `node tools/migrate-netlify-blobs.mjs import <絕對資料夾> --remote` 預覽，再以 `--remote --apply` 寫入。工具逐物件核對 D1 內容與 R2 讀回的 SHA-256；可重跑，來源 Netlify Blobs 不會刪除。正式目標應在資料搬移和核對完成前維持封閉，避免新寫入與來源快照衝突；若來源仍持續更新，需要重新盤點差額再切換。
-6. 在 Cloudflare Worker secrets 設定原有 `AUTH_USERS`（或 `AUTH_USER`＋`AUTH_PASS_SHA256`）與 `AUTH_SECRET`。這些值須由帳戶持有人核對後安全輸入，勿寫入 Git、終端歷史或部署日誌。登入後檢查 `/__me`、`/api/records`、原始檔下載、稽核及既有分享代碼；再用未登入視窗確認頁面和 API 都無法讀取資料。
-7. AI 分析另外需要 `CF_ACCOUNT_ID`、`CF_AI_GATEWAY_ID`、`CF_AI_GATEWAY_TOKEN`，以及 `ANTHROPIC_API_KEY` 或已在 AI Gateway 設定 provider key 並將 `CF_AI_BYOK=true`。可用 `AI_MODEL` 覆寫模型。先確認 AI Gateway 與 Anthropic 費用；未設定時 `/api/analyze` POST 回 503。實際呼叫只送統計摘要與問題清單，且需另做成功回應與費用驗證。
-
-本機測試不代表 R2 已啟用、資料已搬移或新站已發布。正式切換前請以 Cloudflare 部署紀錄和新網址讀回結果驗證。
+- **Cloudflare Workers（正式環境）**：
+  - 專案使用 `npm run build:cloudflare` 建置前端資產，由 `wrangler.jsonc` 配置發布 Worker 與 `dist/` 中的首頁與 `vendor/`。
+  - 後端整合 Cloudflare D1 資料庫（`spi-spc`）、R2 儲存桶（`spi-spc-record`）、Cloudflare AI Gateway（呼叫 Claude 3.5 Sonnet）與速率限制器（`LOGIN_LIMIT` 10 reqs/60s）。
+  - 詳細切換與部署手冊見 [`docs/cutover-runbook.md`](file:///c:/Users/user/Documents/spi-spc%20analyst/docs/cutover-runbook.md)。
+- **Netlify（歷史下線狀態）**：
+  - 系統已完成由 Netlify 至 Cloudflare 之架構遷移。Netlify 平台資源之徹底下線與 Blobs 清理步驟詳見 [`docs/netlify-teardown.md`](file:///c:/Users/user/Documents/spi-spc%20analyst/docs/netlify-teardown.md)。
+- **AI 分析**：
+  - 在 claude.ai 內使用頁內 Claude；正式站點由後端 `/api/analyze` 透過 Cloudflare AI Gateway 呼叫 Claude（可用環境變數 `AI_MODEL` 指定模型）。只傳送統計摘要與問題清單，不傳送原始逐焊墊 SPI 資料。
+- **全站登入防護**：
+  - Cloudflare Worker 對全站頁面與 `/api/*` 要求帳號與加鹽 PBKDF2/PEPPER-HMAC 密碼驗證。同帳號或 IP 15 分鐘內失敗達門檻自動鎖定。
 
 ## 發版流程（每次改版必做）
 
@@ -112,11 +104,11 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
    - `CHANGELOG.md` 最上方條目
    - `package.json` 的 `version`
 2. **本機驗證閘門**：
-   - 執行 `npm test`（全部測試必須通過）
+   - 執行 `npm test`（31 個測試檔、259 項測試必須 100% 通過）
    - 執行 `node tools/release-check.js`（狀態必須為 `Overall: READY`）
    - 執行 `npm run build:cloudflare; npx wrangler deploy --dry-run`（建置資產產出且 dry-run 成功）
 3. **部署至 Cloudflare Workers**：
-   - 合併至 `main` 分支，由 Cloudflare Workers Git CI/CD 自動建置部署，或由帳戶持有人執行 `npm run build:cloudflare; npx wrangler deploy` 發布。
+   - 合併至 `main` 分支，由 Cloudflare Workers Git CI/CD 自動建置部署，或由系統管理員執行 `npm run build:cloudflare; npx wrangler deploy` 發布。
    - 確認 Cloudflare Workers 控制台或部署日誌顯示 Success / Deployed。
 4. **線上版本與功能核對**：
    - 開啟正式站點 URL，核對頁首顯示的版本號與更新時間與步驟 1 完全相符。
@@ -126,9 +118,9 @@ npm run release-check  # 上線前檢查（版本、紀錄、除錯殘留、文�
 
 ## 已知限制
 
-- 試產回合、鋼板設定與機台格式設定檔存在各自電腦的瀏覽器，不會跨電腦同步（要給別人看請用分享連結）；私密瀏覽模式下無法保存。
 - 只支援新版 Excel（.xlsx），舊版 .xls 請另存；讀取第一個有資料的工作表。
-- 偵測門檻以 200 組無異常模擬資料校正（警示以上誤報約 3%），真實資料的雜訊結構可能不同，必要時需微調。
-- 大量資料（20 萬筆以上）匯入時問題偵測約需數秒。
+- 問題偵測門檻以範例與 60 組無異常蒙地卡羅模擬資料校正（警示以上誤報約 3%），真實資料若雜訊結構不同可透過自訂規格微調。
+- 大量資料（20 萬筆以上）匯入時問題偵測改由背景 Web Worker 執行以避免主執行緒阻塞。
 - DFM 建議值與 AOI 推算的規格窗口為依資料估算，開鋼板或修改規格前需實際驗證。
-- 刮刀方向在資料沒有方向欄位時，依板序奇偶推定。
+- 刮刀方向在資料沒有方向欄位或欄位不完整時，不再以板序奇偶推定，改顯示「無法比較」並略過刮刀檢定。
+- 量測資料庫 100% 依賴 Cloudflare 雲端（D1 + R2），未登入或離線環境維持 Fail-Closed 阻擋存取。
