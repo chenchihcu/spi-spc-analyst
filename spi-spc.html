@@ -170,6 +170,9 @@ table.show-all tr.more-row{display:table-row}
   #view3d canvas{display:none!important}
   #view3d .print3d{display:block!important;width:100%!important;max-width:100%!important;height:auto!important}
   #view3d .print3d-err{display:block!important;color:#c00!important;font-size:12px!important}
+  #p-report > .card:first-child{display:none!important}
+  .report-preview-wrap{padding:0!important;background:transparent!important}
+  .report-preview{max-width:100%!important;padding:0!important;box-shadow:none!important;border-radius:0!important}
 }
 .report-preview-wrap{display:flex;justify-content:center;background:var(--surface2);padding:20px 10px;border-radius:var(--r);overflow-x:auto}
 .report-preview{width:100%;max-width:820px;background:#ffffff;color:#1a1a1a;padding:36px 40px;box-shadow:0 4px 20px rgba(0,0,0,0.12);border-radius:4px;font-family:var(--f-sans);line-height:1.6}
@@ -536,6 +539,47 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   .pmap-cells{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
   .pmap-cells button{min-width:28px!important;min-height:44px!important;height:44px!important;flex:0 0 auto;font-size:12px!important}
 }
+
+/* ---------- 資料庫選取中樞 Modal (跨裝置 Desktop & Mobile) ---------- */
+.db-modal{display:none}
+.db-modal.open{
+  display:flex!important;
+  position:fixed;
+  inset:0;
+  z-index:90;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.45);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  padding:20px;
+}
+.db-modal-panel{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:0 12px 36px rgba(0,0,0,0.22);
+  width:100%;
+  max-width:960px;
+  max-height:86vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+@media (max-width:600px), (pointer:coarse) and (max-height:500px){
+  .db-modal.open{
+    inset:calc(var(--navbar-h) + var(--safe-t)) 0 calc(var(--tabbar-h) + var(--safe-b)) 0!important;
+    padding:0!important;
+    z-index:35!important;
+  }
+  .db-modal-panel{
+    border-radius:0!important;
+    max-width:100%!important;
+    max-height:100%!important;
+    height:100%!important;
+    border:none!important;
+  }
+}
 </style>
 </head>
 <body>
@@ -551,6 +595,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
     <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.12.0</b> · 更新 <b class="num" id="appBuilt">2026-10-18 13:00:00</b></span>
   </div>
   <div class="row toprow">
+    <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
     <div class="menuwrap" id="moreWrap" hidden>
       <button class="chip chipBtn" id="btnMore" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu">更多 ▾</button>
@@ -645,6 +690,19 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 </div>
 
 <section class="panel" id="p-issues" role="tabpanel">
+  <div id="startupDbBanner" class="card" style="margin-bottom:12px;background:var(--accent-soft);border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-radius:var(--r);flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">💡</span>
+      <div>
+        <b style="color:var(--accent-ink);font-size:14px">目前載入為範例資料</b>
+        <div class="note" style="color:var(--ink);font-size:12.5px;margin-top:2px">已備妥產線資料庫，可直接點選既有記錄載入分析，或匯入新量測檔。</div>
+      </div>
+    </div>
+    <div class="row" style="gap:8px;margin:0">
+      <button type="button" class="primary" id="btnBannerLoadDb" style="padding:4px 14px;min-height:34px;font-size:13px">📂 從資料庫載入記錄</button>
+      <button type="button" id="btnBannerGoImport" style="padding:4px 14px;min-height:34px;font-size:13px">匯入新檔案</button>
+    </div>
+  </div>
   <div class="iss-top">
     <div>
       <h2 id="issHead" style="font-size:20px">掃描中…</h2>
@@ -1282,8 +1340,9 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <button type="button" class="sheet-row" data-mtab="report"><span>分析報告</span><span class="sheet-arrow">›</span></button>
       </div>
 
-      <div class="sheet-sec-title">設定</div>
+      <div class="sheet-sec-title">資料與設定</div>
       <div class="sheet-list">
+        <button type="button" class="sheet-row" id="mBtnOpenRecModal"><span>📂 載入記錄檔</span><span class="sheet-arrow">›</span></button>
         <button type="button" class="sheet-row" data-mtab="data"><span>資料與規格</span><span class="sheet-arrow">›</span></button>
       </div>
 
@@ -1297,8 +1356,50 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       </div>
 
       <div class="sheet-ver-info">
-        <p>SPI·SPC 分析台 <b>v9.11.0</b></p>
-        <p>最後更新：2026-10-16 22:45:00</p>
+        <p>SPI·SPC 分析台 <b>v9.12.0</b></p>
+        <p>最後更新：2026-10-18 13:00:00</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 量測記錄與座標檔資料庫選取載入中樞 -->
+<div class="db-modal" id="recPickerModal" role="dialog" aria-modal="true" aria-label="量測記錄與座標檔資料庫" hidden>
+  <div class="db-modal-panel">
+    <div class="sheet-head" style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--surface)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">📂</span>
+        <h3 style="margin:0;font-size:16px">量測記錄與座標檔資料庫</h3>
+        <span class="note" id="recPickerMode" style="font-size:12px"></span>
+      </div>
+      <button type="button" class="sheet-close" id="recPickerClose" aria-label="關閉選單">✕</button>
+    </div>
+    <div style="padding:14px 18px;background:var(--surface);display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1 1 auto">
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px">
+        <div class="seg" role="tablist" style="display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--surface2)">
+          <button type="button" class="seg-btn active" id="btnPickSpi" style="padding:5px 14px;border:none;border-radius:6px;background:var(--surface);font-weight:500;cursor:pointer;font-size:13px">📊 量測記錄 (<span id="countPickSpi">0</span>)</button>
+          <button type="button" class="seg-btn" id="btnPickPlace" style="padding:5px 14px;border:none;border-radius:6px;background:transparent;cursor:pointer;font-size:13px">📍 座標檔庫 (<span id="countPickPlace">0</span>)</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex:1 1 240px;max-width:380px">
+          <input type="text" id="recPickerQ" placeholder="搜尋批號、料號、工單、上傳者…" style="width:100%;min-height:34px;font-size:13px">
+          <button type="button" id="recPickerReload" title="重新整理" style="padding:4px 12px;min-height:34px">↻</button>
+        </div>
+      </div>
+      <div id="recPickerNotice" class="note" role="status" style="margin:0"></div>
+      <!-- 量測記錄表格 -->
+      <div id="boxPickSpi" class="tbl" style="max-height:56vh;overflow-y:auto">
+        <table id="tblPickSpi"></table>
+      </div>
+      <!-- 座標檔表格 -->
+      <div id="boxPickPlace" class="tbl" hidden style="max-height:56vh;overflow-y:auto">
+        <table id="tblPickPlace"></table>
+      </div>
+    </div>
+    <div class="sheet-foot" style="padding:10px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--surface2);flex:0 0 auto">
+      <span class="note" style="font-size:12px">安全保證：原始檔案存入後不可修改，以 SHA-256 指紋驗證無篡改</span>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="btnRecPickerGoImport" style="font-size:13px">＋ 匯入新檔案</button>
+        <button type="button" id="btnRecPickerCloseBottom" class="primary" style="font-size:13px">完成</button>
       </div>
     </div>
   </div>
@@ -4474,7 +4575,15 @@ function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set
   $$("#pmap [data-ent]").forEach(b=>b.onclick=()=>{S.issEnt=S.issEnt===b.dataset.ent?null:b.dataset.ent;renderIssues()});if($("#pmapClear"))$("#pmapClear").onclick=()=>{S.issEnt=null;renderIssues()}}
 const ISS_OPEN=new Set(),SCROLL={};
 function issToolsState(){const all=$$("#issList details.iss-card"),open=all.filter(d=>d.open).length;const e=$("#issExpand"),c=$("#issCollapse");if(e)e.disabled=all.length>0&&open===all.length;if(c)c.disabled=open===0}
-function renderIssues(){const F=S.F,c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]++);
+function renderIssues(){const F=S.F||[],c={ng:0,warn:0,info:0};F.forEach(x=>c[x.lv]++);
+  if(!S.rows||!S.rows.length){
+    $("#issHead").textContent="尚未匯入量測資料";
+    $("#issSub").textContent="請至「資料與規格」匯入 SPI 數據檔案，或點選頂部「載入範例資料」開始分析。";
+    $("#pmap").innerHTML='<p class="note" style="padding:16px 0">尚無焊墊分佈數據</p>';
+    $("#issFilter").innerHTML="";
+    $("#issList").innerHTML='<div class="note" style="text-align:center;padding:32px 16px"><p style="font-size:15px;margin-bottom:8px">尚無問題偵測結果</p><p>匯入資料後，系統將自動依十個面向進行統計檢定並列出異常問題。</p></div>';
+    return;
+  }
   if(F.pending){$("#issHead").textContent=`正在偵測問題（${S.rows.length.toLocaleString()} 筆）…`;$("#issSub").textContent="資料量大，於背景計算中，完成後會自動顯示結果。";$("#pmap").innerHTML="";$("#issList").innerHTML='<p class="note">計算中…</p>';return}
   $("#issHead").textContent=F.length?`偵測到 ${F.length} 項問題：嚴重 ${c.ng}、警示 ${c.warn}、資訊 ${c.info}`:"未偵測到統計上顯著的問題";
   const multi=F.filter(x=>x.corrob.length>=2).length;
@@ -4661,9 +4770,19 @@ function setTab(t, fromHistory = false) {
 }
 
 /* ---------- 總覽 ---------- */
+function hasData(){return Boolean(S.A && S.rows && S.rows.length);}
 function kpi(k,v,s,cls=""){return`<div class="kpi ${cls}"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`}
 function capCls(v){return!isFinite(v)?"":v>=1.33?"ok":v>=1?"warn":"ng"}
-function renderOverview(){const A=S.A,u=METRICS[A.m].unit,xv=A.xv,ov=overallVerdict(S,S.F);
+function renderOverview(){
+  if(!hasData()){
+    $("#verdict").className="verdict na";$("#vTitle").textContent="尚未載入分析資料";
+    $("#vText").textContent="請至「資料與規格」匯入 SPI 數據檔案，或點選頂部「載入範例資料」開始分析。";
+    $("#kpis").innerHTML='<p class="note" style="grid-column:1/-1;padding:12px 0">尚無分析數據</p>';
+    $("#ovChartSub").textContent="—";
+    $("#acts").innerHTML='<li style="grid-column:1/-1"><div class="note">匯入資料後將自動產生處置建議。</div></li>';
+    return;
+  }
+  const A=S.A,u=METRICS[A.m].unit,xv=A.xv,ov=overallVerdict(S,S.F);
   const msg={ok:["製程穩定且能力足夠","各項圖表與檢定結論一致，未見需立即處置的訊號。"],warn:["存在需要追蹤的訊號","部分圖表出現判異或能力不足，建議至「交叉驗證」查看哪些證據互相佐證。"],ng:["偵測到需要立即處置的異常","偵測到嚴重異常或製程能力不足，建議鎖定問題板號並啟動原因調查。"]}[ov.level]||["製程穩定且能力足夠","未見需立即處置的訊號。"];
   $("#verdict").className="verdict "+ov.level;$("#vTitle").textContent=msg[0]+"（整體判定："+ov.label+"）";
   $("#vText").textContent=(ov.reasons&&ov.reasons.length?ov.reasons.join("；"):"未見需立即處置的訊號。")+(A.worst&&A.worst.defects?` 最差板 ${A.worst.board}，不良焊墊 ${A.worst.defects} 個。`:"");
@@ -4736,7 +4855,15 @@ const HOW={xbars:"每點是一片板所有焊墊的平均，S 圖看板內離散
   p:"每板任一量測項目超出規格的焊墊比例。採 Laney P′ 圖：界限隨每板焊墊數變動，並以 σz 修正板間額外變異（每板焊墊多時，傳統 P 圖界限過窄會大量誤報）。P′ 圖反映「不良結果」，X̄ 圖反映「平均偏移」，兩者一起看可判斷是系統性偏移還是局部缺陷。",
   ewma:"指數加權移動平均，每點融合過去資料（λ = 0.2），對 0.5–1.5σ 的小幅持續漂移比 X̄ 圖敏感，適合抓錫膏乾化、刮刀磨耗造成的緩慢衰退。σ 取自板平均的移動全距（三向管制圖法）。灰點為每板原始平均。",
   cusum:"累積和管制圖。C+ 累積向上偏移、C− 累積向下偏移（單位 σ），超過 h = 5 即判定偏移已持續發生；曲線開始爬升的那片板，通常就是變化起點，可對照換線、加錫膏或擦拭紀錄。注意：本圖基準為規格目標或整批平均（依設定），若後段上升，前段會先出現向下累積（反之亦然）；變化起點請以「問題偵測」的趨勢漂移（上下兩向分別回推）為準。"};
-function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
+function renderControl(){
+  if(!hasData()){
+    $("#ctrlTitle").textContent="管制圖（無資料）";$("#ctrl2Title").textContent="";$("#ctrl2Card").hidden=true;
+    $("#ctrlHow").textContent="尚未載入量測資料。匯入數據後即可顯示管制圖與判異分析。";
+    $("#ctrlSub").textContent="";$("#ctrlLegend").innerHTML="";
+    $("#nelsonTbl").innerHTML='<tbody><tr><td colspan="4" class="note">尚未載入資料</td></tr></tbody>';
+    return;
+  }
+  const A=S.A,c=S.chart,u=METRICS[A.m].unit;
   const t={xbars:["X̄ 圖（每板平均）","S 圖（板內標準差）"],
     xbarr:[`X̄ 圖（子群平均，n=${(A.xr&&A.xr.n)||S.xrSize||4}）`,`R 圖（子群全距，n=${(A.xr&&A.xr.n)||S.xrSize||4}）`],
     imr:[`I 圖（${A.imr.pad} 個別值）`,"MR 圖（移動全距）"],
@@ -4788,7 +4915,13 @@ function renderControl(){const A=S.A,c=S.chart,u=METRICS[A.m].unit;
 }
 
 /* ---------- 能力 ---------- */
-function renderCap(){const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
+function renderCap(){
+  if(!hasData()){
+    $("#capGrp").hidden=true;
+    $("#capKpis").innerHTML='<p class="note" style="grid-column:1/-1;padding:12px 0">尚未載入量測資料，無法計算製程能力。</p>';
+    return;
+  }
+  const A=S.A,u=METRICS[A.m].unit,cap=A.cap;
   const pre=cap?(A.stable?"":"製程未穩定，僅供參考 · ")+(cap.lowerBound?"機台推估規格，為下限 · ":"")+(cap.mixed?`最差群組 ${cap.worst} · `:""):"";
   $("#capGrp").hidden=!(cap&&cap.mixed);
   const specTitle = METRICS[A.m].short;
@@ -4963,7 +5096,13 @@ function drawPareto(id, dim){
 }
 
 /* ---------- 交叉驗證 ---------- */
-function renderCross(){const A=S.A,lab={ok:"一致 / 正常",warn:"警示",ng:"異常",na:"無法判定"};renderFM();
+function renderCross(){
+  if(!hasData()){
+    $("#xvTbl").innerHTML='<tbody><tr><td colspan="4" class="note">尚未載入量測資料。</td></tr></tbody>';
+    $("#scSub").textContent="";$("#overlap").innerHTML='<p class="note">尚無資料</p>';
+    return;
+  }
+  const A=S.A,lab={ok:"一致 / 正常",warn:"警示",ng:"異常",na:"無法判定"};renderFM();
   $("#xvTbl").innerHTML=`<thead><tr><th>驗證面向</th><th>證據來源</th><th>判定</th><th>依據（事實）</th></tr></thead><tbody>`+A.xv.rows.map(x=>`<tr><td>${x.k}</td><td class="note">${x.src}</td><td><span class="pill ${x.st}">${lab[x.st]}</span></td><td>${x.ev}</td></tr>`).join("")+"</tbody>";
   const hv=S.rows.filter(r=>(S.group==="ALL"||r.group===S.group)&&r.height!=null&&r.area!=null),step=Math.max(1,Math.floor(hv.length/1500));
   const ok=[],bad=[];hv.forEach((r,i)=>{if(i%step&&!classify(r,S.specs,S).length)return;(classify(r,S.specs,S).length?bad:ok).push({x:r.area,y:r.height,r})});
@@ -5012,7 +5151,13 @@ $("#heat").style.cursor="pointer";
 
 /* ---------- 進階分析 ---------- */
 let V=null;
-function renderAdv(){const A=S.A;V=advAnalyze(S,A);const ink=css("--muted"),grid=css("--grid"),ng=css("--ng"),ok=css("--ok"),warn=css("--warn");
+function renderAdv(){
+  if(!hasData()){
+    $("#arSub").textContent="尚未載入量測資料。";$("#arLeg").innerHTML="";
+    $("#arTbl").innerHTML='<tbody><tr><td colspan="10" class="note">尚無資料</td></tr></tbody>';
+    return;
+  }
+  const A=S.A;V=advAnalyze(S,A);const ink=css("--muted"),grid=css("--grid"),ng=css("--ng"),ok=css("--ok"),warn=css("--warn");
   const ax=(t)=>({ticks:{color:ink,font:{family:"IBM Plex Mono",size:10}},grid:{color:grid},title:{display:!!t,text:t,color:ink,font:{size:11}}});
   // 面積比 × 轉移效率
   const groups=V.arGroups.map(g=>g.g),vs=S.specs.volume;
@@ -5941,7 +6086,8 @@ function switchRun(id){const c=curRun();if(c)c.cfg=snapCfg();const n=S.runs.find
   S.runId=id;S.rows=n.rows;S._rawRows=n._rawRows||n.rows;S.timeFilter=null;S.partialBoards=null;S.metrics=n.metrics;S.source=n.name;S.issEnt=null;S.ctx=null;S.specSrc="custom";S.specsCustom=null;S.specsG=null;S.sqDir="Y";Object.assign(S,clone(n.cfg));S.group="ALL";S.board=null;S.pad=null;
   /* v9.10.0 存下的機台模式回合沒有群組規格、規格窗也向外取整過：依原始資料重新推估 */
   if(S.specSrc==="machine"&&!S.specsG&&S.rows.some(r=>r.result!=null)){const ms=machineSpecs(S.rows,S,S.specsCustom||S.specs);S.specs=ms.specs;S.specsG=ms.groups;n.cfg=snapCfg()}
-  if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon()}
+  if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon();
+  if(typeof updateStartupDbBanner==="function")updateStartupDbBanner()}
 /* ---------- 回合保存（IndexedDB）：資料留在這台電腦的瀏覽器，不上傳 ---------- */
 const RunDB={
   open(){return new Promise((ok,no)=>{if(!window.indexedDB)return no(new Error("no-idb"));const q=indexedDB.open("spi-spc",1);q.onupgradeneeded=()=>q.result.createObjectStore("kv");q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
@@ -6801,15 +6947,45 @@ async function recFind(id,fresh){
 async function usePlaceRec(rec){const g=await RecDB.get(rec);if(!g.ok)throw new Error("座標檔指紋與上傳時不同，已停止使用");
   const tab=/\.xlsx$/i.test(rec.name)?(await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length))).tab:csvTable(decodeBytes(g.bytes));
   PLACE={recId:rec.id,part:rec.part,rev:rec.rev,name:rec.name,tab,res:parsePlacement(tab,$("#placeUnit").value)};placeSave();placeShow();$("#placePart").value=rec.part;$("#placeRev").value=rec.rev}
-async function openRecord(rec){busy(true,"正在從資料庫取回原始檔…");
+async function openRecord(rec, opt = {}){busy(true,"正在從資料庫取回原始檔…");
   try{const g=await RecDB.get(rec);if(!g.ok)throw new Error("原始檔指紋與上傳時不同，已停止開啟");
     /* 只用當時的座標檔重現；沒有連結座標檔（或已刪除）時，這次匯入不套用目前的座標檔，避免位置與分群和當初不同 */
-    let note="",noPlace=false;if(rec.placeId){const pr=await recFind(rec.placeId,true);let okp=false;if(pr){try{await usePlaceRec(pr);okp=true}catch(er){}}if(!okp){noPlace=true;note="當時使用的座標檔已從資料庫刪除或無法取回，這次不套用座標檔"}}else if(rec.vendor==="lirong"){noPlace=true;note="當時沒有使用座標檔，這次也不套用"}
+    let note="",noPlace=false;
+    if(rec.placeId){
+      const pr=await recFind(rec.placeId,true);let okp=false;
+      if(pr){try{await usePlaceRec(pr);okp=true}catch(er){}}
+      if(!okp){noPlace=true;note="當時使用的座標檔已從資料庫刪除或無法取回，這次不套用座標檔"}
+    }else if(rec.vendor==="lirong"){
+      noPlace=true;note="當時沒有使用座標檔，這次也不套用"
+    }else if(rec.part && opt.autoApply){
+      const list = (!RecDB.cache ? await RecDB.list() : RecDB.cache);
+      const pr = list.find(x => x.kind === "place" && x.part === rec.part);
+      if(pr){
+        try{await usePlaceRec(pr);note=`已自動套用料號 ${rec.part} 的座標檔 (${pr.rev})`}catch(er){}
+      }
+    }
+
     $("#selVendor").value=[...$("#selVendor").options].some(o=>o.value===rec.vendor)?rec.vendor:"generic";$("#selSide").value=rec.side||"auto";vendorUI();
     setSub("import");busy(false);
     /* 來源紀錄只交給緊接著的這一次匯入；讀檔失敗時不留給下一次手動匯入 */
-    if(/\.xlsx$/i.test(rec.name)){const x=await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length));IMP_NEXT={rec,noPlace};startImport("",rec.name,x.tab,g.bytes)}else{IMP_NEXT={rec,noPlace};startImport(decodeBytes(g.bytes),rec.name,null,g.bytes)}
-    if(IMP)recFields();toast(`已開啟批號 ${rec.lot} 的原始檔（指紋驗證相同）${note?"；"+note:""}`);const mb=$("#mapBox");if(mb&&!mb.hidden&&mb.scrollIntoView)mb.scrollIntoView({block:"start"})}
+    if(/\.xlsx$/i.test(rec.name)){
+      const x=await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length));
+      IMP_NEXT={rec,noPlace};
+      startImport("",rec.name,x.tab,g.bytes);
+    }else{
+      IMP_NEXT={rec,noPlace};
+      startImport(decodeBytes(g.bytes),rec.name,null,g.bytes);
+    }
+    if(IMP)recFields();
+    if(opt.autoApply && IMP && !IMP.err){
+      $("#btnApply").click();
+      setTab("issues");
+      updateStartupDbBanner();
+    }else{
+      const mb=$("#mapBox");if(mb&&!mb.hidden&&mb.scrollIntoView)mb.scrollIntoView({block:"start"});
+    }
+    toast(`已開啟批號 ${rec.lot} 的原始檔（指紋驗證相同）${note?"；"+note:""}`);
+  }
   catch(e){IMP_NEXT=null;busy(false);toast("無法開啟："+e.message)}}
 $("#recQ").oninput=()=>renderRecords();
 $("#recReload").onclick=()=>{REC_VER={};renderRecords(true)};
@@ -6823,6 +6999,264 @@ $("#recCard").addEventListener("click",async e=>{const b=e.target.closest("[data
     if(act==="del"){if(REC_CONFIRM!==id){REC_CONFIRM=id;renderRecords();setTimeout(()=>{if(REC_CONFIRM===id){REC_CONFIRM=null;renderRecords()}},6000);return}
       REC_CONFIRM=null;await RecDB.del(id);if(PLACE&&PLACE.recId===id){PLACE=null;placeSave();placeShow()}delete REC_VER[id];await renderRecords(true);toast(`已刪除 ${rec.kind==="spi"?"批號 "+rec.lot:"座標檔 "+rec.part+" "+rec.rev}（稽核紀錄保留）`)}}
   catch(er){if(er&&er.code==="declined")$("#recState").textContent="已取消下載";else $("#recState").innerHTML=`<span class="err">${esc(er.message||String(er))}</span>`;renderRecords()}});
+
+/* ---------- 開機載入中樞與資料庫選取視窗 (Record Picker) ---------- */
+function updateStartupDbBanner() {
+  const b = $("#startupDbBanner");
+  if (!b) return;
+  const isSample = S.runs && S.runs.length > 0 && S.runs.every(r => r.sample);
+  b.hidden = !isSample;
+}
+
+let PICKER_TAB = "spi";
+let PICKER_CONFIRM = null;
+
+async function renderRecPicker(force) {
+  const modal = $("#recPickerModal");
+  if (!modal || modal.hidden) return;
+  await RecDB.ready;
+  const modeSpan = $("#recPickerMode");
+  if (modeSpan) {
+    modeSpan.textContent = `存放位置：${recWhere()}${RecDB.mode === "cloud" ? `（帳號 ${RecDB.me}）` : "（本機測試模式）"}`;
+  }
+  let list;
+  try {
+    list = (!force && RecDB.cache) || await RecDB.list();
+    $("#recPickerNotice").textContent = "";
+  } catch(e) {
+    $("#recPickerNotice").innerHTML = `<span class="err">無法讀取資料庫：${esc(e.message)}</span>`;
+    return;
+  }
+
+  const q = ($("#recPickerQ")?.value || "").trim().toLowerCase();
+  const hit = r => !q || [r.lot, r.part, r.supplierWo, r.outsourceWo, r.rev, r.name, r.user].some(x => String(x || "").toLowerCase().includes(q));
+  const fp = r => `<span class="mono" title="SHA-256 ${esc(r.sha256)}">${esc(String(r.sha256).slice(0, 10))}…</span>${REC_VER[r.id] ? ` <span class="${REC_VER[r.id].ok ? "rec-ok" : "rec-bad"}">${REC_VER[r.id].ok ? "✓ 相同" : "✗ 異常"}</span>` : ""}`;
+  const delBtn = r => r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="font-size:12px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定刪除？" : "刪除"}</button>` : "";
+
+  const S1 = list.filter(r => r.kind === "spi" && hit(r));
+  const P1 = list.filter(r => r.kind === "place" && hit(r));
+
+  if ($("#countPickSpi")) $("#countPickSpi").textContent = S1.length;
+  if ($("#countPickPlace")) $("#countPickPlace").textContent = P1.length;
+
+  const tblSpi = $("#tblPickSpi");
+  if (tblSpi) {
+    tblSpi.innerHTML = S1.length ? `<thead><tr>
+      <th>批號 / 料號</th>
+      <th>工單 / 面別</th>
+      <th class="num">板 × 焊墊</th>
+      <th>關聯座標檔</th>
+      <th>上傳時間 / 者</th>
+      <th>指紋</th>
+      <th style="text-align:right">操作</th>
+    </tr></thead><tbody>` + S1.map(r => {
+      const wo = [r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "—";
+      const placeInfo = r.placeId ? `<span class="pill ok" title="已綁定座標檔 ${esc(r.placeId)}">已綁定</span>` : (list.some(p => p.kind === "place" && p.part === r.part) ? `<span class="pill warn" title="此料號已有座標檔，載入時將自動對應">有可用座標</span>` : `<span class="note">無</span>`);
+      return `<tr>
+        <td><b>${esc(r.lot)}</b><br><span class="note" style="font-size:11.5px">${esc(r.part)}</span></td>
+        <td>${esc(r.side || "—")}<br><span class="note" style="font-size:11.5px">${wo}</span></td>
+        <td class="num mono">${r.boards || "—"} × ${r.pads || "—"}</td>
+        <td>${placeInfo}</td>
+        <td class="mono" style="font-size:11.5px">${esc(fmtTime(r.created))}<br><span class="note">${esc(r.user)}</span></td>
+        <td>${fp(r)}</td>
+        <td style="text-align:right">
+          <div class="row" style="justify-content:flex-end;gap:4px">
+            <button class="primary" data-pact="load" data-id="${esc(r.id)}" title="一鍵載入資料並直接進入 SPC 分析" style="font-size:12.5px;padding:3px 10px">🚀 載入分析</button>
+            <button data-pact="open" data-id="${esc(r.id)}" title="開啟至匯入對應面板以檢視或調整欄位" style="font-size:12px;padding:3px 8px">調整</button>
+            <button data-pact="ver" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">驗證</button>
+            <button data-pact="dl" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">下載</button>
+            ${delBtn(r)}
+          </div>
+        </td>
+      </tr>`;
+    }).join("") + `</tbody>` : `<tbody><tr><td colspan="7" class="note" style="text-align:center;padding:24px">${q ? "沒有符合搜尋條件的量測紀錄" : "資料庫目前尚無量測記錄。請點選下方「＋ 匯入新檔案」進行匯入。"}</td></tr></tbody>`;
+  }
+
+  const tblPlace = $("#tblPickPlace");
+  if (tblPlace) {
+    tblPlace.innerHTML = P1.length ? `<thead><tr>
+      <th>產品料號</th>
+      <th>版本 (Rev)</th>
+      <th>原始檔名</th>
+      <th class="num">元件數</th>
+      <th>上傳時間 / 者</th>
+      <th>指紋</th>
+      <th style="text-align:right">操作</th>
+    </tr></thead><tbody>` + P1.map(r => {
+      const isCur = PLACE && PLACE.recId === r.id;
+      return `<tr${isCur ? ' style="background:var(--accent-soft)"' : ""}>
+        <td><b>${esc(r.part)}</b></td>
+        <td><span class="pill ok">${esc(r.rev)}</span></td>
+        <td>${esc(r.name)}</td>
+        <td class="num mono">${r.comps || "—"}</td>
+        <td class="mono" style="font-size:11.5px">${esc(fmtTime(r.created))}<br><span class="note">${esc(r.user)}</span></td>
+        <td>${fp(r)}</td>
+        <td style="text-align:right">
+          <div class="row" style="justify-content:flex-end;gap:4px">
+            ${isCur ? '<span class="pill ok">目前使用</span>' : `<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 10px">設為目前座標檔</button>`}
+            <button data-pact="ver" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">驗證</button>
+            <button data-pact="dl" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">下載</button>
+            ${delBtn(r)}
+          </div>
+        </td>
+      </tr>`;
+    }).join("") + `</tbody>` : `<tbody><tr><td colspan="7" class="note" style="text-align:center;padding:24px">${q ? "沒有符合搜尋條件的座標檔" : "資料庫目前尚無座標檔。在匯入立榮格式時上傳座標檔即可儲存至此。"}</td></tr></tbody>`;
+  }
+}
+
+function setupRecPicker() {
+  const modal = $("#recPickerModal");
+  if (!modal) return;
+  function open() {
+    modal.hidden = false;
+    modal.classList.add("open");
+    renderRecPicker(true);
+    const qIn = $("#recPickerQ");
+    if (qIn) setTimeout(() => qIn.focus(), 50);
+  }
+  function close() {
+    modal.classList.remove("open");
+    modal.hidden = true;
+    PICKER_CONFIRM = null;
+  }
+
+  const btnOpen = $("#btnOpenRecModal");
+  if (btnOpen) btnOpen.onclick = open;
+  const mBtnOpen = $("#mBtnOpenRecModal");
+  if (mBtnOpen) {
+    mBtnOpen.onclick = () => {
+      if (typeof moreSheetCtrl !== "undefined" && moreSheetCtrl) moreSheetCtrl.close();
+      open();
+    };
+  }
+  const btnBanner = $("#btnBannerLoadDb");
+  if (btnBanner) btnBanner.onclick = open;
+  const btnBannerImport = $("#btnBannerGoImport");
+  if (btnBannerImport) {
+    btnBannerImport.onclick = () => {
+      setTab("data");
+      setSub("import");
+    };
+  }
+
+  const btnClose = $("#recPickerClose");
+  if (btnClose) btnClose.onclick = close;
+  const btnCloseBtm = $("#btnRecPickerCloseBottom");
+  if (btnCloseBtm) btnCloseBtm.onclick = close;
+  const btnGoImport = $("#btnRecPickerGoImport");
+  if (btnGoImport) {
+    btnGoImport.onclick = () => {
+      close();
+      setTab("data");
+      setSub("import");
+    };
+  }
+
+  const bSpi = $("#btnPickSpi"), bPlace = $("#btnPickPlace");
+  if (bSpi && bPlace) {
+    bSpi.onclick = () => {
+      PICKER_TAB = "spi";
+      bSpi.classList.add("active");
+      bSpi.style.background = "var(--surface)";
+      bPlace.classList.remove("active");
+      bPlace.style.background = "transparent";
+      if ($("#boxPickSpi")) $("#boxPickSpi").hidden = false;
+      if ($("#boxPickPlace")) $("#boxPickPlace").hidden = true;
+      renderRecPicker();
+    };
+    bPlace.onclick = () => {
+      PICKER_TAB = "place";
+      bPlace.classList.add("active");
+      bPlace.style.background = "var(--surface)";
+      bSpi.classList.remove("active");
+      bSpi.style.background = "transparent";
+      if ($("#boxPickSpi")) $("#boxPickSpi").hidden = true;
+      if ($("#boxPickPlace")) $("#boxPickPlace").hidden = false;
+      renderRecPicker();
+    };
+  }
+
+  if ($("#recPickerQ")) $("#recPickerQ").oninput = () => renderRecPicker();
+  if ($("#recPickerReload")) $("#recPickerReload").onclick = () => {
+    REC_VER = {};
+    renderRecPicker(true);
+  };
+
+  modal.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close();
+    }
+  });
+
+  modal.addEventListener("click", async e => {
+    if (e.target === modal) { close(); return; }
+    const b = e.target.closest("[data-pact]");
+    if (!b) return;
+    const id = b.dataset.id, act = b.dataset.pact, rec = await recFind(id);
+    if (!rec) { toast("找不到這筆紀錄，請重新整理"); return; }
+    if (act !== "del" && PICKER_CONFIRM) PICKER_CONFIRM = null;
+
+    try {
+      if (act === "load") {
+        close();
+        await openRecord(rec, { autoApply: true });
+        return;
+      }
+      if (act === "open") {
+        close();
+        await openRecord(rec, { autoApply: false });
+        return;
+      }
+      if (act === "use-place") {
+        await usePlaceRec(rec);
+        renderRecPicker();
+        renderRecords();
+        toast(`已改用座標檔 ${rec.part} ${rec.rev}`);
+        if (IMP && IMP.raw) reconvert();
+        return;
+      }
+      if (act === "dl") {
+        const g = await RecDB.get(rec);
+        await saveBytes(rec.name, g.bytes);
+        if (!g.ok) toast("注意：檔案指紋與上傳時不同");
+        else toast("已下載 " + rec.name);
+        return;
+      }
+      if (act === "ver") {
+        b.disabled = true;
+        b.textContent = "驗證中…";
+        try {
+          const g = await RecDB.get(rec);
+          REC_VER[id] = { ok: g.ok };
+        } catch(er) {
+          REC_VER[id] = { ok: false, msg: er.message };
+        }
+        renderRecPicker();
+        renderRecords();
+        return;
+      }
+      if (act === "del") {
+        if (PICKER_CONFIRM !== id) {
+          PICKER_CONFIRM = id;
+          renderRecPicker();
+          setTimeout(() => { if (PICKER_CONFIRM === id) { PICKER_CONFIRM = null; renderRecPicker(); } }, 6000);
+          return;
+        }
+        PICKER_CONFIRM = null;
+        await RecDB.del(id);
+        if (PLACE && PLACE.recId === id) { PLACE = null; placeSave(); placeShow(); }
+        delete REC_VER[id];
+        await renderRecPicker(true);
+        await renderRecords(true);
+        toast(`已刪除 ${rec.kind === "spi" ? "批號 " + rec.lot : "座標檔 " + rec.part + " " + rec.rev}`);
+      }
+    } catch(er) {
+      toast("操作失敗：" + (er.message || String(er)));
+      renderRecPicker();
+    }
+  });
+}
 /* ---------- 列印／存成 PDF：列印目前頁籤，固定用淺色，頁首附回合與設定資訊 ---------- */
 const IN_CLAUDE=!!window.claude||/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
 let prTheme=null;
@@ -6874,9 +7308,26 @@ function beforePrint(){
   const ht=document.documentElement;
   prTheme=ht.getAttribute("data-theme");
   if(prTheme!=="light")ht.setAttribute("data-theme","light");
-  const tabName=($(`.tab[data-tab="${S.tab}"]`)||{}).textContent||"";
+  const tabName=($(`.tab[data-tab="${S.tab}"]`)||{}).textContent
+    || ($(`[data-mtab="${S.tab}"]`)||{}).textContent
+    || ({share:"分享設定",shares:"我的分享",mail:"轉寄報告"})[S.tab]
+    || S.tab || "";
   const ph=$("#printHead");
   if(ph)ph.innerHTML=buildPrintHeadHtml(tabName);
+  if(S.tab==="sim3d"){
+    const el=$("#view3d");
+    if(el){
+      let img=$("#print3dImg");
+      if(!img){
+        img=document.createElement("img");img.id="print3dImg";img.className="print3d";img.alt="3D 錫膏模擬畫面";img.setAttribute("aria-hidden","true");
+        el.appendChild(img);
+      }
+      if(!img.src&&T.ok&&T.renderer&&T.renderer.domElement){
+        try{img.src=T.renderer.domElement.toDataURL("image/png")}catch(e){}
+      }
+    }
+  }
+  if(S.tab==="report")renderReport();
 }
 function afterPrint(){
   if(origDocTitle)document.title=origDocTitle;
@@ -7049,6 +7500,10 @@ function syncReportVisibility(){
 function renderReport(){
   const p=$("#p-report");if(!p)return;
   const prev=$("#reportPreview");if(!prev)return;
+  if(!hasData()){
+    prev.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--muted)"><h3 style="margin-bottom:8px">尚未載入分析資料</h3><p>請先至「資料與規格」匯入 SPI 量測資料，或點選頂部「載入範例資料」以產生完整分析報告。</p></div>';
+    return;
+  }
   const A=S.A,ov=overallVerdict(S,S.F),F=S.F||[];
   const src=runSrc(curRun());
   const lot=(src&&src.lot)||S.source||"—",part=(src&&src.part)||"—",side=(src&&src.side)||"—";
@@ -7976,7 +8431,7 @@ $$(".mtab [data-tab]").forEach(b=>{
   b.onclick=()=>setTab(b.dataset.tab);
 });
 function applyMobileChartFont(){
-  if(typeof window!=="undefined"&&window.matchMedia&&(window.matchMedia(PHONE_MQ).matches||window.matchMedia("(max-width:767px)").matches)){
+  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia(PHONE_MQ).matches){
     if(window.Chart&&window.Chart.defaults){
       if(!window.Chart.defaults.font)window.Chart.defaults.font={};
       window.Chart.defaults.font.size=12;
@@ -8007,8 +8462,10 @@ function toggleTheme(){
 try{const svT=localStorage.getItem("spi-theme");applyTheme(svT==="dark"?"dark":"light",false)}catch(e){applyTheme("light",false)}
 if($("#btnTheme"))$("#btnTheme").onclick=toggleTheme;
 if($("#mBtnTheme"))$("#mBtnTheme").onclick=()=>{if(typeof moreSheetCtrl!=="undefined"&&moreSheetCtrl)moreSheetCtrl.close();toggleTheme()};
+setupRecPicker();
+updateStartupDbBanner();
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters,csvTable,parseAOI,aoiCorr,normPadKey,unpivotWide,buildRows,recomputeMachineSpecs,machineSpecs,zonesChanged,setStep,applyStencil,renderZones,syncControls,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,importCfg,setSpecSrc,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters,csvTable,parseAOI,aoiCorr,normPadKey,unpivotWide,buildRows,recomputeMachineSpecs,machineSpecs,zonesChanged,setStep,applyStencil,renderZones,syncControls,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,setupRecPicker,renderRecPicker,openRecord,updateStartupDbBanner});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();

@@ -68,9 +68,17 @@ async function handleRecordsApi(req, repo, user) {
         cursorId = parts[1];
       }
     }
+    // 依料號查對應座標檔清單
+    const placesFor = url.searchParams.get('places_for');
+    if (placesFor) {
+      const placements = await repo.getPlacementsForPart(placesFor);
+      return json({ placements, part: placesFor });
+    }
+
     const kind = url.searchParams.get('kind') || 'spi';
+    const part = url.searchParams.get('part') || null;
     const limit = +url.searchParams.get('limit') || 50;
-    const { records, next } = await repo.listRecords({ kind, cursorCreated, cursorId, limit });
+    const { records, next } = await repo.listRecords({ kind, part, cursorCreated, cursorId, limit });
     return json({ records, next, me: user });
   }
 
