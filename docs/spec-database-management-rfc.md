@@ -202,7 +202,7 @@ CREATE INDEX IF NOT EXISTS idx_records_part_kind ON records (part, kind, created
         "created": 1729252800000,
         "bytes": 5242880,
         "gz_bytes": 412900,
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sha256": "e3b0c442...52b855",
         "meta": "{\"rows\":12500,\"boards\":25,\"pads\":500,\"supplierWo\":\"SWO-01\"}"
       }
     ],
