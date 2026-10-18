@@ -173,3 +173,26 @@ test('5. 觸控修正與無障礙樣式規範 (CSS 規則檢驗)', () => {
   // e. Sticky 表頭在手機下頂部避讓 44px + safe-top
   assert.match(htmlSource, /\.tbl\.sticky-head\s+thead\s+th\{[^}]*top:\s*calc\(44px\s*\+\s*env\(safe-area-inset-top,\s*0px\)\)/i, '表格 sticky 表頭需配合 44px 頂欄避讓');
 });
+
+test('6. PWA 與進階無障礙 (Apple Touch Icon, scroll-margin, 44px 報告標籤, WCAG --warn 對比度)', () => {
+  // a. PWA 與 Apple Touch Icon
+  assert.match(htmlSource, /<meta\s+name="apple-mobile-web-app-capable"\s+content="yes">/i, '需有 apple-mobile-web-app-capable');
+  assert.match(htmlSource, /<link\s+rel="apple-touch-icon"/i, '需有 apple-touch-icon');
+  assert.match(htmlSource, /<meta\s+name="apple-mobile-web-app-title"\s+content="SPI·SPC">/i, '需有 apple-mobile-web-app-title');
+
+  // b. WCAG 2.2 AA 對比度：--warn 應為 #9B650E (4.75:1)
+  assert.match(htmlSource, /--warn:\s*#9B650E/i, '--warn 需符合 WCAG AA 4.5:1 標準 (#9B650E)');
+
+  // c. 表單 scroll-margin 防固定頂底欄遮擋
+  assert.match(htmlSource, /scroll-margin-bottom:\s*calc\(var\(--tabbar-h\)\s*\+\s*var\(--safe-b\)\s*\+\s*16px\)/i, '表單輸入需配置 scroll-margin-bottom');
+
+  // d. 報告與郵件章節標籤 44px 觸控熱區
+  assert.match(htmlSource, /#p-report label,\s*#p-mail label\{[^}]*min-height:\s*44px/i, '報告與郵件標籤需有 min-height: 44px');
+
+  // e. 登入頁包含橫向 safe-area 避讓
+  const resp = loginPage('/?test=1');
+  return resp.text().then(html => {
+    assert.match(html, /env\(safe-area-inset-left/i, '登入頁需支援 safe-area-inset-left 避讓');
+    assert.match(html, /env\(safe-area-inset-right/i, '登入頁需支援 safe-area-inset-right 避讓');
+  });
+});

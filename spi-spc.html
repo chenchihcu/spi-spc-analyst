@@ -6,8 +6,12 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F2F4F0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F1311" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SPI·SPC">
 <title>SPI·SPC 分析台</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23A3521D'/><circle cx='16' cy='16' r='8' fill='%23FFFFFF'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='36' fill='%23A3521D'/><circle cx='90' cy='90' r='45' fill='%23FFFFFF'/></svg>">
 <style>
 /* 字型自帶（網站內 vendor/fonts）：英文標題與數字用 Barlow Condensed／IBM Plex Mono；中文使用系統字（微軟正黑體／蘋方），不需下載 */
 @font-face{font-family:"Barlow Condensed";font-weight:500;font-display:swap;src:url(vendor/fonts/barlow-condensed-latin-500-normal.woff2) format("woff2")}
@@ -18,7 +22,7 @@
 :root{
   --bg:#F2F4F0;--surface:#FFFFFF;--surface2:#E8ECE6;--ink:#18201B;--muted:#58625B;--line:#D2D8D1;
   --accent:#A3521D;--accent-soft:#F4E4D6;--accent-ink:#6E3410;
-  --ok:#2C7A4C;--ok-soft:#DDEFE3;--warn:#A86E12;--warn-soft:#F6E9CF;--ng:#B83A2C;--ng-soft:#F7DDD9;
+  --ok:#2C7A4C;--ok-soft:#DDEFE3;--warn:#9B650E;--warn-soft:#F6E9CF;--ng:#B83A2C;--ng-soft:#F7DDD9;
   --series2:#3D6E8F;--grid:rgba(24,32,27,.08);--on-strong:#FFFFFF;
   --f-display:"Barlow Condensed","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;
   --f-body:"Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif;
@@ -35,19 +39,22 @@
   --r-sheet:20px;
   --c-bar:rgba(242,244,240,.88);
   --c-hairline:rgba(24,32,27,.10);
+  --tbl-sticky-shadow:2px 0 5px rgba(24,32,27,.08);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0F1311;--surface:#171C19;--surface2:#212923;--ink:#E4E9E4;--muted:#98A39B;--line:#2D3731;
   --accent:#DB8A50;--accent-soft:#3A2516;--accent-ink:#F2C6A5;
   --ok:#55BE84;--ok-soft:#173726;--warn:#E3AE50;--warn-soft:#3A2D12;--ng:#EC6F60;--ng-soft:#41201B;
   --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark;
-  --c-bar:rgba(15,19,17,.88);--c-hairline:rgba(228,233,228,.10)}}
+  --c-bar:rgba(15,19,17,.88);--c-hairline:rgba(228,233,228,.10);
+  --tbl-sticky-shadow:2px 0 8px rgba(0,0,0,.5)}}
 :root[data-theme="dark"]{
   --bg:#0F1311;--surface:#171C19;--surface2:#212923;--ink:#E4E9E4;--muted:#98A39B;--line:#2D3731;
   --accent:#DB8A50;--accent-soft:#3A2516;--accent-ink:#F2C6A5;
   --ok:#55BE84;--ok-soft:#173726;--warn:#E3AE50;--warn-soft:#3A2D12;--ng:#EC6F60;--ng-soft:#41201B;
   --series2:#7FB2D4;--grid:rgba(228,233,228,.08);--on-strong:#14100C;color-scheme:dark;
-  --c-bar:rgba(15,19,17,.88);--c-hairline:rgba(228,233,228,.10)}
+  --c-bar:rgba(15,19,17,.88);--c-hairline:rgba(228,233,228,.10);
+  --tbl-sticky-shadow:2px 0 8px rgba(0,0,0,.5)}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) calc(48px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
@@ -226,7 +233,8 @@ table.show-all tr.more-row{display:table-row}
 @media (max-width:720px){.vsep{display:none}}
 .field{display:flex;flex-direction:column;gap:3px;min-width:0}
 .field label{font-size:11px;color:var(--muted);letter-spacing:.06em}
-select,input[type=number],input[type=text],textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:34px}
+select,input[type=number],input[type=text],textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:34px;scroll-margin-top:calc(var(--navbar-h) + var(--safe-t) + 16px);scroll-margin-bottom:calc(var(--tabbar-h) + var(--safe-b) + 16px)}
+#p-report label, #p-mail label{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:4px 6px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 input[type=number]{width:88px;font-family:var(--f-mono)}
 select:focus-visible,input:focus-visible,textarea:focus-visible,button:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 12px;min-height:34px}
@@ -283,7 +291,7 @@ button:disabled{opacity:.5;cursor:default}
 .legend i.dash{border-top-style:dashed}
 .legend i.sq{height:10px;width:10px;border:none;border-radius:2px}
 .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative}
-.tbl td:first-child,.tbl th:first-child{position:sticky;left:0;background:var(--surface);z-index:2;box-shadow:2px 0 5px rgba(0,0,0,0.06)}
+.tbl td:first-child,.tbl th:first-child{position:sticky;left:0;background:var(--surface);z-index:2;box-shadow:var(--tbl-sticky-shadow);border-right:1px solid var(--c-hairline)}
 .tbl.sticky-head thead th:first-child{z-index:4}
 .tbl.has-overflow{box-shadow:inset -16px 0 12px -12px rgba(24,32,27,.14)}
 .tbl-scroll-hint{font-size:12px;color:var(--muted);text-align:right;margin:4px 0 0}
@@ -315,7 +323,10 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 .err{color:var(--ng);font-size:13px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:520px){.brand h1{font-size:28px}.chartbox{height:240px}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+  .spin{animation:none!important}
+}
 
 /* ---------- 手機版殼層樣式：≤600px 或觸控橫向 ≤500px 高 (D-07, Section 7) ---------- */
 .mtab{display:none}
@@ -644,7 +655,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   </div>
   <details class="how"><summary>偵測邏輯</summary><p>系統自動掃描全部量測項目（體積、高度佔鋼板厚%、面積、X/Y 偏移），不受上方「量測項目」選擇影響，依十個面向找問題：單板突發（整板／局部元件群組）、拼板子板位置效應、系統性能力不足、焊墊位置長期偏離、持續漂移（CUSUM 回推起點）、空間梯度、刮刀前後差、擦拭週期、對位（平移／旋轉／伸縮）、設計 DFM（面積比、寬厚比、轉移效率），以及量測一致性。統計量採中位數與 MAD 等穩健方法，避免單一異常板拉偏基準。多個發現指向同一板、同一元件群組或同一焊墊時，互相列為佐證，佐證越多信心越高。再依形狀、時間、空間、設計、對位、量測六個獨立面向做失效模式交叉比對（交叉驗證頁），至少兩個面向支持且無矛盾才判為「可能」原因。「事實」為資料計算結果；「推論」為可能原因，需現場驗證。</p></details>
   <div class="card"><h3>問題地圖 <small id="pmapSub">每格一片板，顏色為該板最嚴重的問題；點格子只看該板相關問題</small></h3><div class="pmap" id="pmap"></div>
-    <div class="legend" style="margin:8px 0 0"><span><i class="sq" style="background:var(--ng)"></i>嚴重</span><span><i class="sq" style="background:var(--warn)"></i>警示</span><span><i class="sq" style="background:var(--series2)"></i>資訊</span><span><i class="sq" style="background:var(--surface2);outline:1px solid var(--line)"></i>無問題</span></div></div>
+    <div class="legend" style="margin:8px 0 0"><span><i class="sq" style="background:var(--ng)"></i>✕ 嚴重</span><span><i class="sq" style="background:var(--warn)"></i>! 警示</span><span><i class="sq" style="background:var(--series2)"></i>ℹ 資訊</span><span><i class="sq" style="background:var(--surface2);outline:1px solid var(--line)"></i>無問題</span></div></div>
   <div class="row" id="issFilter" role="group" aria-label="篩選問題"></div>
   <div class="iss" id="issList"></div>
 </section>
@@ -987,7 +998,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
         <div class="row" id="placeRow" hidden>
           <span class="lbl" style="align-self:center">② 座標檔（選用）</span>
           <div class="field"><label for="placePart">座標檔產品料號（必填）</label><input type="text" id="placePart" maxlength="64" placeholder="例：301-000100124"></div>
-          <div class="field"><label for="placeRev">版本（必填）</label><input type="text" id="placeRev" maxlength="32" placeholder="例：V5" style="width:90px"></div>
+          <div class="field"><label for="placeRev">版本（必填）</label><input type="text" id="placeRev" maxlength="32" placeholder="例：V5" style="min-width:0;width:min(100%,90px);flex:0 1 90px"></div>
           <label class="row" style="cursor:pointer"><input type="file" id="placeIn" accept=".csv,.txt,.tsv,.xlsx" class="sr"><span class="chipbtn" style="border:1px solid var(--line);display:inline-flex;align-items:center">上傳座標檔</span></label>
           <div class="field"><label for="placeUnit">座標單位</label><select id="placeUnit"><option value="auto">自動判斷</option><option value="mil">mil</option><option value="mm">mm</option><option value="inch">inch</option></select></div>
           <button id="placeClear" hidden>移除座標檔</button>
@@ -1042,8 +1053,8 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       <div class="tbl"><table id="specTbl"></table></div>
       <h3 style="margin-top:18px">時間區間篩選 <small>依時間欄位篩選特定時段（UTC+8 閉區間）</small></h3>
       <div class="row" style="margin-bottom:10px">
-        <div class="field"><label for="inTimeStart">起始時間</label><input type="text" id="inTimeStart" placeholder="例：08:00:00 或 2026-03-01 08:00:00" style="width:180px"></div>
-        <div class="field"><label for="inTimeEnd">結束時間</label><input type="text" id="inTimeEnd" placeholder="例：17:00:00 或 2026-03-01 17:00:00" style="width:180px"></div>
+        <div class="field"><label for="inTimeStart">起始時間</label><input type="text" id="inTimeStart" placeholder="例：08:00:00 或 2026-03-01 08:00:00" style="min-width:0;width:min(100%,180px);flex:1 1 140px"></div>
+        <div class="field"><label for="inTimeEnd">結束時間</label><input type="text" id="inTimeEnd" placeholder="例：17:00:00 或 2026-03-01 17:00:00" style="min-width:0;width:min(100%,180px);flex:1 1 140px"></div>
         <button id="btnTimeFilter" style="align-self:flex-end">套用篩選</button>
         <button id="btnTimeFilterClear" style="align-self:flex-end">清除篩選</button>
       </div>
@@ -4440,7 +4451,7 @@ function evSvg(ev,lv){if(!ev||!ev.values||!ev.values.some(isFinite))return"";con
   return`<div class="ev-cap">${esc(ev.title)}${ev.unit?`（${esc(ev.unit)}）`:""}</div><svg class="ev" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(ev.title)}">${g}</svg>`}
 function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set(S.rows.map(r=>r.group))],rank={ng:0,warn:1,info:2};
   const worst=list=>list.reduce((w,x)=>w==null||rank[x.lv]<rank[w]?x.lv:w,null);
-  const cell=(ent,lab,list)=>{const lv=worst(list);const isPart=S.partialBoards&&S.partialBoards.includes(lab);return`<button data-ent="${esc(ent)}" class="${lv||""}" aria-pressed="${S.issEnt===ent}" title="${esc(lab)}${isPart?"（部分焊墊）":""}：${list.length?list.length+" 項問題":"無問題"}">${esc(lab.replace(/^[A-Za-z]+0?/,""))}${isPart?'<span class="subpill" style="font-size:9px;color:var(--warn);display:block;line-height:1">部分</span>':""}</button>`};
+  const cell=(ent,lab,list)=>{const lv=worst(list);const isPart=S.partialBoards&&S.partialBoards.includes(lab);const sym=lv==="ng"?"✕":lv==="warn"?"!":lv==="info"?"ℹ":"";const symHtml=sym?`<span class="pmap-sym" aria-hidden="true" style="font-size:9px;line-height:1;margin-left:1px;font-weight:700">${sym}</span>`:"";const lvTxt=lv==="ng"?" (嚴重)":lv==="warn"?" (警示)":lv==="info"?" (資訊)":"";return`<button data-ent="${esc(ent)}" class="${lv||""}" aria-pressed="${S.issEnt===ent}" title="${esc(lab)}${isPart?"（部分焊墊）":""}：${list.length?list.length+" 項問題"+lvTxt:"無問題"}">${esc(lab.replace(/^[A-Za-z]+0?/,""))}${symHtml}${isPart?'<span class="subpill" style="font-size:9px;color:var(--warn);display:block;line-height:1">部分</span>':""}</button>`};
   const sys=S.F.filter(x=>!x.ents.some(e=>e.startsWith("b:")||e.startsWith("g:")||e.startsWith("drift:")));
   $("#pmap").innerHTML=`<div class="pmap-row"><span class="pmap-lab">各板（依印刷順序）</span><div class="pmap-cells">${B.map(b=>cell("b:"+b,b,S.F.filter(x=>issueBoards(x).has(b)))).join("")}</div></div>
     <div class="pmap-row"><span class="pmap-lab">元件群組</span><div class="pmap-cells">${G.map(g=>`<button data-ent="g:${esc(g)}" class="${worst(S.F.filter(x=>x.ents.includes("g:"+g)))||""}" aria-pressed="${S.issEnt==="g:"+g}" title="${esc(g)}" style="font-size:11px">${esc(g)}</button>`).join("")}</div></div>
@@ -7655,6 +7666,25 @@ function setupModalSheet(sheetId,triggerId,closeId,backdropId){
   trig.onclick=open;
   if(cls)cls.onclick=close;
   if(bd)bd.onclick=close;
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&!sheet.hidden&&sheet.classList.contains("open")){
+      close();
+    }
+  });
+  const handle=sheet.querySelector(".sheet-handle")||sheet.querySelector(".sheet-head");
+  if(handle){
+    let startY=0,currentY=0,isDrag=false;
+    handle.addEventListener("touchstart",e=>{
+      if(e.touches.length===1){startY=e.touches[0].clientY;currentY=startY;isDrag=true;}
+    },{passive:true});
+    handle.addEventListener("touchmove",e=>{
+      if(!isDrag)return;currentY=e.touches[0].clientY;
+    },{passive:true});
+    handle.addEventListener("touchend",()=>{
+      if(isDrag&&(currentY-startY>50)){close();}
+      isDrag=false;
+    },{passive:true});
+  }
   sheet.addEventListener("keydown",e=>{
     if(e.key==="Escape"){e.stopPropagation();close();return}
     if(e.key==="Tab"){
