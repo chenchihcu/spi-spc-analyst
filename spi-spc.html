@@ -226,6 +226,9 @@ table.show-all tr.more-row{display:table-row}
 .iss-card .inf{margin:0;font-size:13.5px}
 .iss-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
 .chipbtn{border-radius:999px;min-height:30px;padding:3px 12px;font-size:12.5px}
+/* 首頁橫幅「最近記錄」：先預留一列晶片高度，非同步載入後不推動下方內容；過多時橫向捲動而不換行 */
+#bannerRecentRuns{min-height:34px}
+#bannerRecentRuns .banner-run-chip{flex:0 0 auto;white-space:nowrap}
 .chipbtn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
 .linkbtn{background:none;border:none;padding:0;min-height:0;color:var(--accent-ink);text-decoration:underline;font-size:12.5px}
 .acts{display:grid;gap:8px;margin:0;padding:0;list-style:none}
@@ -259,6 +262,7 @@ button:disabled{opacity:.5;cursor:default}
   select,input[type=number],input[type=text],textarea{font-size:16px!important}
   .tab{min-height:46px;min-width:44px;padding:10px 16px}
   #btnMore,.chip.chipBtn,a.chip,.chipbtn{min-height:44px;min-width:44px;padding:6px 14px;display:inline-flex;align-items:center;justify-content:center}
+  #bannerRecentRuns{min-height:44px}
   .card .cbtn, .toc button, .how summary{min-height:44px;min-width:44px;display:inline-flex;align-items:center;padding:0 12px}
   .pmap-cells button{min-height:44px;min-width:28px}
   .seg button{min-height:44px;min-width:44px}
@@ -641,6 +645,8 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   font-weight: 600;
 }
 </style>
+<!-- 開機期間：瀏覽器可能在主程式執行前先畫出空的問題頁，之後清單填入會把下方內容整片推走（CLS）；主程式跑完才顯示 -->
+<style id="bootHide">#p-issues>:not(.iss-top){visibility:hidden}</style>
 </head>
 <body>
 
@@ -759,7 +765,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
           <span class="pill" style="font-size:11px;background:var(--surface)">試產 1 · 鋼板 V1</span>
         </div>
         <div class="note" style="color:var(--ink);font-size:12.5px;margin-top:2px">已連線產線雲端資料庫，可直接點選最近記錄一鍵載入分析：</div>
-        <div id="bannerRecentRuns" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center" hidden></div>
+        <div id="bannerRecentRuns" style="margin-top:8px;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;align-items:center" hidden></div>
       </div>
     </div>
     <div class="row" style="gap:8px;margin:0;align-items:center">
@@ -6951,7 +6957,8 @@ if(!window.Chart)$("#libWarn").hidden=false;
 /* 本機開發（沒有登入後端）時也開放分享，方便測試 */
 const HAS_API=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 /* 是否有登入後端：以 /__me 實際回應判斷（自訂網域也適用），不依網址名稱 */
-const meP=typeof fetch==="function"&&/^https?:$/.test(location.protocol)&&!/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname)?fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>j&&j.user?j:null).catch(()=>null):Promise.resolve(null);
+const ME_PROBE=typeof fetch==="function"&&/^https?:$/.test(location.protocol)&&!/(^|\.)claude(usercontent)?\.(ai|com)$/.test(location.hostname);
+const meP=ME_PROBE?fetch("/__me",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>j&&j.user?j:null).catch(()=>null):Promise.resolve(null);
 meP.then(j=>{if(!j)return;$("#userName").textContent=j.user;$("#userChip").hidden=false;$("#logoutLink").hidden=false;if(window.CompressionStream){$("#btnShare").hidden=false;$("#btnShare").onclick=createShare}});
 /* ---------- 分享連結：壓縮後上傳到本網站（Netlify Blobs），連結需登入才能開啟，30 天失效 ---------- */
 async function gzipJSON(o){return new Uint8Array(await new Response(new Response(JSON.stringify(o)).body.pipeThrough(new CompressionStream("gzip"))).arrayBuffer())}
@@ -7287,6 +7294,8 @@ $("#recCard").addEventListener("click",async e=>{const b=e.target.closest("[data
 
 /* ---------- 開機載入中樞與資料庫選取視窗 (Record Picker) ---------- */
 let BANNER_DISMISSED = false;
+/* 進行中的「最近記錄」請求：開機時 switchRun 與初始化都會呼叫本函式，共用同一個請求避免重複打 API */
+let BANNER_RECENT_P = null;
 function updateStartupDbBanner() {
   const b = $("#startupDbBanner");
   if (!b) return;
@@ -7297,6 +7306,9 @@ function updateStartupDbBanner() {
 
   const recentBox = $("#bannerRecentRuns");
   if (!recentBox) return;
+  /* 有後端時先佔住一列高度顯示讀取中，結果回來只換內容、不改高度 */
+  const boxNote = (t) => { recentBox.hidden = false; recentBox.innerHTML = `<span class="note" style="font-size:12px">${esc(t)}</span>`; };
+  if (ME_PROBE && !recentBox.querySelector(".banner-run-chip")) boxNote("讀取最近記錄…");
 
   RecDB.ready.then(async () => {
     if (RecDB.mode !== "cloud") {
@@ -7305,13 +7317,9 @@ function updateStartupDbBanner() {
       return;
     }
     try {
-      const j = await RecDB.jfetch("/api/records?limit=3&kind=spi");
+      const j = await (BANNER_RECENT_P || (BANNER_RECENT_P = RecDB.jfetch("/api/records?limit=3&kind=spi").finally(() => { BANNER_RECENT_P = null; })));
       const spis = (j && j.records) || [];
-      if (!spis.length) {
-        recentBox.hidden = true;
-        recentBox.innerHTML = "";
-        return;
-      }
+      if (!spis.length) { boxNote("資料庫尚無量測記錄"); return; }
       recentBox.hidden = false;
       recentBox.innerHTML = spis.map(r => {
         let qBadge = "";
@@ -7338,8 +7346,7 @@ function updateStartupDbBanner() {
         };
       });
     } catch(e) {
-      recentBox.hidden = true;
-      recentBox.innerHTML = "";
+      boxNote("無法讀取最近記錄，可改用「從資料庫載入記錄」");
     }
   }).catch(() => {});
 }
@@ -9086,5 +9093,6 @@ const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();
 </script>
+<script>/* 獨立 script：主程式即使出錯也會解除開機隱藏 */(function(){var s=document.getElementById("bootHide");if(s)s.remove()})()</script>
 </body>
 </html>

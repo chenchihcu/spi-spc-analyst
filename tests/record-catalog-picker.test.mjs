@@ -11,7 +11,7 @@ const fs = require("fs");
 const { HTML, withIdb } = require("./_load.js");
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page(saved = []) {
+function page(saved = [], { fetch: fetchStub } = {}) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
@@ -21,6 +21,7 @@ function page(saved = []) {
     w.Chart = class { constructor() {} destroy() {} static register() {} };
     w.claude = { use: async (n) => (n === "downloads" ? { save: async (x) => { saved.push(x); return { status: "saved" }; } } : null) };
     Object.assign(w, { Response, DecompressionStream });
+    if (fetchStub) w.fetch = fetchStub;
     withIdb(w);
     w.SPI_TEST_HOOK = {};
     w.addEventListener("error", (e) => errs.push(e.message));
@@ -293,3 +294,43 @@ test("座標庫預設版次切換與工單備註修改對話框", { skip: !JSDOM
   assert.deepEqual(errs, []);
 });
 
+
+test("雲端模式開機：最近記錄只請求一次、先佔位再填入，且解除開機隱藏", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const calls = [];
+  const fetchStub = async (url) => {
+    const u = String(url);
+    calls.push(u);
+    if (u === "/__me") return new Response(JSON.stringify({ user: "tester" }), { status: 200 });
+    if (u.startsWith("/api/records?limit=3")) {
+      await tick(40);
+      return new Response(JSON.stringify({ records: [{ id: "r1", kind: "spi", lot: "LOT-A", part: "P1", side: "TOP" }] }), { status: 200 });
+    }
+    return new Response("{}", { status: 404 });
+  };
+  const { dom, errs } = page([], { fetch: fetchStub });
+  const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
+
+  assert.equal(d.getElementById("bootHide"), null, "主程式跑完後應移除開機隱藏樣式");
+  const box = $("#bannerRecentRuns");
+  assert.ok(!box.hidden && /讀取最近記錄/.test(box.textContent), "有後端時應先顯示讀取中佔位，避免之後撐開版面");
+
+  assert.ok(await until(() => box.querySelector(".banner-run-chip")), "應填入最近記錄晶片");
+  assert.match(box.textContent, /LOT-A/);
+  await tick(100);
+  assert.equal(calls.filter((u) => u.startsWith("/api/records?limit=3")).length, 1, "開機時最近記錄只應請求一次");
+  assert.deepEqual(errs, []);
+});
+
+test("雲端模式開機：資料庫無記錄時保留一列說明而非收合", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const fetchStub = async (url) => {
+    const u = String(url);
+    if (u === "/__me") return new Response(JSON.stringify({ user: "tester" }), { status: 200 });
+    if (u.startsWith("/api/records?limit=3")) return new Response(JSON.stringify({ records: [] }), { status: 200 });
+    return new Response("{}", { status: 404 });
+  };
+  const { dom, errs } = page([], { fetch: fetchStub });
+  const box = dom.window.document.querySelector("#bannerRecentRuns");
+  assert.ok(await until(() => /尚無量測記錄/.test(box.textContent)), "空資料庫應顯示說明");
+  assert.ok(!box.hidden);
+  assert.deepEqual(errs, []);
+});
