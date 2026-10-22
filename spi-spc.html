@@ -1572,10 +1572,10 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
 /* ============ 統計核心 ============ */
 function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
-const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+const mean=a=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i];return s/a.length}; /* 迴圈累加（與 reduce 同為由左至右，結果相同）：大量資料時快數倍 */
 /* 每個焊墊取第一筆量測當代表（設計值計算用）；不假設每個焊墊在第一片板都有量測 */
 function padReps(R){const m=new Map();for(const r of R)if(!m.has(r.pad))m.set(r.pad,r);return[...m.values()]}
-function sd(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1))}
+function sd(a){if(a.length<2)return 0;const m=mean(a);let s=0;for(let i=0;i<a.length;i++)s+=(a[i]-m)**2;return Math.sqrt(s/(a.length-1))}
 function quant(sorted,p){const i=(sorted.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return sorted[lo]+(sorted[hi]-sorted[lo])*(i-lo)}
 function lgamma(z){const g=7,c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];if(z<0.5)return Math.log(Math.PI/Math.sin(Math.PI*z))-lgamma(1-z);z-=1;let x=c[0];for(let i=1;i<g+2;i++)x+=c[i]/(z+i);const t=z+g+0.5;return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x)}
 function c4(n){return n<2?1:Math.sqrt(2/(n-1))*Math.exp(lgamma(n/2)-lgamma((n-1)/2))}
@@ -2686,7 +2686,7 @@ function wipeScan(v,N){let best=null;const n=v.length;if(n<4)return null;
    三者並非獨立量測，相關係數必然接近 1，不能拿來佐證量測可信度。否則以「扣除群組平均後」的殘差相關判斷，
    避免不同元件尺寸差異把相關係數撐高 */
 function msaCheck(rows,st){const hv=rows.filter(r=>r.height!=null&&r.area!=null&&r.volume!=null&&r.area>0&&r.height>0);if(hv.length<30)return null;
-  const pred=hv.map(r=>r.area*r.height/padThk(r,st)),ratio=hv.map((r,i)=>r.volume/pred[i]).sort((a,b)=>a-b),med=quant(ratio,.5),spread=(quant(ratio,.95)-quant(ratio,.05))/med;
+  const pred=hv.map(r=>r.area*r.height/padThk(r,st)),ratio0=hv.map((r,i)=>r.volume/pred[i]),ratio=ratio0.every(isFinite)?Float64Array.from(ratio0).sort():ratio0.sort((a,b)=>a-b),med=quant(ratio,.5),spread=(quant(ratio,.95)-quant(ratio,.05))/med;
   const derived=spread<.02; /* 比值幾乎固定（不論是否為 1：鋼板厚度輸入不同時比值會偏離 1）＝體積由面積×高度算出 */
   const gm=new Map();hv.forEach((r,i)=>{let g=gm.get(r.group);if(!g)gm.set(r.group,g={p:0,v:0,n:0});g.p+=pred[i];g.v+=r.volume;g.n++});
   const rp=hv.map((r,i)=>{const g=gm.get(r.group);return pred[i]-g.p/g.n}),rv=hv.map(r=>{const g=gm.get(r.group);return r.volume-g.v/g.n});
@@ -2908,8 +2908,22 @@ function normGen(u){let sp=null;return function(){if(sp!==null){const s=sp;sp=nu
 const CAL_B=2000,CAL_SEED=20261017,CAL_CACHE=new Map();
 /* 擦拭週期統計量：縮尾 → detrend(·,N) → 對 N 個起點取最大 |r|（不再乘 N） */
 function wipeStat(bm,N){const w=wipeScan(detrend(winsor(bm),N),N);return w?Math.abs(w.r):NaN}
+/* 校準用的同一統計量（與 wipeStat 逐位元相同）：重用緩衝區、只算 max |r|，不配置陣列也不算 p 值；虛無分布 B 次模擬用 */
+/* 中位數＝quant(排序後,.5)，以選擇法取第 lo／hi 個順位值（同樣的元素值與算式，結果與排序相同；只用於不含 NaN 的緩衝區，a 會被重排） */
+function selMed(a){const n=a.length,i=(n-1)*.5,lo=Math.floor(i),hi=Math.ceil(i);let l=0,r=n-1;
+  while(l<r){const p=a[(l+r)>>1];let u=l,v=r;while(u<=v){while(a[u]<p)u++;while(a[v]>p)v--;if(u<=v){const t=a[u];a[u]=a[v];a[v]=t;u++;v--}}if(lo<=v)r=v;else if(lo>=u)l=u;else break}
+  const x=a[lo];if(hi===lo)return x;let y=Infinity;for(let k=lo+1;k<n;k++)if(a[k]<y)y=a[k];return x+(y-x)*(i-lo)}
+function wipeStatBuf(x,N,B){const n=x.length,{s,ad,w,d,pos}=B;
+  s.set(x);const m=selMed(s);if(!isFinite(m))return NaN;
+  for(let i=0;i<n;i++)ad[i]=Math.abs(x[i]-m);let sg=selMed(ad)*1.4826;if(!(sg>1e-9))sg=sd(x)||1e-9;
+  for(let i=0;i<n;i++)w[i]=Math.min(m+3*sg,Math.max(m-3*sg,x[i]));
+  if(n<N+2)d.set(w);else{const h=Math.floor(N/2);for(let i=0;i<n;i++){const lo=Math.max(0,Math.min(i-h,n-N));let t=0;for(let j=lo;j<lo+N;j++)t+=w[j];d[i]=w[i]-t/N}}
+  if(n<4)return NaN;let best=-1;
+  for(let ph=0;ph<N;ph++){for(let i=0;i<n;i++)pos[i]=((i-ph)%N+N)%N;const r=pearson(pos,d);if(!isFinite(r))continue;const a=Math.abs(r);if(a>best)best=a}
+  return best<0?NaN:best}
 function wipeCalP(bm,N){const n=bm.length,key="w|"+n+"|"+N;let nul=CAL_CACHE.get(key);
-  if(!nul){const g=normGen(mulberry(CAL_SEED+n*131+N));nul=[];for(let b=0;b<CAL_B;b++){const x=Array.from({length:n},()=>g()),s=wipeStat(x,N);if(isFinite(s))nul.push(s)}CAL_CACHE.set(key,nul)}
+  if(!nul){const g=normGen(mulberry(CAL_SEED+n*131+N)),B={s:new Float64Array(n),ad:new Float64Array(n),w:new Float64Array(n),d:new Float64Array(n),pos:new Float64Array(n)},x=new Array(n);nul=[];
+    for(let b=0;b<CAL_B;b++){for(let i=0;i<n;i++)x[i]=g();const s=wipeStatBuf(x,N,B);if(isFinite(s))nul.push(s)}CAL_CACHE.set(key,nul)}
   const s=wipeStat(bm,N);if(!isFinite(s))return NaN;let c=0;for(const v of nul)if(v>=s)c++;return(1+c)/(nul.length+1)}
 /* 刮刀奇偶：迴歸法（OLS：截距、板序線性與二次、奇偶指標；奇偶係數 t，殘差自由度 n−4，雙尾 p） */
 function strokeCalP(bm,cls){const n=bm.length;if(n<8)return{p:NaN};
@@ -3412,7 +3426,8 @@ function detectIssues(st){
   const fmtBoards=idxs=>{const s=[...new Set(idxs)].sort((a,b)=>a-b);if(!s.length)return"不適用";let con=s.length>=2;for(let i=1;i<s.length;i++)if(s[i]!==s[i-1]+1){con=false;break}return con?`${boards[s[0]]}–${boards[s[s.length-1]]}`:s.map(i=>boards[i]).join("; ")};
   const topList=(arr,max=10)=>arr.length<=max?arr.join("; "):arr.slice(0,max).join("; ")+`; 另 ${arr.length-max} 個`;
   const refOf=rs=>{const cs=[...new Set(rs.map(r=>r.comp||(r.pad&&r.pad.includes("-")?r.pad.split("-")[0]:null)).filter(Boolean))];return cs.length?topList(cs,10):"不適用（無元件位號欄）"};
-  const subOf=rs=>{const fs=[...new Set(rs.map(r=>r.figure).filter(x=>x!=null))];return fs.length?fs.map(x=>"子板 "+x).join("; "):"不適用（單板或無子板欄）"};
+  const subOf0=rs=>{const fs=[...new Set(rs.map(r=>r.figure).filter(x=>x!=null))];return fs.length?fs.map(x=>"子板 "+x).join("; "):"不適用（單板或無子板欄）"};
+  let subAll=null;const subOf=rs=>rs===R?(subAll===null?(subAll=subOf0(R)):subAll):subOf0(rs); /* 全部列的子板清單只算一次 */
   const ACT={
     unit:"檢查匯入欄位的量測單位與規格設定（LSL／目標／USL）是否一致",
     fig:"檢查拼板各子板的頂針支撐位置、拼板翹曲與刮刀壓力分布",
@@ -4589,7 +4604,7 @@ function issuesXlsx(F){
   ]);
 }
 
-if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection};
+if(typeof module!=="undefined")module.exports={sampleData,analyze,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
 </script>
 <script>
 "use strict";
