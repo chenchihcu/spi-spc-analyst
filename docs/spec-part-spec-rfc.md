@@ -75,7 +75,7 @@
 ```
 選「料號規格」 → 載入預設版（或指定版本）→ 欄位可編輯
    └ 任一欄位改動 → 草稿（dirty），分析即時套用草稿值，標示「已修改，尚未存成新版本」
-        ├ 「儲存為新版本」→ 產生規格 JSON → RecDB.create(kind:"spec") → 成為新預設（可勾選）
+        ├ 「儲存為新版本」→ 產生規格 JSON → RecDB.create(kind:"spec")；勾選「設為預設」時帶 `makeDefault:true`，建立與切換預設在同一個原子操作完成（§3.3）
         └ 「放棄修改」→ 重新載入目前版本
 切換回合、切換規格來源、離開頁面時有未存草稿 → 確認對話框
 ```
@@ -139,6 +139,7 @@
 | `lib/records-core.mjs` `checkMeta` | 接受 `kind:"spec"`：必填 `part`，`isDefault`、`note`、`basedOn` |
 | `lib/repo.mjs` | `setDefaultPlacement` 抽成 `setDefault(id, kind, user)`（place 依 part＋side、spec 依 part），原函式保留為包裝；新增 `getSpecsForPart(part)` |
 | `cloudflare/worker.mjs` | `GET /api/records?specs_for=<料號>` → `{ specs, part }`；`PATCH action:"set_default_spec"`；`set_default_place` 不變 |
+| 建立＋設為預設 | **同一個原子操作**：spec 建立請求帶 `makeDefault:true` 時，repo 在同一個 `db.batch` 內插入新紀錄、清除同料號其他版本的 `isDefault`、寫入 `set_default_spec` 稽核（含 `from`＝前一預設版 id、`to`＝新版 id）。不得只靠 `meta.isDefault` 寫入（現行座標檔上傳即是如此，會留下多個預設且沒有切換稽核，見 :7932–7951） |
 | 權限 | 刪除沿用「只有建立者」；建立、設為預設、刪除都寫 `audit_log` |
 | Migration | **不需要** |
 
@@ -147,11 +148,12 @@
 |---|---|
 | `recCheck`（:7307）、`recSame`（:7322） | spec 分支 |
 | `LocalRec`、`RecDB`（:7324–7400） | `specsFor(part)`、`setDefaultSpec(id)`，本機模式對等實作 |
-| `snapCfg`（:6494） | 新增 `partSpec: { id, part, ver, sha, dirty }`；舊回合沒有此欄 → 行為不變 |
+| `snapCfg`（:6494） | 新增 `partSpec: { id, part, ver, sha, dirty, pendingNote }`；`pendingNote` 保存草稿來源（例如「工單規格：`<檔名>`」），讓「匯入 → 重新整理 → 儲存」仍能帶入正確備註；舊回合沒有此欄 → 行為不變 |
 | `setSpecSrc`（:6499）、`importCfg`（:6496）、匯入流程（:6799 起） | `part` 分支；匯入時先查該料號預設版 |
 | `renderSpecTbl`（:6487）、`specSrcNote`（:4756） | `part` 模式可編輯、草稿標示、版本資訊、儲存／放棄按鈕 |
 | `capInfo`／規格來源標籤（:6954）、報告（:8357）、PDF（:8656） | 顯示「料號規格 `<料號>` v`<n>`（SHA-256 前 12 碼）」 |
 | 資料庫頁 | 類型篩選加入「料號規格」；可檢視版本、設為預設、套用、驗證指紋、下載 JSON |
+| 稽核紀錄頁 `renderAudit`（:7429） | 目前除刪除、遷移排除外一律顯示「新增」，類型只分座標檔／量測紀錄。需新增：動作「設為預設」（`set_default_spec`／`set_default_place`）並顯示 `detail` 的前一版 → 新版；類型「料號規格」 |
 | 分享連結 | cfg 已帶規格與 `partSpec`，分享頁自足，不需查資料庫 |
 
 ---
@@ -182,7 +184,7 @@
 
 | 類別 | 內容 | 測試檔 |
 |---|---|---|
-| 後端 | `checkMeta` spec 分支；`setDefault` 只切同料號、同 kind；相同內容回 409 | `tests/records.test.mjs`、`tests/cf-routes.test.mjs` |
+| 後端 | `checkMeta` spec 分支；`setDefault` 只切同料號、同 kind；建立時 `makeDefault` 後同料號恰好一個預設且稽核含 from／to；相同內容回 409 | `tests/records.test.mjs`、`tests/cf-routes.test.mjs` |
 | 判定 | `part` 模式＋群組覆寫：每列套用正確規格；未覆寫群組退回全板；有機台判定碼也依料號規格判定 | `tests/stats.test.js`、新增 `tests/part-spec.test.js` |
 | 流程（jsdom） | 編輯 → 存版本 → 同料號新匯入自動套用 → 報告顯示「料號規格 v2」 | 比照 `tests/report-ai.test.mjs` |
 | 本機／雲端 | 兩種 `RecDB` 模式行為一致 | `tests/records-ui.test.mjs` |
@@ -197,7 +199,7 @@
 1. **P1 資料層**：records-core、repo、worker、`RecDB`／`LocalRec`；加測試。
 2. **P2 判定**：`specSrc:"part"`、`specOfGroup`／`classify`、群組覆寫；加測試。
 3. **P3 規格設定頁**：版本清單、草稿、儲存／放棄、群組覆寫子表、匯入時自動套用、工單規格載入為草稿（§7 D6）。
-4. **P4 標示與文件**：報告、PDF、匯出、資料庫頁；CHANGELOG、README、`package.json` version。
+4. **P4 標示與文件**：報告、PDF、匯出、資料庫頁、稽核紀錄頁「設為預設」顯示；CHANGELOG、README、`package.json` version。
 
 ---
 
@@ -209,8 +211,14 @@
 | 2 | 「匯入工單規格」怎麼處理 | **載入為料號規格草稿**（D6） | 見下 |
 
 **匯入工單規格（D6）流程：**
-- `applyWorkorderSpec`（:2232）改為：切到 `part` 模式，以目前料號版本（無則 `DEF_SPECS`）為底，覆上工單的 volume／area／height，標成草稿；不再直接改當回合 `S.specs` 後就結束。
+- **既有草稿保護：** 目前已是 `part` 模式且有未存草稿時，先出確認對話框（放棄草稿並匯入／取消），不得直接覆寫。
+- **底稿：** 有料號版本 → 以該版本的全板與群組覆寫為底；沒有料號版本 → 以 `DEF_SPECS` 為底，且**群組覆寫清空**（`S.specsG = {}`），不得沿用機台模式推估出的群組規格窗。`S.specsG` 只能來自實際的料號規格版本或使用者在草稿中新增的覆寫。
+- **欄位層級合併：** `parseWorkorderSpec`（:2216）改為只回傳工單**實際提供**的欄位（不再以 `DEF_SPECS` 補 `lsl`／`tgt`／`usl`，現行 :2223–2226 會補）；合併時逐欄覆蓋底稿，工單沒給的界限保留底稿值。例如工單只給體積 LSL，USL 與目標維持原版本。
 - 工單只有 µm 高度時，依當回合鋼板厚度換算為高度 %（`hpct = height ÷ stencil × 100`），並提示換算基準。
 - 工單 JSON 的 `part` 與當回合料號不同時，顯示警告並要求確認，不自動改料號。
-- 按「儲存為新版本」時，`note` 預設帶入「工單規格：`<檔名>`」，`basedOn` 記錄原版本 id；修正目前 `woSpecFile` 重新整理後遺失的問題（改由版本 `note` 保存）。
-- 歸入 **P3**；測試：工單匯入 → 草稿 → 儲存 → 版本 `note` 含檔名、`hpct` 換算正確。
+- **來源保存：** 載入時即把「工單規格：`<檔名>`」寫入 `partSpec.pendingNote`（隨 `snapCfg` 保存），重新整理後仍在；按「儲存為新版本」時預設帶入 `note`，`basedOn` 記錄原版本 id。取代目前重新整理即遺失的 `woSpecFile`。
+- 歸入 **P3**；測試：
+  - 工單只給部分界限 → 未給的界限等於原版本值（非 `DEF_SPECS`）。
+  - 無料號版本、原為機台模式 → 草稿的 `specsG` 為空，分類不受機台推估窗影響。
+  - 有未存草稿時匯入 → 出確認；取消後草稿不變。
+  - 匯入 → 重新整理 → 儲存 → 版本 `note` 含工單檔名；`hpct` 換算正確。
