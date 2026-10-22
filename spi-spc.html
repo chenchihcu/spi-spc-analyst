@@ -659,7 +659,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.1.1</b> · 更新 <b class="num" id="appBuilt">2026-10-22 22:15:40</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.0</b> · 更新 <b class="num" id="appBuilt">2026-10-22 22:41:53</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -783,7 +783,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
     </div>
     <div class="row"><button id="btnIssMd">匯出問題清單 .md</button><button id="btnIssCsv">.csv</button><button id="btnIssXlsx">.xlsx</button></div>
   </div>
-  <details class="how"><summary>偵測邏輯</summary><p>系統自動掃描全部量測項目（體積、高度佔鋼板厚%、面積、X/Y 偏移），不受上方「量測項目」選擇影響，依十個面向找問題：單板突發（整板／局部元件群組）、拼板子板位置效應、系統性能力不足、焊墊位置長期偏離、持續漂移（CUSUM 回推起點）、空間梯度、刮刀前後差、擦拭週期、對位（平移／旋轉／伸縮）、設計 DFM（面積比、寬厚比、轉移效率），以及量測一致性。統計量採中位數與 MAD 等穩健方法，避免單一異常板拉偏基準。多個發現指向同一板、同一元件群組或同一焊墊時，互相列為佐證，佐證越多信心越高。再依形狀、時間、空間、設計、對位、量測六個獨立面向做失效模式交叉比對（交叉驗證頁），至少兩個面向支持且無矛盾才判為「可能」原因。「事實」為資料計算結果；「推論」為可能原因，需現場驗證。</p></details>
+  <details class="how"><summary>偵測邏輯</summary><p>系統自動掃描全部量測項目（體積、高度佔鋼板厚%、面積、X/Y 偏移），不受上方「量測項目」選擇影響，依十個面向找問題：單板突發（整板／局部元件群組）、拼板子板位置效應、系統性能力不足、焊墊位置長期偏離、持續漂移（CUSUM 回推起點）、空間梯度、刮刀前後差、擦拭週期、對位（平移／旋轉／伸縮）、設計 DFM（面積比、寬厚比、轉移效率），以及量測一致性。統計量採中位數與 MAD 等穩健方法，避免單一異常板拉偏基準。單板突發的偏移若該板（或該區）沒有超出規格的焊墊，最多判為「警示」：偏離其他板但仍在規格內，需要追蹤而非立即處置。多個發現指向同一板、同一元件群組或同一焊墊時，互相列為佐證，佐證越多信心越高。再依形狀、時間、空間、設計、對位、量測六個獨立面向做失效模式交叉比對（交叉驗證頁），至少兩個面向支持且無矛盾才判為「可能」原因。「事實」為資料計算結果；「推論」為可能原因，需現場驗證。</p></details>
   <div class="card"><h3>問題地圖 <small id="pmapSub">每格一片板，顏色為該板最嚴重的問題；點格子只看該板相關問題</small></h3><div class="pmap" id="pmap"></div>
     <div class="legend" style="margin:8px 0 0"><span><i class="sq" style="background:var(--ng)"></i>✕ 嚴重</span><span><i class="sq" style="background:var(--warn)"></i>! 警示</span><span><i class="sq" style="background:var(--series2)"></i>ℹ 資訊</span><span><i class="sq" style="background:var(--surface2);outline:1px solid var(--line)"></i>無問題</span></div></div>
   <div class="row" id="issFilter" role="group" aria-label="篩選問題"></div>
@@ -3716,8 +3716,8 @@ function detectIssues(st,onStage){
       const obsList=oos.length?topList(oos.map(o=>`${o.pad} ${ks.length>1?lab(o.k)+" ":""}${f(o.x,1)}`),10):ks.map(k=>{const x=hk.filter(h=>h.k===k);return`${lab(k)}平均差 ${sgn(mean(x.map(h=>h.d)))}${f(mean(x.map(h=>h.d)),1)} ${u(k)}`}).join("; ");
       const limList=oos.length?topList([...new Set(oos.map(o=>`${ks.length>1?lab(o.k)+" ":""}${o.lim} ${u(o.k)}`))],10):ks.map(k=>{const sp=st.specs[k];return sp?`${lab(k)} 規格 ${f(sp.lsl,0)}–${f(sp.usl,0)} ${u(k)}`:"穩健 |z| ≥ 3.5"}).join("; ");
       const oosFact=oos.length?[`超規焊墊：${oos.slice(0,10).map(o=>`${o.pad}（${f(o.x,1)} vs ${o.lim} ${u(o.k)}）`).join("、")}${oos.length>10?` 等另 ${oos.length-10} 個`:""}`]:[];
-      add({lv:nd||zmax>=6?"ng":"warn",cat:"單板異常",sig:{t:"board",b,ks,off,nd,d:Object.fromEntries(ks.map(k=>[k,mean(hk.filter(h=>h.k===k).map(h=>h.d))]))},title:`${b} 整片板${ks.map(lab).join("、")}偏移`,ents:["b:"+b],score:zmax+nd*.3,
-        rule_id:"穩健 z≥3.5（整板異常）",rule_name:"≥60% 元件群組同向偏離其他板中位數（|z|≥3.5 且差 ≥8% 規格寬）",metric:ks.map(lab).join("; "),
+      add({lv:nd?"ng":"warn",cat:"單板異常", /* 嚴重需有超規焊墊；規格內的整板偏移不論 z 多大都只到警示 */sig:{t:"board",b,ks,off,nd,d:Object.fromEntries(ks.map(k=>[k,mean(hk.filter(h=>h.k===k).map(h=>h.d))]))},title:`${b} 整片板${ks.map(lab).join("、")}偏移`,ents:["b:"+b],score:zmax+nd*.3,
+        rule_id:"穩健 z≥3.5（整板異常）",rule_name:"≥60% 元件群組同向偏離其他板中位數（|z|≥3.5 且差 ≥8% 規格寬；本板有超規焊墊才判嚴重）",metric:ks.map(lab).join("; "),
         boards:b,subboard:subOf(bRs),group:[...new Set(hk.map(h=>h.g))].join("; "),refdes:refOf(oos.length?oos.map(o=>o.r):bRs),
         pads:padList,observed:obsList,limit:limList,z:`最大 |z| = ${f(zmax,2)}`,p:`${ f(2*(1-Phi(zmax)),4)}`,
         explained_pads:[...new Set(expP)],
@@ -3732,8 +3732,10 @@ function detectIssues(st,onStage){
       const obsList=oos.length?topList(oos.map(o=>`${o.pad} ${ks.length>1?lab(o.k)+" ":""}${f(o.x,1)}`),10):hk.map(h=>`${lab(h.k)}平均 ${f(h.v,1)} ${u(h.k)}`).join("; ");
       const limList=oos.length?topList([...new Set(oos.map(o=>`${ks.length>1?lab(o.k)+" ":""}${o.lim}`))],10):hk.map(h=>{const sp=specOfGroup(st,g,h.k);return sp?`${lab(h.k)} 規格 ${f(sp.lsl,0)}–${f(sp.usl,0)} ${u(h.k)}`:"穩健 |z| ≥ 3.5"}).join("; ");
       const oosFact=oos.length?[`超規焊墊：${oos.slice(0,10).map(o=>`${o.pad}（${f(o.x,1)} vs ${o.lim} ${u(o.k)}）`).join("、")}${oos.length>10?` 等另 ${oos.length-10} 個`:""}`]:[];
-      add({lv:(nd>=2&&hk.some(h=>h.ex>=3))||zmax>=6?"ng":"warn",cat:"單板異常",sig:{t:"local",b,g,ks,low,high,off,nd,d:Object.fromEntries(hk.map(h=>[h.k,h.d]))},title:`${b} 的 ${g}：${hk.map(h=>lab(h.k)+(h.d<0?"偏低":"偏高")).join("、")}`,ents:["b:"+b,"g:"+g],score:zmax+nd*.3,
-        rule_id:"穩健 z≥3.5（單板異常）",rule_name:"單板×元件群組平均偏離其他板中位數（|z|≥3.5、差 ≥8% 規格寬，且 |z|≥5.5 或超額不良 ≥3）",metric:ks.map(lab).join("; "),
+      /* 嚴重需有超規焊墊：|z| 再大，該區焊墊都在規格內就只到警示（需要追蹤，非立即處置） */
+      const lvLocal=(nd>=2&&hk.some(h=>h.ex>=3))||(zmax>=6&&nd>=1)?"ng":"warn";
+      add({lv:lvLocal,cat:"單板異常",sig:{t:"local",b,g,ks,low,high,off,nd,d:Object.fromEntries(hk.map(h=>[h.k,h.d]))},title:`${b} 的 ${g}：${hk.map(h=>lab(h.k)+(h.d<0?"偏低":"偏高")).join("、")}`,ents:["b:"+b,"g:"+g],score:zmax+nd*.3,
+        rule_id:"穩健 z≥3.5（單板異常）",rule_name:"單板×元件群組平均偏離其他板中位數（|z|≥3.5、差 ≥8% 規格寬，且 |z|≥5.5 或超額不良 ≥3；該區有超規焊墊才判嚴重）",metric:ks.map(lab).join("; "),
         boards:b,subboard:subOf(rs),group:g,refdes:refOf(oos.length?oos.map(o=>o.r):rs),
         pads:padList,observed:obsList,limit:limList,z:hk.map(h=>`${lab(h.k)} z=${f(h.z,2)}`).join("; "),p:`${f(2*(1-Phi(zmax)),4)}`,
         explained_pads:[...new Set(expP)],
