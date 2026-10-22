@@ -136,17 +136,18 @@
 ### 3.3 後端（只新增 kind 值與動作，不改既有欄位）
 | 檔案 | 修改 |
 |---|---|
-| `lib/records-core.mjs` `checkMeta` | 接受 `kind:"spec"`：必填 `part`，`isDefault`、`note`、`basedOn` |
+| `lib/records-core.mjs` `checkMeta` | 接受 `kind:"spec"`：必填 `part`；保留 `note`、`basedOn` 與 `makeDefault`（布林）。**不接受**用戶端直接寫 `isDefault`，預設只能由 `makeDefault` 或 `set_default_spec` 經伺服器原子操作設定 |
 | `lib/repo.mjs` | `setDefaultPlacement` 抽成 `setDefault(id, kind, user)`（place 依 part＋side、spec 依 part），原函式保留為包裝；新增 `getSpecsForPart(part)` |
 | `cloudflare/worker.mjs` | `GET /api/records?specs_for=<料號>` → `{ specs, part }`；`PATCH action:"set_default_spec"`；`set_default_place` 不變 |
 | 建立＋設為預設 | **同一個原子操作**：spec 建立請求帶 `makeDefault:true` 時，repo 在同一個 `db.batch` 內插入新紀錄、清除同料號其他版本的 `isDefault`、寫入 `set_default_spec` 稽核（含 `from`＝前一預設版 id、`to`＝新版 id）。不得只靠 `meta.isDefault` 寫入（現行座標檔上傳即是如此，會留下多個預設且沒有切換稽核，見 :7932–7951） |
+| 並行安全 | 清除舊預設必須在交易**執行當下**選取資料列（`UPDATE … WHERE kind='spec' AND part=? AND id<>? AND isDefault`），不得先讀出 id 清單再逐筆更新；D1 batch 依序執行，後到者會清掉先到者的預設，確保同料號恰好一個預設。稽核 `from` 為請求前讀取，僅供參考 |
 | 權限 | 刪除沿用「只有建立者」；建立、設為預設、刪除都寫 `audit_log` |
 | Migration | **不需要** |
 
 ### 3.4 前端
 | 位置 | 修改 |
 |---|---|
-| `recCheck`（:7307）、`recSame`（:7322） | spec 分支 |
+| `recCheck`（:7307）、`recSame`（:7322） | spec 分支；`recCheck` 必須保留 `makeDefault` 並轉送給 `checkMeta`（兩道驗證都保留，否則「設為預設」會被靜默丟棄）；本機模式不把 `makeDefault` 寫入紀錄 |
 | `LocalRec`、`RecDB`（:7324–7400） | `specsFor(part)`、`setDefaultSpec(id)`，本機模式對等實作 |
 | `snapCfg`（:6494） | 新增 `partSpec: { id, part, ver, sha, dirty, pendingNote }`；`pendingNote` 保存草稿來源（例如「工單規格：`<檔名>`」），讓「匯入 → 重新整理 → 儲存」仍能帶入正確備註；舊回合沒有此欄 → 行為不變 |
 | `setSpecSrc`（:6499）、`importCfg`（:6496）、匯入流程（:6799 起） | `part` 分支；匯入時先查該料號預設版 |
@@ -154,6 +155,7 @@
 | `capInfo`／規格來源標籤（:6954）、報告（:8357）、PDF（:8656） | 顯示「料號規格 `<料號>` v`<n>`（SHA-256 前 12 碼）」 |
 | 資料庫頁 | 類型篩選加入「料號規格」；可檢視版本、設為預設、套用、驗證指紋、下載 JSON |
 | 稽核紀錄頁 `renderAudit`（:7429） | 目前除刪除、遷移排除外一律顯示「新增」，類型只分座標檔／量測紀錄。需新增：動作「設為預設」（`set_default_spec`／`set_default_place`）並顯示 `detail` 的前一版 → 新版；類型「料號規格」 |
+| 座標檔預設切換稽核 | 現行 `Repo.setDefaultPlacement`（lib/repo.mjs:207）稽核只有 `target_id`、`part`、`rev`、`side`，本機 `RecDB.setDefaultPlace`（:7370）完全不寫稽核。需改為兩邊都記錄 `from`（前一預設 id 陣列）與 `to`；歷史紀錄缺 `from` 時顯示「前一版：舊紀錄未記錄」，不推測 |
 | 分享連結 | cfg 已帶規格與 `partSpec`，分享頁自足，不需查資料庫 |
 
 ---
@@ -184,7 +186,7 @@
 
 | 類別 | 內容 | 測試檔 |
 |---|---|---|
-| 後端 | `checkMeta` spec 分支；`setDefault` 只切同料號、同 kind；建立時 `makeDefault` 後同料號恰好一個預設且稽核含 from／to；相同內容回 409 | `tests/records.test.mjs`、`tests/cf-routes.test.mjs` |
+| 後端 | `checkMeta` spec 分支（`makeDefault` 保留、`isDefault` 不接受）；`setDefault` 只切同料號、同 kind；建立時 `makeDefault` 後同料號恰好一個預設且稽核含 from／to；**並行**：兩個請求以同一份舊狀態各自建立／切換預設，依序執行後同料號仍恰好一個預設；座標檔預設切換雲端與本機都寫 from／to；相同內容回 409 | `tests/records.test.mjs`、`tests/cf-routes.test.mjs` |
 | 判定 | `part` 模式＋群組覆寫：每列套用正確規格；未覆寫群組退回全板；有機台判定碼也依料號規格判定 | `tests/stats.test.js`、新增 `tests/part-spec.test.js` |
 | 流程（jsdom） | 編輯 → 存版本 → 同料號新匯入自動套用 → 報告顯示「料號規格 v2」 | 比照 `tests/report-ai.test.mjs` |
 | 本機／雲端 | 兩種 `RecDB` 模式行為一致 | `tests/records-ui.test.mjs` |
@@ -199,7 +201,7 @@
 1. **P1 資料層**：records-core、repo、worker、`RecDB`／`LocalRec`；加測試。
 2. **P2 判定**：`specSrc:"part"`、`specOfGroup`／`classify`、群組覆寫；加測試。
 3. **P3 規格設定頁**：版本清單、草稿、儲存／放棄、群組覆寫子表、匯入時自動套用、工單規格載入為草稿（§7 D6）。
-4. **P4 標示與文件**：報告、PDF、匯出、資料庫頁、稽核紀錄頁「設為預設」顯示；CHANGELOG、README、`package.json` version。
+4. **P4 標示與文件**：報告、PDF、匯出、資料庫頁、稽核紀錄頁「設為預設」顯示（含座標檔預設切換補記 from／to，雲端與本機）；CHANGELOG、README、`package.json` version。
 
 ---
 
