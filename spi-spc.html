@@ -659,7 +659,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.0</b> · 更新 <b class="num" id="appBuilt">2026-10-22 22:41:53</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.1</b> · 更新 <b class="num" id="appBuilt">2026-10-22 23:23:48</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -3872,7 +3872,7 @@ function detectIssues(st,onStage){
       ks.forEach(c=>{c.lv=c.over?cellSev.get(c.g):"warn";
         c.limStr=c.over?(isFinite(c.sp.lsl)&&c.x<c.sp.lsl?`LSL ${f(c.sp.lsl,0)}`:`USL ${f(c.sp.usl,0)}`):`|z|≥5（群組中位 ${f(c.S.m,1)}）`;
         c.cmpStr=c.over?(isFinite(c.sp.lsl)&&c.x<c.sp.lsl?`${f(c.x,1)} < LSL ${f(c.sp.lsl,0)}`:`${f(c.x,1)} > USL ${f(c.sp.usl,0)}`):`${f(c.x,1)}（群組中位 ${f(c.S.m,1)}）`});
-      ks.sort((a,b)=>(a.lv==="ng"!==b.lv==="ng"?(a.lv==="ng"?-1:1):Math.abs(b.z)-Math.abs(a.z)));
+      ks.sort((a,b)=>((a.lv==="ng")!==(b.lv==="ng")?(a.lv==="ng"?-1:1):Math.abs(b.z)-Math.abs(a.z)));   // 嚴重子項在前，同等級再依 |z|（括號不可省：=== 與 !== 同優先序、由左至右結合）
       const cardLv=ks.some(c=>c.lv==="ng")?"ng":"warn",zmax=Math.max(...ks.map(c=>Math.abs(c.z)));
       const bIdxs=[...new Set(ks.map(c=>boards.indexOf(c.r.board)).filter(i=>i>=0))],bStr=bIdxs.map(i=>boards[i]).join("; ");
       const gList=[...new Set(ks.map(c=>c.g))],ents=[...bIdxs.map(i=>"b:"+boards[i]),...gList.map(g=>"g:"+g),...ks.map(c=>"p:"+c.r.pad)];
@@ -4909,8 +4909,11 @@ async function probeLegacyHpct(){if(hpctBusy)return;hpctBusy=true;let hit=false;
       if(hpctHead(head)){HPCT_SRC.set(k,true);hit=true}}catch(e){}}}
   finally{hpctBusy=false}
   if(hit){renderRuns();if(S.tab==="compare")renderCompare()}}
+/* 回合名稱可重複（例如同一份原始檔匯入兩次）：重名時附上回合表的列序；試產比較一律標明 A／B */
+const dupRunName=r=>S.runs.filter(x=>x.name===r.name).length>1;
+const runLab=(r,cmp)=>`${cmp?(r.id===S.cmpA?"A 回合":"B 回合"):""}「${esc(r.name)}」${!cmp&&dupRunName(r)?`（回合表第 ${S.runs.indexOf(r)+1} 列）`:""}`;
 function legacyHpctNote(box,runs,cmp){const L=runs.filter(legacyHpct);box.hidden=!L.length;if(!L.length){box.innerHTML="";return}
-  box.innerHTML=`<p class="note" style="margin:8px 0"><span class="pill warn">注意</span> ${L.map(r=>`「${esc(r.name)}」`).join("、")}是舊版匯入的高度 % 資料，當時換算 µm 高度用的鋼板厚度沒有記錄，無法自動修正：之後改過鋼板厚度的話，高度、高度 % 與相關判定都可能偏差${cmp?"，這次比較的差異可能只是換算厚度不同，不代表製程變化":""}。請從資料庫重新匯入原始檔，取代這個回合。</p><div class="row">${L.map(r=>`<button data-reimp="${r.id}">重新匯入${L.length>1?`「${esc(r.name)}」`:""}</button>`).join("")}</div>`;
+  box.innerHTML=`<p class="note" style="margin:8px 0"><span class="pill warn">注意</span> ${L.map(r=>runLab(r,cmp)).join("、")}是舊版匯入的高度 % 資料，當時換算 µm 高度用的鋼板厚度沒有記錄，無法自動修正：之後改過鋼板厚度的話，高度、高度 % 與相關判定都可能偏差${cmp?"，這次比較的差異可能只是換算厚度不同，不代表製程變化":""}。請從資料庫重新匯入原始檔，取代這個回合。</p><div class="row">${L.map(r=>`<button data-reimp="${r.id}">重新匯入${L.length>1||cmp||dupRunName(r)?(cmp?" ":"")+runLab(r,cmp):""}</button>`).join("")}</div>`;
   box.querySelectorAll("[data-reimp]").forEach(b=>b.onclick=()=>reimportRun(+b.dataset.reimp))}
 /* 先切到該回合，再開啟原始檔並預選「取代目前回合」；確認鋼板厚度後由使用者按「套用匯入」 */
 async function reimportRun(id){const r=S.runs.find(x=>x.id===id);if(!r)return;
@@ -5042,15 +5045,25 @@ function evSvg(ev,lv){if(!ev||!ev.values||!ev.values.some(isFinite))return"";con
   const t=(x,yy,txt,anc)=>`<text x="${x}" y="${yy}" text-anchor="${anc||"start"}" style="fill:${mut};font:10px var(--f-mono)">${esc(txt)}</text>`;
   g+=t(pl-4,pt+8,f(hi-pad,1),"end")+t(pl-4,pt+ih,f(lo+pad,1),"end")+t(pl,H-3,ev.labels[0])+t(W-pr,H-3,ev.labels[n-1],"end");
   return`<div class="ev-cap">${esc(ev.title)}${ev.unit?`（${esc(ev.unit)}）`:""}</div><svg class="ev" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(ev.title)}">${g}</svg>`}
-function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set(S.rows.map(r=>r.group))],rank={ng:0,warn:1,info:2};
-  const worst=list=>list.reduce((w,x)=>w==null||rank[x.lv]<rank[w]?x.lv:w,null);
-  const cell=(ent,lab,list)=>{const lv=worst(list);const isPart=S.partialBoards&&S.partialBoards.includes(lab);const sym=lv==="ng"?"✕":lv==="warn"?"!":lv==="info"?"ℹ":"";const symHtml=sym?`<span class="pmap-sym" aria-hidden="true" style="font-size:9px;line-height:1;margin-left:1px;font-weight:700">${sym}</span>`:"";const lvTxt=lv==="ng"?" (嚴重)":lv==="warn"?" (警示)":lv==="info"?" (資訊)":"";return`<button data-ent="${esc(ent)}" class="${lv||""}" aria-pressed="${S.issEnt===ent}" title="${esc(lab)}${isPart?"（部分焊墊）":""}：${list.length?list.length+" 項問題"+lvTxt:"無問題"}">${esc(lab.replace(/^[A-Za-z]+0?/,""))}${symHtml}${isPart?'<span class="subpill" style="font-size:9px;color:var(--warn);display:block;line-height:1">部分</span>':""}</button>`};
+/* 跨板彙總卡（孤立極端焊墊：sig.rows 每個子項有自己的等級）在地圖上只看命中這片板／這個群組的子項，
+   否則一張嚴重的彙總卡會把它碰到的每一格都染成嚴重，看不出哪片板真正嚴重；篩選（issueBoards）不受影響 */
+const PM_RANK={ng:0,warn:1,info:2};
+function lvOn(x,ent){const R=x.sig&&x.sig.rows;if(!R||!R.length||!R[0].lv)return x.lv;
+  const b=ent.startsWith("b:")?ent.slice(2):null,g=ent.startsWith("g:")?ent.slice(2):null;let w=null;
+  for(const c of R)if((b!=null&&c.r&&c.r.board===b)||(g!=null&&c.g===g))if(w==null||PM_RANK[c.lv]<PM_RANK[w])w=c.lv;
+  return w||x.lv}
+const isAgg=x=>!!(x.sig&&x.sig.rows&&x.sig.rows.length&&x.sig.rows[0].lv);
+function renderPmap(){const B=[...new Set(S.rows.map(r=>r.board))],G=[...new Set(S.rows.map(r=>r.group))],rank=PM_RANK,LVT={ng:"嚴重",warn:"警示",info:"資訊"};
+  const worst=list=>list.reduce((w,o)=>w==null||rank[o.lv]<rank[w]?o.lv:w,null);
+  const tip=(lab,list,unit)=>{if(!list.length)return"無問題";const lv=worst(list),agg=list.filter(o=>isAgg(o.x)).length;
+    return`${list.length} 項相關問題，本${unit}最高：${LVT[lv]}${agg?`（其中 ${agg} 張為跨板彙總卡，依本${unit}命中的焊墊判定等級）`:""}`};
+  const cell=(ent,lab,list)=>{const lv=worst(list);const isPart=S.partialBoards&&S.partialBoards.includes(lab);const sym=lv==="ng"?"✕":lv==="warn"?"!":lv==="info"?"ℹ":"";const symHtml=sym?`<span class="pmap-sym" aria-hidden="true" style="font-size:9px;line-height:1;margin-left:1px;font-weight:700">${sym}</span>`:"";return`<button data-ent="${esc(ent)}" class="${lv||""}" aria-pressed="${S.issEnt===ent}" title="${esc(lab)}${isPart?"（部分焊墊）":""}：${esc(tip(lab,list,"板"))}">${esc(lab.replace(/^[A-Za-z]+0?/,""))}${symHtml}${isPart?'<span class="subpill" style="font-size:9px;color:var(--warn);display:block;line-height:1">部分</span>':""}</button>`};
   const sys=S.F.filter(x=>!x.ents.some(e=>e.startsWith("b:")||e.startsWith("g:")||e.startsWith("drift:")));
   /* 一次走過全部問題，分到各板／各群組（問題數上千、群組數百時不必每格重掃全部問題） */
   const byB=new Map(B.map(b=>[b,[]])),byG=new Map(G.map(g=>["g:"+g,[]]));
-  for(const x of S.F){for(const b of issueBoards(x)){const a=byB.get(b);if(a)a.push(x)}for(const e of x.ents){const a=byG.get(e);if(a&&a[a.length-1]!==x)a.push(x)}}
+  for(const x of S.F){for(const b of issueBoards(x)){const a=byB.get(b);if(a)a.push({x,lv:lvOn(x,"b:"+b)})}for(const e of x.ents){const a=byG.get(e);if(a&&(!a.length||a[a.length-1].x!==x))a.push({x,lv:lvOn(x,e)})}}
   $("#pmap").innerHTML=`<div class="pmap-row"><span class="pmap-lab">各板（依印刷順序）</span><div class="pmap-cells">${B.map(b=>cell("b:"+b,b,byB.get(b))).join("")}</div></div>
-    <div class="pmap-row"><span class="pmap-lab">元件群組</span><div class="pmap-cells">${G.map(g=>`<button data-ent="g:${esc(g)}" class="${worst(byG.get("g:"+g))||""}" aria-pressed="${S.issEnt==="g:"+g}" title="${esc(g)}" style="font-size:11px">${esc(g)}</button>`).join("")}</div></div>
+    <div class="pmap-row"><span class="pmap-lab">元件群組</span><div class="pmap-cells">${G.map(g=>`<button data-ent="g:${esc(g)}" class="${worst(byG.get("g:"+g))||""}" aria-pressed="${S.issEnt==="g:"+g}" title="${esc(g)}：${esc(tip(g,byG.get("g:"+g),"群組"))}" style="font-size:11px">${esc(g)}</button>`).join("")}</div></div>
     ${sys.length?`<p class="note" style="margin:0">另有 ${sys.length} 項不屬特定板或群組的整體性問題（${[...new Set(sys.map(x=>x.cat))].join("、")}）。</p>`:""}
     ${S.issEnt?`<p style="margin:0"><span class="pill warn">只顯示 ${esc(S.issEnt.slice(S.issEnt.indexOf(":")+1))} 相關的問題</span> <button class="linkbtn" id="pmapClear">顯示全部</button></p>`:""}`;
   $$("#pmap [data-ent]").forEach(b=>b.onclick=()=>{S.issEnt=S.issEnt===b.dataset.ent?null:b.dataset.ent;renderIssues()});if($("#pmapClear"))$("#pmapClear").onclick=()=>{S.issEnt=null;renderIssues()}}
@@ -5291,8 +5304,9 @@ function renderOverview(){
     +kpi("不良 PPM（全部判定項目）",fmtPpm(Math.round(defTot/padTot*1e6)),`不良焊墊 ${defTot} 處（全部判定項目）`,defTot?"warn":"ok")
     +kpi("樣本",A.N.toLocaleString(),`${A.boards.length} 片板 · ${A.pads.length} 個焊墊位置`);
   $("#ovChartSub").textContent=chartName()+" · "+METRICS[A.m].short;
-  const acts=S.F.filter(x=>x.lv!=="info").slice(0,4).map(x=>({lv:x.lv,t:`#${x.id} ${x.title}`,d:x.facts[0]+"。推論："+x.cause,btn:GOLAB[x.go&&x.go.tab]||"查看",go:()=>goto(x.go,x)}));
-  $("#acts").innerHTML=acts.length?acts.map((a,i)=>`<li><span class="lv" style="background:var(--${a.lv})"></span><div><b>${esc(a.t)}</b><div class="note">${esc(a.d)}</div></div><button data-act="${i}">${a.btn}</button></li>`).join(""):'<li><span class="lv" style="background:var(--ok)"></span><div><b>目前無需處置</b><div class="note">持續監控即可；換線或加錫膏後再檢視一次 EWMA。</div></div><span></span></li>';
+  /* 卡片等級以文字 pill 標示（不只靠色條）；跨板彙總卡的事實是單一子項，標「子項」並附子項數，避免把子項等級誤讀成卡片等級 */
+  const acts=S.F.filter(x=>x.lv!=="info").slice(0,4).map(x=>({lv:x.lv,t:`#${x.id} ${x.title}`,d:(isAgg(x)?`子項（共 ${x.sig.rows.length} 筆，最嚴重者在前）：`:"")+x.facts[0]+"。推論："+x.cause,btn:GOLAB[x.go&&x.go.tab]||"查看",go:()=>goto(x.go,x)}));
+  $("#acts").innerHTML=acts.length?acts.map((a,i)=>`<li><span class="lv" style="background:var(--${a.lv})"></span><div><b><span class="pill ${a.lv}">${a.lv==="ng"?"嚴重":"警示"}</span> ${esc(a.t)}</b><div class="note">${esc(a.d)}</div></div><button data-act="${i}">${a.btn}</button></li>`).join(""):'<li><span class="lv" style="background:var(--ok)"></span><div><b>目前無需處置</b><div class="note">持續監控即可；換線或加錫膏後再檢視一次 EWMA。</div></div><span></span></li>';
   $$("#acts [data-act]").forEach(b=>b.onclick=()=>acts[+b.dataset.act].go());
   drawCtrl("cOvCtrl",true);drawPareto("cOvPareto");
 }
@@ -9476,7 +9490,7 @@ if($("#mBtnTheme"))$("#mBtnTheme").onclick=()=>{if(typeof moreSheetCtrl!=="undef
 setupRecPicker();
 updateStartupDbBanner();
 /* 測試用：只有測試在載入前設定 window.SPI_TEST_HOOK 時才公開內部函式 */
-if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters,csvTable,parseAOI,aoiCorr,normPadKey,unpivotWide,buildRows,zonesChanged,setStep,applyStencil,renderZones,syncControls,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,issuesXlsx,createZipStored,applyTimeFilter,setupRecPicker,renderRecPicker,openRecord,updateStartupDbBanner,useSpec,savePartSpec,defaultSpecFor,loadSpecRec,specDraft,specEdit,renderSpecTbl,renderSpecVers,newRunCfg,sampleCfg,gateOn,runPart});
+if(window.SPI_TEST_HOOK&&typeof window.SPI_TEST_HOOK==="object")Object.assign(window.SPI_TEST_HOOK,{S,RecDB,renderIssues,renderPmap,renderOverview,issueList,addRun,LocalRec,sha256js,reportMd,issuesMd,issuesCsv,curRun,aiPayload,apiPayload,recompute,switchRun,setTab,updateLayout,PHONE_MQ,TABLET_MQ,updateRailSummary,syncMobileTabs,T,init3D,render3D,build3D,renderBoard2D,dispose3D,toast,tabFade,limitTables,baseOpts,startImport,capture3DImage,renderReport,generateReportPdfBlob,pdfFileName,beforePrint,afterPrint,drawPareto,renderOffscreenChart,ensureJsPdf,ensurePdfFonts,updatePrint3D,buildMailSummary,buildMailtoUrl,validateEmailList,isAppleDevice,initMailPage,updateMailPdf,getMailChapters,csvTable,parseAOI,aoiCorr,normPadKey,unpivotWide,buildRows,zonesChanged,setStep,applyStencil,renderZones,syncControls,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,issuesXlsx,createZipStored,applyTimeFilter,setupRecPicker,renderRecPicker,openRecord,updateStartupDbBanner,useSpec,savePartSpec,defaultSpecFor,loadSpecRec,specDraft,specEdit,renderSpecTbl,renderSpecVers,newRunCfg,sampleCfg,gateOn,runPart});
 const initHash=(location.hash||"").slice(1);
 if(ALL_TABS.includes(initHash))setTab(initHash,true);
 })();
