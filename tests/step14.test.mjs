@@ -149,9 +149,10 @@ test('D-15: Anderson-Darling sampling disclosure for N > 4000', () => {
   assert.ok(A.ad.sampled > 0 && A.ad.sampled <= 4000, `抽樣後筆數應 <= 4000，實測 ${A.ad.sampled}`);
 });
 
-test('D-20: Cloudflare AI gateway default model is claude-3-5-sonnet-latest', () => {
+test('D-20: Cloudflare AI gateway default model is claude-opus-5-5', () => {
   const aiCode = fs.readFileSync(path.join(process.cwd(), 'cloudflare', 'ai.mjs'), 'utf8');
-  assert.ok(aiCode.includes("'claude-3-5-sonnet-latest'"), 'AI gateway 預設模型應為 claude-3-5-sonnet-latest');
+  assert.ok(aiCode.includes("'claude-opus-5-5'"), 'AI gateway 預設模型應為 claude-opus-5-5');
+  assert.ok(!aiCode.includes('claude-3-5-sonnet'), '不應再引用已停用的 claude-3-5-sonnet');
 });
 
 test('D-53: UTC+8 timestamp and Compare MD volume CV% column', () => {

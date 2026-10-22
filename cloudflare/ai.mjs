@@ -1,13 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { validatePayload, buildMessages, SYSTEM_PROMPT, InputError } from '../lib/analyze-core.mjs';
 
+// 預設模型可用環境變數 AI_MODEL 覆寫。claude-opus-5-5 的思考無法關閉且會占用 max_tokens，
+// 上限需容納思考加上約 600–900 字的回覆，否則回覆會被截斷。
+export const DEFAULT_MODEL = 'claude-opus-5-5';
+export const MAX_TOKENS = 16000;
+
 const json = (obj, status = 200) => Response.json(obj, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function handleAnalyze(req, env) {
   if (env && env.AI_ENABLED === 'false') {
     return json({ error: '管理員已停用 AI 分析功能' }, 403);
   }
-  const model = env.AI_MODEL || 'claude-3-5-sonnet-latest';
+  const model = env.AI_MODEL || DEFAULT_MODEL;
   const gateway = Boolean(env.CF_ACCOUNT_ID && env.CF_AI_GATEWAY_ID && env.CF_AI_GATEWAY_TOKEN && (env.ANTHROPIC_API_KEY || env.CF_AI_BYOK === 'true'));
   const logPayload = env.AI_LOG_PAYLOAD === 'true';
   if (req.method === 'GET') return json({ ok: true, gateway, model, logPayload });
@@ -33,7 +38,7 @@ export async function handleAnalyze(req, env) {
     baseURL: `https://gateway.ai.cloudflare.com/v1/${env.CF_ACCOUNT_ID}/${env.CF_AI_GATEWAY_ID}/anthropic`,
     defaultHeaders,
   });
-  const stream = client.messages.stream({ model, max_tokens: 2000, system: SYSTEM_PROMPT, messages: buildMessages(payload) });
+  const stream = client.messages.stream({ model, max_tokens: MAX_TOKENS, system: SYSTEM_PROMPT, messages: buildMessages(payload) });
   const enc = new TextEncoder();
   const body = new ReadableStream({
     async start(controller) {
