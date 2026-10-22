@@ -39,7 +39,7 @@ test('R-ISSUE (8.0): 每張問題卡必備 23 個欄位，不為 undefined 或 n
   }
 });
 
-test('R-ISSUE (8.0): issuesCsv 匯出格式包含 23 欄標準欄位', () => {
+test('R-ISSUE (8.0): issuesCsv 匯出格式包含 24 欄標準欄位（含規格來源）', () => {
   const samp = core.sampleData();
   const st = baseState(core, {
     rows: samp,

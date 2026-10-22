@@ -224,7 +224,8 @@ test("Worker：POST 料號規格由伺服器驗證本體與指紋；specs_for �
 });
 
 /* ---------- 本機模式（IndexedDB）與雲端行為對等 ---------- */
-test("本機模式：建立料號規格版本、設為預設（同交易清舊預設＋稽核）、依料號列出；不合格本體拒收", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+/* 本機模式頁面（IndexedDB 以 withIdb 模擬）；run 在頁面內執行並把結果轉成本 realm 的普通物件 */
+async function localPage() {
   const html = readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, ""), errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
@@ -243,6 +244,11 @@ test("本機模式：建立料號規格版本、設為預設（同交易清舊�
   w.__s1 = spec(); w.__s2 = spec(undefined, { note: "v2" }); w.__s3 = spec(undefined, { note: "v3" });
   // 結果轉成本 realm 的普通物件，避免跨 realm 陣列在嚴格比較時原型不同
   const run = (js) => w.eval(`(async()=>{${js}})()`).then((v) => JSON.parse(JSON.stringify(v ?? null)));
+  return { w, errs, run };
+}
+
+test("本機模式：建立料號規格版本、設為預設（同交易清舊預設＋稽核）、依料號列出；不合格本體拒收", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { w, errs, run } = await localPage();
   const v1 = await run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s1))`);
   const v2 = await run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s2))`);
   const v3 = await run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},__spec(__s3))`);
@@ -270,4 +276,51 @@ test("本機模式：建立料號規格版本、設為預設（同交易清舊�
   await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"OTHER"},__spec(__s1))`), /料號/);
   await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},new TextEncoder().encode(JSON.stringify(__s1)))`), /標準化/);
   assert.equal((await run(`return SPI_TEST_HOOK.RecDB.list()`)).filter((r) => r.kind === "spi").length, 0, "量測紀錄清單不含料號規格");
+});
+
+/* ---------- 座標檔預設版：同料號同面別只留一個預設，切換稽核記錄 from／to（雲端與本機相同） ---------- */
+const placeRec = (extra = {}) => { const id = newId(); return { id, kind: "place", part: "P-PL", rev: "V1", side: "TOP", name: "座標檔.csv", isDefault: false, bytes: 3, sha256: sha(id), user: "a@x.tw", created: Date.now() + seq, ...extra }; };
+const placeDefaults = (db, part) => db.sqlite.prepare("SELECT id FROM records WHERE kind='place' AND part=? AND json_extract(meta,'$.isDefault')=1").all(part).map((r) => r.id).sort();
+
+test("D1：座標檔上傳勾選預設與切換預設都在同一交易內清除同範圍舊預設，稽核記錄 from／to；已是預設時不重複寫稽核", async () => {
+  const db = makeD1(), repo = new Repo(db, r2());
+  const a = placeRec({ isDefault: true }), b = placeRec({ rev: "V2", isDefault: true }), c = placeRec({ rev: "V1", side: "BOT", isDefault: true });
+  for (const r of [a, b, c]) await repo.createRecord(r, gzipSync("abc"));
+  assert.deepEqual(placeDefaults(db, "P-PL"), [b.id, c.id].sort(), "TOP 只留後上傳的 V2；BOT 不受影響");
+  let sw = audits(db, "set_default_place");
+  assert.equal(sw.length, 3);
+  assert.deepEqual(sw[1].detail.from, [a.id]); assert.equal(sw[1].detail.to, b.id);
+  assert.equal(sw[1].detail.kind, "place"); assert.equal(sw[1].detail.name, "座標檔.csv"); assert.equal(sw[1].detail.side, "TOP");
+  assert.deepEqual(sw[2].detail.from, [], "BOT 原本沒有預設");
+  // 不分面別的座標檔設為預設：兩面的預設都被取代
+  const d = placeRec({ rev: "V3", side: "" });
+  await repo.createRecord(d, gzipSync("abc"));
+  const res = await repo.setDefaultPlacement(d.id, "other@x.tw");
+  assert.deepEqual([...res.from].sort(), [b.id, c.id].sort());
+  assert.deepEqual(placeDefaults(db, "P-PL"), [d.id]);
+  // 切回 TOP 的 V1：取代不分面別的 V3
+  assert.deepEqual((await repo.setDefaultPlacement(a.id, "a@x.tw")).from, [d.id]);
+  const n = audits(db, "set_default_place").length;
+  assert.equal((await repo.setDefaultPlacement(a.id, "a@x.tw")).unchanged, true);
+  assert.equal(audits(db, "set_default_place").length, n, "已是唯一預設：不再寫稽核");
+  // 稽核 API 帶出 kind／from／to 給稽核頁
+  const top = (await repo.listAuditLog())[0];
+  assert.equal(top.action, "set_default_place"); assert.equal(top.kind, "place"); assert.deepEqual(top.from, [d.id]); assert.equal(top.to, a.id);
+  assert.equal((await repo.setDefaultPlacement(newId(), "a@x.tw")).status, 404);
+});
+
+test("本機模式：座標檔上傳勾選預設與切換預設寫入稽核 from／to，範圍與雲端相同（同料號同面別）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { errs, run } = await localPage();
+  const mk = (rev, side, def) => run(`return SPI_TEST_HOOK.RecDB.create({kind:"place",part:"P-PL",rev:${JSON.stringify(rev)},side:${JSON.stringify(side)},name:"座標檔.csv",isDefault:${def}},new TextEncoder().encode(${JSON.stringify(rev + side)}))`);
+  const a = await mk("V1", "TOP", true), b = await mk("V2", "TOP", true), c = await mk("V1", "BOT", true);
+  const defs = async () => (await run(`return SPI_TEST_HOOK.RecDB.list()`)).filter((r) => r.kind === "place" && r.isDefault).map((r) => r.id).sort();
+  assert.deepEqual(await defs(), [b.id, c.id].sort());
+  const res = await run(`return SPI_TEST_HOOK.RecDB.setDefaultPlace(${JSON.stringify(a.id)})`);
+  assert.deepEqual(res.from, [b.id]);
+  assert.deepEqual(await defs(), [a.id, c.id].sort());
+  assert.equal((await run(`return SPI_TEST_HOOK.RecDB.setDefaultPlace(${JSON.stringify(a.id)})`)).unchanged, true);
+  const log = (await run(`return SPI_TEST_HOOK.RecDB.audit()`)).filter((e) => e.action === "set_default_place");
+  assert.equal(log.length, 4, "三次上傳勾選預設＋一次切換；重複設定不寫");
+  assert.deepEqual([log[0].from, log[0].to, log[0].kind, log[0].side], [[b.id], a.id, "place", "TOP"]);
+  assert.deepEqual(errs, []);
 });
