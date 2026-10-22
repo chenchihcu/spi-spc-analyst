@@ -658,7 +658,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.0</b> · 更新 <b class="num" id="appBuilt">2026-10-22 11:45:00</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.1</b> · 更新 <b class="num" id="appBuilt">2026-10-22 12:16:00</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -1427,7 +1427,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       </div>
 
       <div class="sheet-ver-info">
-        <p>SPI·SPC 分析台 <b>v9.13.0</b></p>
+        <p>SPI·SPC 分析台 <b>v9.13.1</b></p>
         <p>最後更新：2026-10-18 13:00:00</p>
       </div>
     </div>
@@ -4880,8 +4880,8 @@ let CORE_FP=null;
 /* 快取 key：資料指紋由背景執行緒算好傳回（rowsFingerprint，不佔主執行緒）；設定不含回合編號，同一份資料換回合也能命中 */
 function detCacheKey(fp){if(CORE_FP===null){let h=2166136261;const t=document.getElementById("core").textContent;for(let i=0;i<t.length;i++)h=Math.imul(h^t.charCodeAt(i),16777619);CORE_FP=(h>>>0).toString(36)}
   return [APP.ver,CORE_FP,fp,JSON.stringify([S.specs,S.specsG,S.specSrc,S.sqDir,S.stencil,S.htol,S.step,S.aperture,S.wipe])].join("|")}
-/* 只有讀取問題偵測結果的頁面，背景結果回來時才需要重畫 */
-const F_TABS=new Set(["issues","overview","dfm","report","compare"]);
+/* 只有讀取問題偵測結果的頁面，背景結果回來時才需要重畫（交叉驗證頁的失效模式比對讀 S.F.meta） */
+const F_TABS=new Set(["issues","overview","dfm","report","compare","cross"]);
 let RENDER_HOLD=0;
 /* 連續的設定與重算只畫一次：fn 內的 renderTab 先略過，由呼叫端最後切換分頁或重畫 */
 function holdRender(fn){RENDER_HOLD++;try{return fn()}finally{RENDER_HOLD--}}
@@ -4901,7 +4901,8 @@ function startWorkerDetect(w,sig){const seq=++detSeq,rowsRef=S.rows,gen=genOf(ro
     if(d.stage){if(S.rows!==rowsRef||!S.F.pending)return;S.F.stage={i:d.stage,n:d.n,t:d.t};$("#busyMsg").textContent=`${msg0} ${d.stage}/${d.n}：${d.t}…`;if(S.tab==="issues")renderIssues();return}
     if(S.rows!==rowsRef){busy(false);return}
     detGen=gen;perfNote("detect(背景)",performance.now()-t0,{worker毫秒:d.ms});
-    if(d.err){detectSync(sig);toast("背景計算失敗，已改為直接計算")}else{applyF(d.F,d.meta,rowsRef);if(key)DetCache.put(key,{F:d.F,meta:d.meta}).catch(()=>{})}
+    /* 存快取用 slice() 的副本：只留問題卡片，不帶 rowsRef 等陣列附加欄位（結構化複製會連整份資料一起存） */
+    if(d.err){detectSync(sig);toast("背景計算失敗，已改為直接計算")}else{if(key)DetCache.put(key,{F:d.F.slice(),meta:d.meta}).catch(()=>{});applyF(d.F,d.meta,rowsRef)}
     done()};
   w.onerror=e=>{e.preventDefault&&e.preventDefault();detW=false;busy(false);if(S.rows===rowsRef&&seq===detSeq){detectSync(sig);renderTab()}};
   try{perfSpan("detect:送出",()=>w.postMessage({seq,gen,fp:useCache,st:detState()}))}catch(e){w.onerror(e)}}

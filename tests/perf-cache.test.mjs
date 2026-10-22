@@ -154,3 +154,13 @@ test('效能：群組很多（無封裝欄以位號為群組，200 群組、5.8 
   assert.ok(F.length > 0);
   assert.ok(ms < 8000, `問題偵測 ${(ms / 1000).toFixed(1)} s（${rows.length} 筆）`);
 });
+
+test('偵測結果快取：存入的是不帶附加欄位的副本；背景結果回來時交叉驗證頁也重畫', async () => {
+  // 結構化複製會保留陣列上的附加欄位：若直接存 S.F，rowsRef（整份資料）會一起進 IndexedDB
+  const F = [{ id: 1 }]; F.rowsRef = new Array(10).fill({ x: 1 });
+  assert.ok('rowsRef' in structuredClone(F), '前提：陣列附加欄位會被複製');
+  assert.ok(!('rowsRef' in structuredClone(F.slice())), 'slice() 副本不帶附加欄位');
+  const fs = await import('node:fs'), html = fs.readFileSync(new URL('../spi-spc.html', import.meta.url), 'utf8');
+  assert.match(html, /DetCache\.put\(key,\{F:d\.F\.slice\(\),meta:d\.meta\}\)/, '存入快取時用副本');
+  assert.match(html, /const F_TABS=new Set\(\[[^\]]*"cross"[^\]]*\]\)/, '交叉驗證頁（失效模式比對）在背景偵測完成後重畫');
+});
