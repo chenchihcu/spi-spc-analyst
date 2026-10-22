@@ -658,7 +658,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.1</b> · 更新 <b class="num" id="appBuilt">2026-10-22 12:16:00</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.2</b> · 更新 <b class="num" id="appBuilt">2026-10-22 14:07:07</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -1427,7 +1427,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       </div>
 
       <div class="sheet-ver-info">
-        <p>SPI·SPC 分析台 <b>v9.13.1</b></p>
+        <p>SPI·SPC 分析台 <b>v9.13.2</b></p>
         <p>最後更新：2026-10-18 13:00:00</p>
       </div>
     </div>
@@ -3603,9 +3603,11 @@ function detectIssues(st,onStage){
   const dgMed={};groups.forEach(g=>dgMed[g]=med(dg[g]));
   const excess=(g,b)=>{const v=dg[g],i=bPos.get(b);return i!=null?v[i]-dgMed[g]:0};
   // 各「量測項目 × 元件群組」的能力（組內 σ＝板×群組 cell 合併標準差；n<10 或 σ=0 不計，M-02）與群組內 AD（供 D-47 佐證與 6.1 整體判定）
+  // 機台模式的群組規格是以該群組 PASS 讀值的 min～max 推估，拿同一份資料算 Cpk 必然 < 1（自我參照）；能力與焊墊位置判定改用全板推估規格
+  const machCap=st.specSrc==="machine"&&!!st.specsG,capSp=(g,k)=>machCap?st.specs[k]:specOfGroup(st,g,k);
   const capCells=[],gIdx={};for(const r of R)(gIdx[r.group]=gIdx[r.group]||[]).push(r);
   for(const k of MS)for(const g of groups){const rs=(gIdx[g]||[]).filter(r=>r[k]!=null&&isFinite(r[k]));if(rs.length<10)continue;
-    const sp=specOfGroup(st,g,k);if(!sp||!isFinite(sp.lsl)||!isFinite(sp.usl)||!(sp.usl>sp.lsl))continue;
+    const sp=capSp(g,k);if(!sp||!isFinite(sp.lsl)||!isFinite(sp.usl)||!(sp.usl>sp.lsl))continue;
     const v=rs.map(r=>r[k]),mu=mean(v);let ss=0,df=0;
     for(const b of boards){const rows=(idx[b]&&idx[b][g])||null;if(!rows||rows.length<=1)continue;let cnt=0,sum=0;for(let i=0;i<rows.length;i++){const val=rows[i][k];if(val!=null){cnt++;sum+=val}}if(cnt>1){const m2=sum/cnt;for(let i=0;i<rows.length;i++){const val=rows[i][k];if(val!=null)ss+=(val-m2)**2}df+=cnt-1;}}
     const sw=df>0?Math.sqrt(ss/df):sd(v);if(!(sw>0))continue;const cpk=Math.min(sp.usl-mu,mu-sp.lsl)/(3*sw);
@@ -3687,10 +3689,10 @@ function detectIssues(st,onStage){
   // 2. 系統性問題：元件群組整體能力不足 / 個別焊墊位置長期偏離（焊墊位置穩健 Cpk，排除單板突發，D-62、N7-5）
   const gPads={};for(const g of groups){const pads={};(gIdx[g]||[]).forEach(r=>{const p=pads[r.pad]||(pads[r.pad]={r,rows:[]});p.rows.push(r)});gPads[g]=Object.values(pads).filter(p=>p.rows.length>=5)}
   for(const k of MS)for(const g of groups){
-    const sp=specOfGroup(st,g,k);
+    const sp=capSp(g,k);
     if(!sp||!isFinite(sp.lsl)||!isFinite(sp.usl)||!(sp.usl>sp.lsl))continue;
     const P=gPads[g].map(p=>{
-      const spP=specFor(p.r,k,st);
+      const spP=machCap?sp:specFor(p.r,k,st);
       if(!spP||!isFinite(spP.lsl)||!isFinite(spP.usl)||!(spP.usl>spP.lsl))return null;
       const vals=p.rows.map(r=>r[k]).filter(v=>v!=null);
       if(vals.length<5)return null;
@@ -3698,7 +3700,7 @@ function detectIssues(st,onStage){
       return{pad:p.r.pad,r:p.r,n:vals.length,m,s,cpk:Math.min(spP.usl-m,m-spP.lsl)/(3*s)};
     }).filter(p=>p&&isFinite(p.cpk));
     if(P.length<2)continue;const mc=med(P.map(p=>p.cpk));
-    if(mc<1){
+    if(mc<1&&!machCap){ /* 機台模式的規格是 PASS 範圍推估，Cpk 依構造落在 1 附近、只是下限，不據以判能力不足；仍檢查個別焊墊位置偏離 */
       const worstP=[...P].sort((a,b)=>a.cpk-b.cpk),cc=capCells.find(c=>c.k===k&&c.g===g),nB=P[0]?P[0].n:nb;
       const limStr=`規格 ${f(sp.lsl,0)}–${f(sp.usl,0)} ${u(k)}${k==="hpct"&&st.step&&st.step.on?"（依區域厚度）":""}`;
       const padDetails=worstP.slice(0,10).map(p=>`${p.pad}（中位數 ${f(p.m,1)} ${u(k)}，穩健 Cpk ${f(p.cpk)}）`).join("、")+(worstP.length>10?` 等另 ${worstP.length-10} 個`:"");
