@@ -85,6 +85,16 @@ test('M-18 回歸：穩定製程 25 板 seed 3 不出現多變量離群卡（小
   assert.equal(iss.meta.verdict.level, 'ok');
 });
 
+test('空間群聚回歸：穩定製程不出現空間群聚卡（Moran 標準誤校正前 25 板 seed 23/72/76/182、50 板 seed 141 的 Z 為 2.66–4.08 誤報）', () => {
+  for (const [nb, seed] of [[25, 23], [25, 72], [25, 76], [25, 182], [50, 141]]) {
+    const rows = generateStableData({ nb, shift: 0, stroke: true, seed });
+    const st = baseState(core, { rows, metrics: ['volume', 'hpct', 'area', 'offx', 'offy'], metric: 'volume', group: 'ALL', chart: 'xbars' });
+    const iss = core.detectIssues(st);
+    assert.equal(iss.filter(x => x.cat === '空間群聚').length, 0, `${nb} 板 seed ${seed} 不應出現空間群聚卡`);
+    assert.equal(iss.meta.verdict.level, 'ok', `${nb} 板 seed ${seed} 整體判定應為正常`);
+  }
+});
+
 const isSlow = process.env.RUN_SLOW === '1';
 
 test('[slow] 6.1 整體判定模擬：seed 1–200 蒙地卡羅驗收（25/50 板、SHIFT 0/3）', () => {

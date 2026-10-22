@@ -659,7 +659,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.2</b> · 更新 <b class="num" id="appBuilt">2026-10-22 23:47:00</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.3</b> · 更新 <b class="num" id="appBuilt">2026-10-23 00:21:17</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -970,7 +970,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
     </div>
     <div class="card" id="cardLISA">
       <h3>空間自相關與局部聚類 (Moran's I & LISA) <small id="lisaSub">全板局部壓合下陷、頂針支撐與載具熱區鑑別</small></h3>
-      <details class="how"><summary>怎麼看</summary><p>以反距離權重 k-NN 空間權重矩陣計算全板 Moran's I 與 Anselin LISA 局部空間聚類。HH (高錫量熱區) 常見於頂針過高頂起 PCB 或載具鼓起；LL (低錫量冷區) 常見於 PCB 壓合下陷或缺乏下頂針支撐；LH/HL 為空間離群點。Z-score &gt; 2.58 代表空間群聚極顯著。</p></details>
+      <details class="how"><summary>怎麼看</summary><p>以反距離權重 k-NN 空間權重矩陣計算全板 Moran's I 與 Anselin LISA 局部空間聚類。HH (高錫量熱區) 常見於頂針過高頂起 PCB 或載具鼓起；LL (低錫量冷區) 常見於 PCB 壓合下陷或缺乏下頂針支撐；LH/HL 為空間離群點。Z-score 採 Cliff–Ord 隨機化變異數；Z &gt; 2.58 且 999 次置換檢定 p &lt; 0.005 才判空間群聚顯著（i.i.d. 資料誤報約 0.5%）。</p></details>
       <div id="lisaMsg" style="margin:8px 0"></div>
       <div class="legend" id="lisaLeg">
         <span><i class="sq" style="background:#ef4444"></i>HH 熱點</span>
@@ -3457,8 +3457,55 @@ function calcMoranAndLISA(points, k = 6) {
   const denom = z.reduce((sum, val) => sum + val * val, 0);
   const moranI = denom > 0 ? (numerator / denom) : 0;
   const expectedI = -1 / (n - 1);
-  const seI = Math.sqrt(1 / (n * Math.min(k, n - 1)));
+  /* Cliff–Ord 隨機化（randomization）變異數，依實際權重矩陣 W 計算 S0/S1/S2。
+     原本用 √(1/(nk)) 近似：k-NN 多為互為鄰居（wij 與 wji 同時存在），反距離權重又集中在最近鄰，
+     實際標準誤約大 1.5 倍；i.i.d. 資料在範例焊墊座標上 Z 標準差 1.56、Z>2.58 誤報 6.2%（名目 0.5%）。 */
+  const colSum = new Float64Array(n);
+  const pairW = new Map();
+  for (let i = 0; i < n; i++) {
+    for (const nb of neighbors[i]) {
+      colSum[nb.j] += nb.w;
+      const key = i < nb.j ? i * n + nb.j : nb.j * n + i;
+      pairW.set(key, (pairW.get(key) || 0) + nb.w);
+    }
+  }
+  let S0 = 0, S1 = 0, S2 = 0;
+  for (let i = 0; i < n; i++) {
+    let rowSum = 0;
+    for (const nb of neighbors[i]) rowSum += nb.w;
+    S0 += rowSum;
+    S2 += (rowSum + colSum[i]) ** 2;
+  }
+  for (const w of pairW.values()) S1 += w * w; // ½·Σ_{i≠j}(wij+wji)²：每對無序配對在有序和中出現兩次，抵銷 ½
+  const b2 = n * z.reduce((s, v) => s + v ** 4, 0) / (denom * denom);
+  const eI2 = (n * ((n * n - 3 * n + 3) * S1 - n * S2 + 3 * S0 * S0) - b2 * ((n * n - n) * S1 - 2 * n * S2 + 6 * S0 * S0))
+    / ((n - 1) * (n - 2) * (n - 3) * S0 * S0);
+  const varI = eI2 - expectedI * expectedI;
+  const seI = varI > 0 ? Math.sqrt(varI) : 0;
   const zScore = (moranI - expectedI) / (seI > 0 ? seI : 1);
+  /* n≈100 時 Moran's I 分佈右偏，常態尾機率偏寬鬆（i.i.d. 模擬 Z>2.58 仍有 0.84%）。
+     Z>2.58 時加做置換檢定（999 次，固定種子確保同資料同結果）：分母不隨置換改變，只比較分子。
+     Z≤2.58 時不論置換結果都不顯著，省略置換（pPerm 記為 null）。 */
+  const MORAN_PERM = 999;
+  let pPerm = null;
+  if (zScore > 2.58) {
+    const off = new Int32Array(n + 1);
+    for (let i = 0; i < n; i++) off[i + 1] = off[i] + neighbors[i].length;
+    const nbJ = new Int32Array(off[n]), nbW = new Float64Array(off[n]);
+    for (let i = 0; i < n; i++) neighbors[i].forEach((nb, q) => { nbJ[off[i] + q] = nb.j; nbW[off[i] + q] = nb.w; });
+    const zp = Float64Array.from(z), tol = numerator - 1e-12 * Math.abs(numerator), imul = Math.imul;
+    let ge = 0, a = 20261023 + n;
+    for (let r = 0; r < MORAN_PERM; r++) {
+      for (let i = n - 1; i > 0; i--) {
+        a = a + 0x6D2B79F5 | 0; let t = imul(a ^ a >>> 15, 1 | a); t = t + imul(t ^ t >>> 7, 61 | t) ^ t; // 同 rng()（mulberry32），內聯避免熱迴圈查全域
+        const j = (((t ^ t >>> 14) >>> 0) / 4294967296 * (i + 1)) | 0, s = zp[i]; zp[i] = zp[j]; zp[j] = s;
+      }
+      let num = 0;
+      for (let i = 0; i < n; i++) { let lag = 0; for (let q = off[i]; q < off[i + 1]; q++) lag += nbW[q] * zp[nbJ[q]]; num += zp[i] * lag; }
+      if (num >= tol) ge++;
+    }
+    pPerm = (ge + 1) / (MORAN_PERM + 1);
+  }
 
   const lisa = [];
   for (let i = 0; i < n; i++) {
@@ -3502,7 +3549,8 @@ function calcMoranAndLISA(points, k = 6) {
     moranI: +moranI.toFixed(4),
     expectedI: +expectedI.toFixed(4),
     zScore: +zScore.toFixed(2),
-    isSignificant: zScore > 2.58,
+    pPerm: pPerm === null ? null : +pPerm.toFixed(3),
+    isSignificant: pPerm !== null && pPerm < 0.005,
     counts,
     lisa
   };
@@ -4200,8 +4248,8 @@ function detectIssues(st,onStage){
           rule_id:"空間自相關 MoranLISA",rule_name:"局部空間聚集 (LISA)",metric:"體積 %",
           boards:"全部板",subboard:subOf(R),group:"ALL",refdes:"多個元件",
           pads:`高錫量熱區 (HH) ${sa.counts.HH} 處，低錫量冷區 (LL) ${sa.counts.LL} 處`,
-          observed:`全局 Moran's I = ${sa.moranI} (Z-score = ${sa.zScore} > 2.58)`,
-          limit:"Z ≤ 2.58（無顯著群聚）",z:String(sa.zScore),p:"p < 0.01",
+          observed:`全局 Moran's I = ${sa.moranI} (Z-score = ${sa.zScore} > 2.58，置換檢定 p = ${sa.pPerm})`,
+          limit:"Z ≤ 2.58 或置換檢定 p ≥ 0.005（無顯著群聚）",z:String(sa.zScore),p:`置換檢定 p = ${sa.pPerm}`,
           facts:[`焊墊印刷體積在板面空間非隨機分佈：檢出 ${sa.counts.HH} 處高錫量相鄰熱區與 ${sa.counts.LL} 處低錫量相鄰冷區`],
           cause:"PCB 局部壓合下陷或缺乏下頂針支撐（冷區），或載具局部鼓起/頂針過高頂起 PCB（熱區）",conf:"高",action:"對照進階分析頁之 LISA 空間聚類分佈圖，檢查冷區下方是否懸空未落頂針，或熱區頂針高度是否過高",
           ev:evSeries("volume",null,[],"空間群聚程度",boards.map(()=>sa.moranI)),go:{tab:"adv"}})
@@ -5941,7 +5989,7 @@ function renderLISAUI(){
   }
 
   const isSig = sa.isSignificant;
-  if (subEl) subEl.textContent = `Moran's I = ${sa.moranI} · Z = ${sa.zScore} · ${isSig ? "空間顯著群聚" : "空間隨機分佈"}`;
+  if (subEl) subEl.textContent = `Moran's I = ${sa.moranI} · Z = ${sa.zScore}${sa.pPerm != null ? ` · 置換 p = ${sa.pPerm}` : ""} · ${isSig ? "空間顯著群聚" : "空間隨機分佈"}`;
   msgEl.innerHTML = `<span class="pill ${isSig ? 'warn' : 'ok'}">${isSig ? `顯著空間群聚 (Z=${sa.zScore})` : '空間隨機無群聚'}</span> `
     + `<span class="note">熱點 (HH): ${sa.counts.HH} 處 · 冷點 (LL): ${sa.counts.LL} 處 · 空間離群: ${sa.counts.LH + sa.counts.HL} 處</span>`;
 
