@@ -33,3 +33,11 @@ test("自訂規格模式不受影響：規格過窄時照常判系統性能力�
   const sys = c.detectIssues(S).filter((x) => x.sig && x.sig.t === "sys" && x.sig.k === "volume");
   assert.ok(sys.length >= 1 && sys.some((x) => x.lv === "ng"));
 });
+
+test("rescaleHpct：µm 高度依厚度比例換算，空值與相同厚度不動", () => {
+  const rows = [{ height: 120 }, { height: null }, { height: 60 }];
+  assert.equal(c.rescaleHpct(rows, 120, 88), 2);
+  assert.deepEqual(rows.map((r) => r.height), [88, null, 44]);
+  assert.equal(c.rescaleHpct(rows, 88, 88), 0);
+  assert.equal(c.rescaleHpct(rows, 0, 88), 0);
+});
