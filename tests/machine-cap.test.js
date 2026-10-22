@@ -33,3 +33,20 @@ test("自訂規格模式不受影響：規格過窄時照常判系統性能力�
   const sys = c.detectIssues(S).filter((x) => x.sig && x.sig.t === "sys" && x.sig.k === "volume");
   assert.ok(sys.length >= 1 && sys.some((x) => x.lv === "ng"));
 });
+
+test("rescaleHpct：µm 高度依厚度比例換算，空值與相同厚度不動", () => {
+  const rows = [{ height: 120 }, { height: null }, { height: 60 }];
+  assert.equal(c.rescaleHpct(rows, 120, 88), 2);
+  assert.deepEqual(rows.map((r) => r.height), [88, null, 44]);
+  assert.equal(c.rescaleHpct(rows, 88, 88), 0);
+  assert.equal(c.rescaleHpct(rows, 0, 88), 0);
+});
+
+test("rescaleHpct：階梯鋼板區域內的焊墊有效厚度不隨基礎厚度變，不換算", () => {
+  const st = { stencil: 150, step: { on: true, zones: [{ id: 1, mode: "group", group: "BGA", t: 100 }] } };
+  const rows = [{ group: "BGA", height: 100 }, { group: "C", height: 120 }];
+  const hp0 = rows.map((r) => r.height / c.padThk(r, { ...st, stencil: 120 }));
+  assert.equal(c.rescaleHpct(rows, 120, 150, st), 1);
+  assert.deepEqual(rows.map((r) => r.height), [100, 150]);
+  assert.deepEqual(rows.map((r) => r.height / c.padThk(r, st)), hp0, "高度 % 每列都不變");
+});

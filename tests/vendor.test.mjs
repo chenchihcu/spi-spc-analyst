@@ -123,3 +123,27 @@ test("座標檔為 Big5 編碼（台灣廠商常見）也能讀", { skip: !JSDOM
   await pick(dom, "#placeIn", "big5.csv", bytes);
   assert.match(d.querySelector("#placeState").textContent, /2 個元件.*單位 mm/);
 });
+
+test("立榮格式高度 % 匯入後改鋼板厚度：µm 高度依比例換算、高度 % 不變（不同裝置預設厚度不同也一致）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page();
+  await tick(60);
+  const w = dom.window, d = w.document;
+  setVendor(dom, "lirong");
+  await pick(dom, "#fileIn", "DEMO-02_TOP_spi.csv", Buffer.from(WIDE));
+  d.querySelector("#inLot").value = "LOT-B"; d.querySelector("#inPart").value = "DEMO-02";
+  d.querySelector("#btnApply").click();
+  for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
+  const pick1 = () => JSON.parse(w.eval("JSON.stringify(S.rows.find((r) => r.pad === 'C1-1' && r.board === 'B02'))"));
+  assert.equal(pick1().height, 122.4, "匯入時以 120 µm 換算");
+  assert.equal(w.eval("S.runs.find((r) => r.id === S.runId).info.hPctThk"), 120, "回合記下換算用的厚度");
+  const inp = d.querySelector("#inStencil2");
+  inp.value = "88"; inp.dispatchEvent(new w.Event("change"));
+  await tick(60);
+  assert.ok(Math.abs(pick1().height - 89.76) < 1e-9, `102% × 88 µm = 89.76，實得 ${pick1().height}`);
+  assert.equal(pick1().hpct, 102, "高度 % 不變");
+  assert.equal(w.eval("S.runs.find((r) => r.id === S.runId).info.hPctThk"), 88);
+  inp.value = "120"; inp.dispatchEvent(new w.Event("change"));
+  await tick(60);
+  assert.ok(Math.abs(pick1().height - 122.4) < 1e-9, "改回 120 µm 換回原值");
+  assert.deepEqual(errs, []);
+});
