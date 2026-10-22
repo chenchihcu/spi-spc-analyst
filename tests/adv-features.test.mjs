@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadCore, baseState } from "./_load.js";
+import { mulberry32, makeNormal, getTemplatePads } from "../tools/gen-stable.mjs";
 
 const core = loadCore();
 
@@ -102,6 +103,33 @@ test("TV-ADV-05: 空間自相關 Moran's I 與局部 LISA 聚類檢驗", () => {
   assert.ok(sa.moranI > 0.3, `全局 Moran's I 應顯著為正，實際 ${sa.moranI}`);
   assert.equal(sa.isSignificant, true);
   assert.ok(sa.counts.HH >= 8, `局部熱區 HH 應檢出至少 8 處，實際 ${sa.counts.HH}`);
+});
+
+test("TV-ADV-05b: Moran's I 在 i.i.d. 資料上誤報回到名目（舊版 √(1/(nk)) 近似使 Z 標準差 1.56、Z>2.58 誤報 6.2%）", () => {
+  // 範例焊墊座標（116 個），各焊墊值 i.i.d. 常態：不應有空間結構
+  const pads = getTemplatePads();
+  const nrm = makeNormal(mulberry32(20261023));
+  const T = 400, zs = [];
+  let sig = 0;
+  for (let t = 0; t < T; t++) {
+    const sa = core.calcMoranAndLISA(pads.map(p => ({ pad: p.pad, x: p.x, y: p.y, val: nrm() })), 6);
+    zs.push(sa.zScore);
+    if (sa.isSignificant) sig++;
+  }
+  const m = zs.reduce((a, b) => a + b, 0) / T;
+  const sdZ = Math.sqrt(zs.reduce((a, b) => a + (b - m) ** 2, 0) / (T - 1));
+  assert.ok(sdZ > 0.85 && sdZ < 1.15, `虛無假設下 Z 標準差應約為 1，實際 ${sdZ.toFixed(3)}`);
+  assert.ok(sig / T <= 0.02, `i.i.d. 資料顯著率應接近名目 0.5%，實際 ${sig}/${T}`);
+});
+
+test("TV-ADV-05c: Moran 置換檢定以固定種子計算，同資料同結果", () => {
+  const pts = [];
+  for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++) pts.push({ pad: `P_${r}_${c}`, x: c * 2, y: r * 2, val: r + ((r * 7 + c * 13) % 5) });
+  const a = core.calcMoranAndLISA(pts, 6), b = core.calcMoranAndLISA(pts, 6);
+  assert.ok(a.zScore > 2.58, `測試資料應有明顯梯度，實際 Z=${a.zScore}`);
+  assert.equal(a.pPerm, b.pPerm);
+  assert.ok(a.pPerm > 0 && a.pPerm < 0.005);
+  assert.equal(a.isSignificant, true);
 });
 
 test("TV-ADV-06: 印刷機閉環補償阻尼濾波與 Clamp 上限防護", () => {
