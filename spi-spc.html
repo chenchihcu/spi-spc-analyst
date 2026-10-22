@@ -658,7 +658,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.2</b> · 更新 <b class="num" id="appBuilt">2026-10-22 14:07:07</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.3</b> · 更新 <b class="num" id="appBuilt">2026-10-22 14:35:14</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -1427,7 +1427,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       </div>
 
       <div class="sheet-ver-info">
-        <p>SPI·SPC 分析台 <b>v9.13.2</b></p>
+        <p>SPI·SPC 分析台 <b>v9.13.3</b></p>
         <p>最後更新：2026-10-18 13:00:00</p>
       </div>
     </div>
@@ -1873,6 +1873,8 @@ const S={rows:[],metrics:[],metric:"volume",group:ALL_GRP,chart:"xbars",pad:null
 function zoneOf(r,st){if(!st.step||!st.step.on)return null;for(const z of st.step.zones){if(!(z.t>0))continue;
   if(z.mode==="group"){if(r.group===z.group)return z}
   else{const xa=Math.min(z.x0,z.x1),xb=Math.max(z.x0,z.x1),ya=Math.min(z.y0,z.y1),yb=Math.max(z.y0,z.y1);if(realXY(r)&&r.x>=xa&&r.x<=xb&&r.y>=ya&&r.y<=yb)return z}}return null}
+/* 由高度 % 匯入的回合（立榮格式 Height(%)）：µm 高度＝% × 匯入當下鋼板厚度；改厚度時依比例換算，高度 % 不變。回傳換算的列數 */
+function rescaleHpct(rows,from,to){if(!(from>0)||!(to>0)||from===to)return 0;const k=to/from;let n=0;for(const r of rows)if(r.height!=null&&isFinite(r.height)){r.height=r.height*k;n++}return n}
 function padThk(r,st){const z=zoneOf(r,st);return z?z.t:st.stencil||120}
 /* 由機台判 PASS 的焊墊推估機台程式的規格窗（各量測項目 PASS 範圍向外取整到 5 的倍數；偏移取整到 5 µm）。
    機台實際規格可能依封裝不同，此推估只用於製程能力計算；好壞判定直接採用機台結果 */
@@ -4706,7 +4708,7 @@ function issuesXlsx(F){
   ]);
 }
 
-if(typeof module!=="undefined")module.exports={sampleData,analyze,rowsFingerprint,anKey,anHas,anPutKey,anWork,anUnpack,clsSig,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
+if(typeof module!=="undefined")module.exports={rescaleHpct,sampleData,analyze,rowsFingerprint,anKey,anHas,anPutKey,anWork,anUnpack,clsSig,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
 </script>
 <script>
 "use strict";
@@ -4833,11 +4835,15 @@ function setStep(on){S.step.on=on;if(on&&S.metric==="height")S.metric="hpct";zon
 $("#chkStep").onchange=e=>setStep(e.target.checked);
 $("#btnAddZone").onclick=()=>{const id=Math.max(0,...S.step.zones.map(z=>z.id))+1,B=boardBounds(),cx=(B.x0+B.x1)/2,cy=(B.y0+B.y1)/2;
   S.step.zones.push({id,name:"區域 "+id,mode:"rect",group:S.rows[0]?.group||"",x0:+(cx-6).toFixed(1),y0:+(cy-6).toFixed(1),x1:+(cx+6).toFixed(1),y1:+(cy+6).toFixed(1),t:S.stencil});S.selZone=id;zonesChanged()};
-function applyStencil(t,lo,hi){if(isFinite(t)&&t>0)S.stencil=t;if(isFinite(lo)&&lo>0)S.htol.lo=lo;if(isFinite(hi)&&hi>S.htol.lo)S.htol.hi=hi;
+function applyStencil(t,lo,hi){if(isFinite(t)&&t>0){S.stencil=t;stencilRescale()}if(isFinite(lo)&&lo>0)S.htol.lo=lo;if(isFinite(hi)&&hi>S.htol.lo)S.htol.hi=hi;
   S.specs.height={lsl:+(S.stencil*S.htol.lo/100).toFixed(1),usl:+(S.stencil*S.htol.hi/100).toFixed(1),tgt:S.stencil};
   S.specs.hpct={lsl:S.htol.lo,usl:S.htol.hi,tgt:100};
   if(S.specSrc==="machine"){if(S.specsCustom){S.specsCustom.height=clone(S.specs.height);S.specsCustom.hpct=clone(S.specs.hpct)}const ms=machineSpecs(S.rows,S,S.specsCustom||S.specs);S.specs=ms.specs;S.specsG=ms.groups}
   persist();syncControls();recompute()}
+/* 高度 % 匯入的回合：µm 高度跟著鋼板厚度換算（同一列物件可能同時在全部資料、時間篩選後資料中，各換算一次） */
+function stencilRescale(){const run=curRun(),thk=run&&run.info&&run.info.hPctThk;if(!thk||thk===S.stencil)return;
+  const rows=new Set([...(run._rawRows||[]),...run.rows,...(S._rawRows||[]),...S.rows]);const n=rescaleHpct(rows,thk,S.stencil);run.info.hPctThk=S.stencil;
+  if(n)toast(`原始資料為高度 %：已依新鋼板厚度 ${S.stencil} µm 換算 ${n.toLocaleString()} 筆高度（µm），高度 % 不變`)}
 $("#inStencil2").onchange=e=>applyStencil(parseFloat(e.target.value));
 $("#inHlo").onchange=e=>applyStencil(NaN,parseFloat(e.target.value));
 $("#inHhi").onchange=e=>applyStencil(NaN,NaN,parseFloat(e.target.value));
@@ -6804,7 +6810,7 @@ $("#btnApply").onclick=async()=>{if(!IMP||!IMP.res)return;
         if(!src){busy(false);$("#recNote").innerHTML=`<span class="err">無法存入資料庫：${esc(e.message)}；未建立回合</span>`;return}}
       busy(false);if(IMP!==I0)return}
     try{localStorage.setItem("spi-last-part",part)}catch(e){}}
-  const{rows,metrics}=IMP.res,info={...IMP.res.info,src:src?srcInfo(src):null},mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
+  const{rows,metrics}=IMP.res,info={...IMP.res.info,src:src?srcInfo(src):null,...(IMP.conv&&IMP.conv.hPct?{hPctThk:IMP.conv.thk}:{})},mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
   runBusy(`正在分析 ${rows.length.toLocaleString()} 筆資料…`,()=>{
   holdRender(()=>{if(mode==="replace"){const c=curRun();c.rows=rows;c.metrics=withHpct(metrics);c.name=name;c.info=info;c.aoi=null;c.sample=false;c.cfg=importCfg(rows);S.runId=null;switchRun(c.id)}else switchRun(addRun(name,rows,metrics,importCfg(rows),info))});
   $("#mapBox").hidden=true;IMP=null;setTab("issues")})};
