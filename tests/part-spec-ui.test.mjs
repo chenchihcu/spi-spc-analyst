@@ -172,7 +172,30 @@ test("流程：鋼板厚度必填 → 未定義規格時鎖定 → 驗證與草�
   await tick(10);
   assert.equal(w.eval("S.specDraft"), null, "確認後回到套用的版本");
 
-  // 9. 範例回合仍可直接分析
+  // 9. 資料庫頁列出料號規格版本；在這裡設為預設 → 稽核頁顯示「設為預設」與前後版本；列印表頭與匯出帶規格來源
+  $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $("#recReload").click();
+  assert.ok(await until(() => d.querySelectorAll("#recSpec tbody tr").length === 2 && /v2/.test($("#recSpec").textContent)));
+  const specRows = () => [...d.querySelectorAll("#recSpec tbody tr")].map((tr) => tr.textContent);
+  assert.equal(specRows().length, 2);
+  assert.match($("#recSpecSub").textContent, /2 個版本/);
+  assert.match(specRows()[0], /NEW-1v2 預設/); assert.match(specRows()[1], /依加工廠規格/);
+  assert.equal(d.querySelectorAll('#recSpec [data-ract="suse"]').length, 1, "只有非目前套用的 v2 可套用");
+  assert.match(specRows()[1], /目前套用/);
+  d.querySelector('#recSpec [data-ract="sdef"]').click();
+  assert.ok(await until(() => /v1 預設/.test(specRows()[1] || "")), "v1 改為預設");
+  assert.equal(w.eval("S.partSpec.isDefault"), true, "目前套用的 v1 同步標成預設");
+  $("#recAuditBox").open = true; $("#recAuditBox").dispatchEvent(new w.Event("toggle"));
+  assert.ok(await until(() => /設為預設/.test($("#recAudit").textContent)));
+  const auditTxt = [...d.querySelectorAll("#recAudit tbody tr")].map((tr) => tr.textContent);
+  assert.match(auditTxt[0], /設為預設前一版：v2 → 新版：v1料號規格.*NEW-1v1/);
+  assert.ok(auditTxt.some((t) => /設為預設前一版：v1 → 新版：v2/.test(t)), "版本清單的切換也有記錄");
+  assert.ok(auditTxt.some((t) => /設為預設前一版：無 → 新版：v1/.test(t)), "第一版存檔即設為預設");
+  w.SPI_TEST_HOOK.beforePrint(); w.SPI_TEST_HOOK.afterPrint();
+  assert.match($("#printHead").textContent, /規格來源：料號規格 NEW-1 v1（SHA-256 [0-9a-f]{12}）/);
+  const csv = w.eval("SPI_TEST_HOOK.issuesCsv(S.F)").split("\n");
+  assert.ok(csv[0].endsWith(",spec_source")); assert.match(csv[1], /料號規格 NEW-1 v1/);
+
+  // 10. 範例回合仍可直接分析
   w.eval("SPI_TEST_HOOK.switchRun(S.runs[0].id)");
   assert.equal(w.eval("S.specSrc"), "sample"); assert.ok(w.eval("!!S.A"));
   assert.deepEqual(errs, []);
