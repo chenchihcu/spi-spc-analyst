@@ -203,3 +203,24 @@ test("刮刀方向欄位不完整（只有一種方向）時不以奇偶推定�
   assert.match(V.strokeWhy, /同一方向/);
   assert.equal(c.detectIssues(S).filter((x) => x.cat === "刮刀方向").length, 0);
 });
+
+// 效能改寫須與原算式逐位元相同：校準用 wipeStatBuf／選擇法中位數／迴圈版 mean、sd
+test("效能改寫：wipeStatBuf 與 wipeStat、selMed 與排序中位數、mean／sd 與 reduce 版逐位元相同", () => {
+  const r = rng(20261022);
+  const q50 = (a) => { const s = Float64Array.from(a).sort(), i = (s.length - 1) * 0.5, lo = Math.floor(i), hi = Math.ceil(i); return s[lo] + (s[hi] - s[lo]) * (i - lo); };
+  for (const n of [5, 10, 41, 400]) for (const N of [2, 5, 7]) {
+    const B = { s: new Float64Array(n), ad: new Float64Array(n), w: new Float64Array(n), d: new Float64Array(n), pos: new Float64Array(n) };
+    for (let k = 0; k < 30; k++) {
+      const x = Array.from({ length: n }, () => gauss(r));
+      assert.ok(Object.is(c.wipeStatBuf(x, N, B), c.wipeStat(x, N)), `n=${n} N=${N}`);
+    }
+  }
+  for (let k = 0; k < 500; k++) {
+    const n = 1 + Math.floor(r() * 200), dup = k % 3 === 0;
+    const a = Float64Array.from({ length: n }, () => (dup ? Math.floor(r() * 4) : gauss(r) * 30));
+    assert.ok(Object.is(c.selMed(a.slice()), q50(a)), `selMed n=${n}`);
+    const v = [...a];
+    assert.ok(Object.is(c.mean(v), v.reduce((s, x) => s + x, 0) / v.length), "mean");
+    if (n >= 2) { const m = c.mean(v); assert.ok(Object.is(c.sd(v), Math.sqrt(v.reduce((s, x) => s + (x - m) ** 2, 0) / (n - 1))), "sd"); }
+  }
+});
