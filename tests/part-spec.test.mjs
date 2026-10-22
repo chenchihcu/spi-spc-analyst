@@ -42,6 +42,9 @@ const CASES = [
   ["空群組略過", spec("P1", { groups: { G: {} } })],
   ["HTML 字元清除", spec("<P1>", { note: "<b>x</b>" })],
   ["鋼板厚度超出範圍", spec("P1", { stencilRef: 9999 })],
+  ["群組名稱含特殊字元", spec("P1", { groups: { "A&B": { volume: W(80, 100, 120) } } })],
+  ["群組名稱前後空白", spec("P1", { groups: { " U2": { volume: W(80, 100, 120) } } })],
+  ["群組名稱超過 64 字", spec("P1", { groups: { ["G".repeat(65)]: { volume: W(80, 100, 120) } } })],
 ];
 
 test("規格檔驗證：頁面 partSpecCheck／partSpecCanon 與伺服器 lib 結果完全相同", () => {
@@ -56,6 +59,7 @@ test("規格檔驗證：頁面 partSpecCheck／partSpecCanon 與伺服器 lib �
   assert.deepEqual(partSpecCheck(CASES[10][1]).spec.groups, {});
   assert.equal(partSpecCheck(CASES[11][1]).spec.part, "P1");
   assert.equal(partSpecCheck(CASES[12][1]).spec.stencilRef, null);
+  for (const i of [13, 14, 15]) assert.match(partSpecCheck(CASES[i][1]).error, /群組名稱/, CASES[i][0] + "：不改寫群組名稱，直接拒收");
 });
 
 test("標準化：鍵順序不同的同一份規格產生相同位元組與指紋；本體檢查擋下非標準化、料號不符與壞 JSON", () => {
@@ -176,9 +180,19 @@ test("D1 並行：建立新版設預設與切換預設同時發生（都以同�
   const c = specRec(spec(undefined, { note: "v3" }), { makeDefault: true });
   await Promise.all([repo.createRecord(c.rec, c.gz), repo.setDefaultSpec(b.rec.id, "other@x.tw")]);
   const sw = audits(db, "set_default_spec").slice(-2);
-  assert.deepEqual(sw.map((x) => x.detail.from), [[a.rec.id], [a.rec.id]], "兩者讀到同一份舊狀態");
+  assert.deepEqual(sw[0].detail.from, [a.rec.id]);
+  assert.deepEqual(sw[1].detail.from, [sw[0].detail.to], "from 於 batch 執行當下取得：記錄實際被取代的版本，而非請求前讀到的舊狀態");
   assert.equal(defaults(db, "301-000100124").length, 1, "清除在交易執行當下選取資料列，不會留下兩個預設");
   assert.deepEqual(defaults(db, "301-000100124"), [sw[1].detail.to], "後執行者（稽核順序在後）勝出");
+});
+
+test("D1：版本列表依版本號排序（建立時間相同也不錯序）；料號規格不可修改中繼資料", async () => {
+  const db = makeD1(), repo = new Repo(db, r2());
+  const a = specRec(spec(), { id: "zzzzzzzzzzzzzzzzzzzzzz", created: 5 }), b = specRec(spec(undefined, { note: "v2" }), { id: "aaaaaaaaaaaaaaaaaaaaaa", created: 5 });
+  await repo.createRecord(a.rec, a.gz); await repo.createRecord(b.rec, b.gz);
+  assert.deepEqual((await repo.getSpecsForPart("301-000100124")).map((x) => [x.ver, x.id]), [[2, b.rec.id], [1, a.rec.id]]);
+  const r = await repo.updateRecordMeta(a.rec.id, { note: "改備註" }, "a@x.tw");
+  assert.equal(r.status, 400); assert.match(r.error, /不能修改/);
 });
 
 /* ---------- Worker 路由（含登入） ---------- */
@@ -198,7 +212,8 @@ test("Worker：POST 料號規格由伺服器驗證本體與指紋；specs_for �
   assert.equal((await post(body(spec(undefined, { note: "v2" })), meta, "0".repeat(64))).status, 400, "指紋不符");
   const bad = spec(); bad.specs.volume = W(130, 100, 70);
   assert.match((await (await post(Buffer.from(JSON.stringify(bad)), meta)).json()).error, /LSL 必須小於 USL/);
-  const v2 = (await (await post(body(spec(undefined, { note: "v2" })), { ...meta, makeDefault: false })).json()).record;
+  const v2 = (await (await post(body(spec(undefined, { note: "v2" })), { ...meta, makeDefault: false, note: "標頭的另一種說法" })).json()).record;
+  assert.equal(v2.note, "v2", "索引的備註取自已驗證的規格檔本體，不採用標頭");
   const list = await (await handleRequest(new Request(U + "?specs_for=301-000100124", { headers: { cookie } }), env)).json();
   assert.deepEqual(list.specs.map((x) => [x.ver, x.isDefault]), [[2, false], [1, true]]);
   const sw = await handleRequest(new Request(U, { method: "PATCH", body: JSON.stringify({ action: "set_default_spec", id: v2.id }), headers: { cookie, origin: "https://spi.example.test", "content-type": "application/json" } }), env);
@@ -242,6 +257,15 @@ test("本機模式：建立料號規格版本、設為預設（同交易清舊�
   const log = await run(`return SPI_TEST_HOOK.RecDB.audit()`);
   const sw = [...log].filter((e) => e.action === "set_default_spec");
   assert.equal(sw.length, 3); assert.equal(sw[0].to, v3.id, "新到舊");
+  // 同時儲存兩版並都設為預設：讀取與寫入在同一交易內，版本號不重複、只留一個預設
+  w.__s4 = spec(undefined, { note: "v4" }); w.__s5 = spec(undefined, { note: "v5" });
+  const both = await run(`return Promise.all([SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true,note:"標頭"},__spec(__s4)),SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s5))])`);
+  assert.deepEqual(both.map((x) => x.ver).sort(), [4, 5]);
+  assert.equal(both[0].note, "v4", "備註取自規格檔本體");
+  list = await run(`return SPI_TEST_HOOK.RecDB.specsFor("301-000100124")`);
+  assert.deepEqual(list.map((x) => x.ver), [5, 4, 3, 2, 1]);
+  assert.equal(list.filter((x) => x.isDefault).length, 1);
+  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.updateMeta(${JSON.stringify(v1.id)},{note:"x"})`), /不能修改/);
   await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},__spec(__s1))`), /已經存過/);
   await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"OTHER"},__spec(__s1))`), /料號/);
   await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},new TextEncoder().encode(JSON.stringify(__s1)))`), /標準化/);

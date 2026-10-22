@@ -118,7 +118,7 @@ async function handleRecordsApi(req, repo, user) {
       return json({ error: '資料格式不正確（需為 gzip 壓縮）' }, 400);
     }
 
-    let bytes = rawBytes || bodyBuf.length, sha256 = clientSha;
+    let bytes = rawBytes || bodyBuf.length, sha256 = clientSha, specNote = null;
     // 料號規格：伺服器解壓並驗證本體（格式、數值、標準化、料號一致），指紋由伺服器計算
     if (chk.meta.kind === 'spec') {
       let raw;
@@ -128,11 +128,13 @@ async function handleRecordsApi(req, repo, user) {
       sha256 = createHash('sha256').update(raw).digest('hex');
       if (sha256 !== clientSha) return json({ error: '規格檔指紋與 X-Raw-SHA256 不同' }, 400);
       bytes = raw.length;
+      specNote = sc.spec.note; // 索引的備註一律取自已驗證的規格檔，不採用標頭欄位，避免同一版本有兩種說法
     }
 
     const rec = {
       id: randomBytes(16).toString('base64url'),
       ...chk.meta,
+      ...(specNote != null ? { note: specNote } : {}),
       bytes,
       gz_bytes: bodyBuf.length,
       sha256,
