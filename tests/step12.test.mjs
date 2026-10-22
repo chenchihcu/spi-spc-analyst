@@ -253,7 +253,7 @@ test('[M-12] buildStatsData & statsDataCsv 收集 OOC、偏移、漂移與離群
 // -------------------------------------------------------------
 // M-18: FastMCD 2D Bivariate Outlier Detection
 // -------------------------------------------------------------
-test('[M-18] FastMCD 2D 能檢出雙變數離群值 (d² > 18.42068)，30,000 筆假警報受控', () => {
+test('[M-18] FastMCD 2D 能檢出雙變數離群值（d² 超過小樣本校準門檻），30,000 筆假警報受控', () => {
   assert.equal(typeof core.fastMcd2D, 'function');
 
   // 1. Synthetic 100 points with 1 bivariate anomaly (+2σ, -2σ)
@@ -279,7 +279,9 @@ test('[M-18] FastMCD 2D 能檢出雙變數離群值 (d² > 18.42068)，30,000 �
 
   const res = core.fastMcd2D(pts);
   assert.ok(res, 'FastMCD 2D 應回傳有效結果');
-  assert.equal(res.threshold, 18.42068);
+  // 小樣本校準門檻：n=100 查表 23.14，n 很大時收斂到 χ²₀.₉₉₉₉(2)
+  assert.equal(res.threshold, core.mcdThr(100));
+  assert.equal(res.threshold, 23.14);
   assert.ok(res.outliers.some(o => o.index === 99), '第 99 筆雙變數離群點應被檢出');
 
   // 2. Test 30,000 normal points false positive rate <= expected + 3*sqrt(expected)
@@ -291,4 +293,35 @@ test('[M-18] FastMCD 2D 能檢出雙變數離群值 (d² > 18.42068)，30,000 �
   const res30k = core.fastMcd2D(pts30k);
   // expected = 30000 * 0.0001 = 3; upper bound = 3 + 3*sqrt(3) ~= 8.196
   assert.ok(res30k.outliers.length <= 8, `30,000 筆資料誤報數 (${res30k.outliers.length}) 不得超過 8`);
+});
+
+test('[M-18] 小樣本門檻：隨 n 單調不增、不低於 χ² 漸近值，焊墊群組大小的誤報受控', () => {
+  const ns = [30, 33, 36, 48, 100, 112, 600, 601, 3000, 30000];
+  const thr = ns.map(n => core.mcdThr(n));
+  for (let i = 1; i < thr.length; i++) assert.ok(thr[i] <= thr[i - 1], `mcdThr(${ns[i]})=${thr[i]} 不得大於 mcdThr(${ns[i - 1]})=${thr[i - 1]}`);
+  for (const t of thr) assert.ok(t >= core.MCD_CHI2, `門檻 ${t} 不得低於 ${core.MCD_CHI2}`);
+  assert.ok(Math.abs(core.mcdThr(30000) - core.MCD_CHI2) < 0.02, 'n 很大時收斂到 18.42');
+  // 格點上等於校準表；格點之間落在相鄰兩格之間；n<30 取第一格；n>600 依 600/n 衰減
+  core.MCD_THR_N.forEach((n, i) => assert.equal(core.mcdThr(n), core.MCD_THR[i], `mcdThr(${n}) 應等於表值`));
+  for (let i = 1; i < core.MCD_THR_N.length; i++) {
+    const n = Math.round(Math.sqrt(core.MCD_THR_N[i - 1] * core.MCD_THR_N[i]));
+    const t = core.mcdThr(n);
+    assert.ok(t <= core.MCD_THR[i - 1] && t >= core.MCD_THR[i], `mcdThr(${n})=${t} 應介於相鄰格點之間`);
+  }
+  assert.equal(core.mcdThr(10), core.MCD_THR[0]);
+  assert.ok(Math.abs(core.mcdThr(1200) - (core.MCD_CHI2 + (18.93 - core.MCD_CHI2) / 2)) < 1e-9, 'n=1200 時超出 χ² 的部分減半');
+
+  // i.i.d. 雙變量常態、焊墊群組常見大小：修正前 P(任一離群) 為 8.9%（n=36）／7.2%（n=48），名目約 0.4%
+  let seed = 2468;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return (seed + 1) / 4294967297; };
+  const randn = () => Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd());
+  for (const n of [36, 48]) {
+    const runs = 1500;
+    let hit = 0;
+    for (let k = 0; k < runs; k++) {
+      const res = core.fastMcd2D(Array.from({ length: n }, () => [randn(), randn()]));
+      if (res.outliers.length) hit++;
+    }
+    assert.ok(hit / runs <= 0.02, `n=${n} 任一離群比例 ${hit / runs} 應 ≤ 2%（名目 ${(n * 1e-4).toFixed(4)}）`);
+  }
 });

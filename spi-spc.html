@@ -659,7 +659,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.1</b> · 更新 <b class="num" id="appBuilt">2026-10-22 23:23:48</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.2</b> · 更新 <b class="num" id="appBuilt">2026-10-22 23:47:00</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -2856,6 +2856,20 @@ function winsor(v){const{m,s}=robust(v);return v.map(x=>Math.min(m+3*s,Math.max(
 function resolutionOf(v){const arr=v.length>2000?v.filter((_,i)=>i%Math.ceil(v.length/2000)===0):v;const s=Float64Array.from(new Set(arr));s.sort();let r=Infinity;for(let i=1;i<s.length;i++){const d=s[i]-s[i-1];if(d>1e-9&&d<r)r=d}return isFinite(r)?r:0}
 function isoStat(v){const m=med(v),n=v.length,ad=new Float64Array(n);let sum=0;for(let i=0;i<n;i++){const d=Math.abs(v[i]-m);ad[i]=d;sum+=d}ad.sort();const mad=n?quant(ad,.5):NaN,res=resolutionOf(v);let sg=1.4826*mad;if(!(mad>0))sg=1.2533*(n?sum/n:0);return{m,mad,res,sg:Math.max(sg,res/Math.sqrt(12))}}
 /* ---- M-18 焊墊級多變量離群偵測：FastMCD 2D ---- */
+// 小樣本門檻（tools/gen-mcd-table.mjs 以 i.i.d. 雙變量常態校準，每點誤報 10⁻⁴）：χ²₀.₉₉₉₉(2)=18.42 只在 n 很大時成立，
+// 焊墊群組常只有 30–100 個焊墊，固定 18.42 時每點誤報達名目的 25–50 倍（n=36 為 3.1×10⁻³）
+const MCD_CHI2=18.42068;
+const MCD_THR_N=[30,32,35,40,45,50,60,70,80,100,125,150,200,300,400,600];
+const MCD_THR=[45.7,44.16,39.23,35.46,32.49,29.79,27.79,25.69,24.6,23.14,21.8,21.07,20.71,19.81,19.45,18.93];
+function mcdThr(n){
+  const N=MCD_THR_N,T=MCD_THR,k=N.length-1;
+  if(!(n>N[0]))return T[0];
+  // 超出表格：超出 χ² 的部分依 600/n 衰減（n→∞ 收斂到 18.42）
+  if(n>=N[k])return MCD_CHI2+(T[k]-MCD_CHI2)*N[k]/n;
+  // 格點之間對 log n 線性內插
+  let i=1;while(N[i]<n)i++;
+  return T[i-1]+(T[i]-T[i-1])*Math.log(n/N[i-1])/Math.log(N[i]/N[i-1]);
+}
 function fastMcd2D(points,seed=42){
   const n=points.length;if(n<30)return null;const p=2,h=Math.min(n,Math.ceil(0.75*n));
   let s=seed;const rnd=()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296};
@@ -2915,9 +2929,9 @@ function fastMcd2D(points,seed=42){
   const cdf4_975=1-Math.exp(-q975/2)*(1+q975/2),cRew=0.975/cdf4_975;
   const finalCov=[rew.cov[0]*cRew,rew.cov[1]*cRew,rew.cov[2]*cRew];
   const d2=getDistSq(rew.m,finalCov);
-  const CHI2_09999=18.42068,outliers=[];
-  for(let i=0;i<n;i++)if(d2[i]>CHI2_09999)outliers.push({index:i,point:points[i],d2:d2[i]});
-  return{m:rew.m,cov:finalCov,d2,outliers,threshold:CHI2_09999};
+  const thr=mcdThr(n),outliers=[];
+  for(let i=0;i<n;i++)if(d2[i]>thr)outliers.push({index:i,point:points[i],d2:d2[i]});
+  return{m:rew.m,cov:finalCov,d2,outliers,threshold:thr};
 }
 /* ---- M-10 板號 × 元件群組 不良品矩陣 ---- */
 function passFailMatrix(st){
@@ -3928,22 +3942,23 @@ function detectIssues(st,onStage){
         const cardLv="info";
         const bList=[...new Set(outItems.map(o=>o.board))].sort();
         const minD2=Math.min(...outItems.map(o=>o.d2)),maxD2=Math.max(...outItems.map(o=>o.d2));
+        const thr=res.threshold,thrS=f(thr,2),thrNote=thr>MCD_CHI2+.005?`小樣本校準門檻（n=${validPads.length}），χ² 漸近值 18.42`:"χ²₀.₉₉₉₉(2)";
         add({
           lv:cardLv,cat:"多變量離群",sig:{t:"mcd",g,pair:[m1,m2],pads:outItems.map(o=>o.pad)},
           title:`${g} 有 ${outItems.length} 個焊墊多變量離群（${lab(m1)} / ${lab(m2)} 組合異常）`,
           ents:outItems.map(o=>"p:"+o.pad),score:2.2+outItems.length*0.15,
-          rule_id:"FastMCD 2D 雙變數離群（M-18）",rule_name:"穩健 Mahalanobis 距離 d² > 18.42 (χ²₀.₉₉₉₉(2))",
+          rule_id:"FastMCD 2D 雙變數離群（M-18）",rule_name:`穩健 Mahalanobis 距離 d² > ${thrS}（${thrNote}，每點誤報 10⁻⁴）`,
           metric:`${lab(m1)} / ${lab(m2)}`,
           boards:bList.join("; "),subboard:subOf(outItems.map(o=>o.r)),
           group:g,refdes:refOf(outItems.map(o=>o.r)),
           pads:topList(outItems.map(o=>o.pad),10),
           observed:topList(outItems.map(o=>`${o.pad} d²=${f(o.d2,1)}`),10),
-          limit:"d² ≤ 18.42 (χ²₀.₉₉₉₉(2))",z:topList(outItems.map(o=>`d²=${f(o.d2,1)}`),10),
+          limit:`d² ≤ ${thrS}（${thrNote}）`,z:topList(outItems.map(o=>`d²=${f(o.d2,1)}`),10),
           p:"p < 0.0001",
-          facts:outItems.slice(0,10).map(o=>`焊墊 ${o.pad}：${lab(m1)} ${f(o.x[0],1)}、${lab(m2)} ${f(o.x[1],1)}，d² = ${f(o.d2,1)} > 18.42（預期誤報數 ${f(validPads.length*0.0001,3)} 個）`),
+          facts:outItems.slice(0,10).map(o=>`焊墊 ${o.pad}：${lab(m1)} ${f(o.x[0],1)}、${lab(m2)} ${f(o.x[1],1)}，d² = ${f(o.d2,1)} > ${thrS}（預期誤報數 ${f(validPads.length*0.0001,3)} 個）`),
           cause:"焊墊各單項測量值均在規格內，但多變數空間組合異常（例如面積偏大伴隨高度偏低，或偏移異常），可能為局部脫模拉扯或鋼網開孔局部損傷",
           conf:"中",action:ACT.mcd,
-          ev:evBars(`穩健馬氏距離 d²（前 10 焊墊）`,outItems.slice(0,10).map(o=>o.pad),outItems.slice(0,10).map(o=>o.d2),[0,1,2],"",[18.42]),
+          ev:evBars(`穩健馬氏距離 d²（前 10 焊墊）`,outItems.slice(0,10).map(o=>o.pad),outItems.slice(0,10).map(o=>o.d2),[0,1,2],"",[thr]),
           go:{tab:"issues",pad:outItems[0].pad}
         });
       }
@@ -4772,7 +4787,7 @@ function issuesXlsx(F){
   ]);
 }
 
-if(typeof module!=="undefined")module.exports={rescaleHpct,sampleData,analyze,rowsFingerprint,anKey,anHas,anPutKey,anWork,anUnpack,clsSig,S,nelson,specOfGroup,stepHpct,buildPartSpecsG,partSpecToState,stateToPartSpec,specReady,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,issuesXlsx,createZipStored,applyTimeFilter,partSpecCheck,partSpecCanon,partSpecEncode,partSpecBodyCheck,PART_SPEC_SCHEMA,PART_SPEC_METRICS,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
+if(typeof module!=="undefined")module.exports={rescaleHpct,sampleData,analyze,rowsFingerprint,anKey,anHas,anPutKey,anWork,anUnpack,clsSig,S,nelson,specOfGroup,stepHpct,buildPartSpecsG,partSpecToState,stateToPartSpec,specReady,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,mcdThr,MCD_THR_N,MCD_THR,MCD_CHI2,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,issuesXlsx,createZipStored,applyTimeFilter,partSpecCheck,partSpecCanon,partSpecEncode,partSpecBodyCheck,PART_SPEC_SCHEMA,PART_SPEC_METRICS,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
 </script>
 <script>
 "use strict";

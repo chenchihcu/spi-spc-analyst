@@ -77,6 +77,14 @@ test('6.1 verdict-sim-expected.json 期望檔與附錄 C 稽核參考判定比�
   }
 });
 
+test('M-18 回歸：穩定製程 25 板 seed 3 不出現多變量離群卡（小樣本門檻校準前 U1 QFP d²=26.3 > 18.42 誤報）', () => {
+  const rows = generateStableData({ nb: 25, shift: 0, stroke: true, seed: 3 });
+  const st = baseState(core, { rows, metrics: ['volume', 'hpct', 'area', 'offx', 'offy'], metric: 'volume', group: 'ALL', chart: 'xbars' });
+  const iss = core.detectIssues(st);
+  assert.equal(iss.filter(x => x.cat === '多變量離群').length, 0);
+  assert.equal(iss.meta.verdict.level, 'ok');
+});
+
 const isSlow = process.env.RUN_SLOW === '1';
 
 test('[slow] 6.1 整體判定模擬：seed 1–200 蒙地卡羅驗收（25/50 板、SHIFT 0/3）', () => {
