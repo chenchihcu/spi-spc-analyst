@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML, withIdb } = require("./_load.js");
+const { HTML, withIdb, seedPartSpec } = require("./_load.js");
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function page(saved = [], { fetch: fetchStub } = {}) {
@@ -78,6 +78,7 @@ test("匯入量測記錄存入資料庫後，選取中樞能列出並支援「�
   await pickFile(dom, "TEST_REC.csv", CSV);
   $("#inLot").value = "LOT-2026";
   $("#inPart").value = "PART-990";
+  await seedPartSpec(w, "PART-990");
   $("#btnApply").click();
   assert.ok(await until(() => w.eval("S.runs.length") === 3));
 
@@ -159,6 +160,7 @@ test("SMT 產線過濾工具列、品質快照狀態與手機端卡片流", { sk
   await pickFile(dom, "NORMAL_TOP.csv", CSV);
   $("#inLot").value = "LOT-OK";
   $("#inPart").value = "PART-AAA";
+  await seedPartSpec(w, "PART-AAA");
   $("#selSide").value = "TOP";
   $("#selSide").dispatchEvent(new w.Event("change"));
   $("#btnApply").click();
@@ -170,6 +172,7 @@ test("SMT 產線過濾工具列、品質快照狀態與手機端卡片流", { sk
   await pickFile(dom, "DEFECT_BOT.csv", BAD_CSV);
   $("#inLot").value = "LOT-NG";
   $("#inPart").value = "PART-BBB";
+  await seedPartSpec(w, "PART-BBB");
   $("#selSide").value = "BOT";
   $("#selSide").dispatchEvent(new w.Event("change"));
   $("#btnApply").click();

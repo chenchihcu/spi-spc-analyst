@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML, withIdb } = require("./_load.js");
+const { HTML, withIdb, seedPartSpec } = require("./_load.js");
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function page(saved) {
@@ -59,6 +59,7 @@ test("批號、料號必填；存入後才建立回合，回合帶來源資訊�
   assert.match($("#recNote").textContent, /請填寫批號與產品料號/);
   assert.equal(w.eval("S.runs.length"), 2, "未填不建立回合");
   $("#inLot").value = "L2410-01"; $("#inPart").value = "301-000100124";
+  await seedPartSpec(w, "301-000100124");
   $("#btnApply").click();
   assert.ok(await until(() => w.eval("S.runs.length") === 3), "存入後建立回合");
   const src = JSON.parse(w.eval("JSON.stringify(SPI_TEST_HOOK.curRun().info.src)"));
@@ -89,7 +90,7 @@ test("重複檔沿用既有紀錄；從資料庫開啟時批號料號帶入且�
   $("[data-tab=data]").click();
   for (let k = 0; k < 2; k++) {
     await pickFile(dom, "a.csv", CSV);
-    $("#inLot").value = "L1"; $("#inPart").value = "P1"; $("#btnApply").click();
+    $("#inLot").value = "L1"; $("#inPart").value = "P1"; await seedPartSpec(w, "P1"); $("#btnApply").click();
     assert.ok(await until(() => w.eval("S.runs.length") === 3 + k));
   }
   const recs = await w.eval("SPI_TEST_HOOK.RecDB.list()");
@@ -106,7 +107,7 @@ test("重複檔沿用既有紀錄；從資料庫開啟時批號料號帶入且�
   assert.ok(await until(() => w.eval("S.runs.length") === 5));
   assert.equal((await w.eval("SPI_TEST_HOOK.RecDB.list()")).length, 1, "開啟後套用不新增紀錄");
   // 別人上傳的紀錄不顯示刪除鈕
-  await w.eval(`(async()=>{const H=SPI_TEST_HOOK.LocalRec,r=(await H.index())[0],db=await H.open(),tx=db.transaction(["meta"],"readwrite");tx.objectStore("meta").put({...r,id:"OTHERxxxxxxxxxxxxxxxxx",user:"b@x.tw",lot:"L9"});await new Promise(ok=>tx.oncomplete=ok)})()`);
+  await w.eval(`(async()=>{const H=SPI_TEST_HOOK.LocalRec,r=(await H.index()).find(x=>x.kind==="spi"),db=await H.open(),tx=db.transaction(["meta"],"readwrite");tx.objectStore("meta").put({...r,id:"OTHERxxxxxxxxxxxxxxxxx",user:"b@x.tw",lot:"L9"});await new Promise(ok=>tx.oncomplete=ok)})()`);
   $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $("#recReload").click();
   assert.ok(await until(() => /L9/.test($("#recSpi").textContent)));
   const rowOf = (lot) => [...d.querySelectorAll("#recSpi tbody tr")].find((tr) => tr.textContent.includes(lot));
@@ -164,7 +165,7 @@ test("從資料庫開啟當時沒用座標檔的立榮紀錄：不套用目前�
   $("[data-tab=data]").click();
   await pickFile(dom, "W_TOP.csv", WIDE);
   assert.match($("#mapPrev").textContent, /未載入座標檔/);
-  $("#inLot").value = "LW"; $("#inPart").value = "PW"; $("#btnApply").click();
+  $("#inLot").value = "LW"; $("#inPart").value = "PW"; await seedPartSpec(w, "PW"); $("#btnApply").click();
   assert.ok(await until(() => w.eval("S.runs.length") === 3));
   // 之後載入座標檔，再從資料庫開啟舊紀錄
   $("#placePart").value = "PW"; $("#placeRev").value = "V1";
@@ -180,7 +181,7 @@ test("從資料庫開啟當時沒用座標檔的立榮紀錄：不套用目前�
   $("#btnApply").click(); assert.ok(await until(() => w.eval("S.runs.length") === 4));
   await pickFile(dom, "W_TOP.csv", WIDE);
   assert.match($("#mapPrev").textContent, /座標檔對應 1\/1/);
-  $("#inLot").value = "LW"; $("#inPart").value = "PW"; $("#btnApply").click();
+  $("#inLot").value = "LW"; $("#inPart").value = "PW"; await seedPartSpec(w, "PW"); $("#btnApply").click();
   assert.ok(await until(() => w.eval("S.runs.length") === 5));
   const recs = (await w.eval("SPI_TEST_HOOK.RecDB.list()")).filter((r) => r.kind === "spi");
   assert.equal(recs.length, 2, "座標檔不同 → 另存一筆，不沿用舊紀錄");
@@ -209,7 +210,7 @@ test("開啟紀錄失敗後，下一次手動匯入不會沿用該紀錄；連�
   await pickFile(dom, "ok.csv", CSV);
   assert.equal($("#inLot").readOnly, false, "沒有沿用失敗的紀錄");
   assert.equal($("#inLot").value, "");
-  $("#inLot").value = "GOOD"; $("#inPart").value = "P"; $("#btnApply").click();
+  $("#inLot").value = "GOOD"; $("#inPart").value = "P"; await seedPartSpec(w, "P"); $("#btnApply").click();
   assert.ok(await until(() => w.eval("S.runs.length") === 3));
   assert.equal(w.eval(`${H}.curRun().info.src.lot`), "GOOD");
   // 連結的座標檔被刪除後開啟立榮紀錄

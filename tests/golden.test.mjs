@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require('jsdom'); } catch { return {}; } })();
 const fs = require('fs');
 const path = require('path');
-const { HTML, withIdb } = require('./_load.js');
+const { HTML, withIdb, seedPartSpec } = require('./_load.js');
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const FIXTURES_DIR = path.join(import.meta.dirname, 'fixtures', 'golden');
@@ -33,6 +33,7 @@ function page() {
       Object.assign(w, { Response, DecompressionStream, TextDecoder });
       w.addEventListener('error', (e) => errs.push(e.message));
       withIdb(w);
+      w.SPI_TEST_HOOK = {};
     }
   });
   return { dom, errs };
@@ -70,6 +71,7 @@ async function applyImport(dom, expectedRows) {
   const d = dom.window.document, w = dom.window;
   d.querySelector('#inLot').value = 'LOT-GOLDEN';
   if (!d.querySelector('#inPart').value) d.querySelector('#inPart').value = 'PART-GOLDEN';
+  await seedPartSpec(w, d.querySelector('#inPart').value);
   d.querySelector('#btnApply').click();
   for (let i = 0; i < 100 && (!w.eval('S.A') || w.eval('S.rows.length') !== expectedRows); i++) await tick(20);
 }

@@ -1,4 +1,4 @@
-// v9.10.1：分析報告與 AI 分析送出的資料都要帶失效模式交叉比對、能力細節與管制狀態；機台規格依元件群組推估
+// 分析報告與 AI 分析送出的資料都要帶失效模式交叉比對、能力細節與管制狀態；規格一律來自使用者定義的料號規格（範例資料為示範規格）
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -40,36 +40,41 @@ test("AI 分析資料：含失效模式交叉比對、能力信賴區間、X̄ �
   assert.ok(out["能力"]["逐群組"].length >= 2 && out["能力"]["逐群組"][0]["Cpk95信賴區間"]);
   assert.equal(typeof out["管制狀態"]["製程穩定"], "boolean");
   assert.ok(out["多重比較"]["單板異常檢定次數"] > 0);
-  assert.match(out["規格來源"], /自訂規格/);
+  assert.match(out["規格來源"], /示範規格/);
   assert.deepEqual(errs, []);
 });
 
 test("分析報告：含規格來源、能力信賴區間、逐群組能力、X̄ 判異與失效模式交叉比對", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
   const { dom } = page(); const w = dom.window; await ready(w);
   const md = w.eval("SPI_TEST_HOOK.reportMd()");
-  for (const s of ["規格來源：自訂規格", "Cpk 95% 信賴區間", "### 逐元件群組製程能力", "Nelson 規則（X̄ 圖", "## 失效模式交叉比對", "| 開孔堵塞（Clogging） | 可能 |"]) assert.ok(md.includes(s), "報告缺少：" + s);
+  for (const s of ["規格來源：示範規格", "Cpk 95% 信賴區間", "### 逐元件群組製程能力", "Nelson 規則（X̄ 圖", "## 失效模式交叉比對", "| 開孔堵塞（Clogging） | 可能 |"]) assert.ok(md.includes(s), "報告缺少：" + s);
 });
 
-test("規格來源：機台模式各元件群組各自推估規格窗；之後匯入無判定碼的資料回到自訂規格", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+test("料號規格：群組覆寫只套用到該群組、能力以群組規格計算，報告標示料號與版本（不再有推估下限）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
   const { dom } = page(); const w = dom.window; await ready(w);
-  w.eval(`S.rows.forEach((r,i)=>{r.result=i%53===0?"FAIL":"PASS";r.mNG=i%53===0});SPI_TEST_HOOK.setSpecSrc("machine")`);
-  assert.equal(w.eval("S.specSrc"), "machine");
+  w.eval(`const sp={schema:"spi-part-spec/1",part:"T-1",stencilRef:120,specs:{},groups:{"U2 BGA":{volume:{lsl:85,tgt:100,usl:115}}},note:"測試"};
+    for(const k of PART_SPEC_METRICS)sp.specs[k]={...DEF_SPECS[k]};
+    S.runs.find(r=>r.id===S.runId).sample=false;
+    SPI_TEST_HOOK.useSpec({id:"x".repeat(22),part:"T-1",ver:1,sha256:"ab".repeat(32),isDefault:true,user:"a",created:1},sp)`);
+  assert.equal(w.eval("S.specSrc"), "part");
   const G = JSON.parse(w.eval("JSON.stringify(S.specsG)"));
-  assert.ok(Object.keys(G).length >= 3, "各群組推估");
-  assert.notDeepEqual(G["U2 BGA"].volume, G["U1 QFP"].volume, "不同群組規格窗不同");
+  assert.deepEqual(Object.keys(G), ["U2 BGA"], "只有覆寫的群組有群組規格");
+  assert.equal(G["U2 BGA"].volume.lsl, 85); assert.equal(G["U2 BGA"].area.lsl, 70, "未覆寫項目補全板值");
   const cap = JSON.parse(w.eval("JSON.stringify(S.A.cap)"));
-  assert.ok(cap.perGroupSpec && cap.groups.some((g) => g.lsl === G[g.g].volume.lsl), "能力以群組規格計算");
-  assert.equal(cap.lowerBound, true, "機台推估規格算出的能力標為下限");
-  assert.match(w.eval("SPI_TEST_HOOK.reportMd()"), /Cp\/Cpk 為下限/);
-  const cfg = JSON.parse(w.eval(`JSON.stringify(SPI_TEST_HOOK.importCfg([{board:"B1",pad:"P",group:"G",volume:100}]))`));
-  assert.equal(cfg.specSrc, "custom"); assert.equal(cfg.specsG, null);
+  assert.ok(cap.perGroupSpec && cap.groups.some((g) => g.g === "U2 BGA" && g.lsl === 85) && cap.groups.some((g) => g.g !== "U2 BGA" && g.lsl === 70), "能力以各群組適用的規格計算");
+  assert.equal(cap.lowerBound, undefined, "不再有推估規格的「下限」");
+  const md = w.eval("SPI_TEST_HOOK.reportMd()");
+  assert.match(md, /規格來源：料號規格 T-1 v1（SHA-256 abababababab）/);
+  assert.doesNotMatch(md, /下限|機台/);
 });
 
-test("核心：specOfGroup 只在機台模式且有該群組規格時使用群組規格", () => {
-  const c = loadCore(), base = JSON.parse(JSON.stringify(c.DEF_SPECS)), g = { A: { volume: { lsl: 80, usl: 120, tgt: 100 } } };
-  assert.equal(c.specOfGroup({ specSrc: "machine", specsG: g, specs: base }, "A", "volume").lsl, 80);
-  assert.equal(c.specOfGroup({ specSrc: "machine", specsG: g, specs: base }, "B", "volume").lsl, base.volume.lsl);
-  assert.equal(c.specOfGroup({ specSrc: "custom", specsG: g, specs: base }, "A", "volume").lsl, base.volume.lsl);
+test("核心：specOfGroup／stepHpct 有群組覆寫就用群組規格，否則全板", () => {
+  const c = loadCore(), base = JSON.parse(JSON.stringify(c.DEF_SPECS)), g = { A: { ...base, volume: { lsl: 80, usl: 120, tgt: 100 }, hpct: { lsl: 85, usl: 115, tgt: 100 } } };
+  assert.equal(c.specOfGroup({ specSrc: "part", specsG: g, specs: base }, "A", "volume").lsl, 80);
+  assert.equal(c.specOfGroup({ specSrc: "part", specsG: g, specs: base }, "B", "volume").lsl, base.volume.lsl);
+  assert.equal(c.specOfGroup({ specSrc: "sample", specsG: null, specs: base }, "A", "volume").lsl, base.volume.lsl);
+  assert.deepEqual({ ...c.stepHpct({ specsG: g, htol: { lo: 75, hi: 125 } }, "A") }, { lo: 85, hi: 115 });
+  assert.deepEqual({ ...c.stepHpct({ specsG: g, htol: { lo: 75, hi: 125 } }, "B") }, { lo: 75, hi: 125 });
 });
 
 test("claude.ai 內的 AI 提示詞與伺服器端使用相同的證據規則", async () => {
@@ -80,9 +85,18 @@ test("claude.ai 內的 AI 提示詞與伺服器端使用相同的證據規則", 
   assert.match(html, /\$\{AI_EVIDENCE_RULE\}/, "頁面內提示詞有使用");
 });
 
-test("還原 v9.10.0 存下的機台模式回合：自動依原始資料重建群組規格", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom } = page(); const w = dom.window; await ready(w);
-  w.eval(`S.rows.forEach((r,i)=>{r.result=i%53===0?"FAIL":"PASS";r.mNG=i%53===0});const c=S.runs.find(r=>r.id===S.runId);c.cfg={...c.cfg,specSrc:"machine",specsCustom:JSON.parse(JSON.stringify(S.specs))};delete c.cfg.specsG;S.runId=-1;SPI_TEST_HOOK.switchRun(c.id)`);
-  assert.equal(w.eval("S.specSrc"), "machine");
-  assert.ok(Object.keys(JSON.parse(w.eval("JSON.stringify(S.specsG)"))).length >= 3, "群組規格已重建");
+test("舊版回合（機台推估／自訂／工單／AOI 規格）還原後鎖定，直到套用料號規格；範例資料不受影響", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom } = page(); const w = dom.window, d = w.document; await ready(w);
+  for (const src of ["machine", "custom", "workorder", "aoi"]) {
+    w.eval(`const c=S.runs.find(r=>r.id===S.runId);c.sample=false;c.cfg={...c.cfg,specSrc:${JSON.stringify(src)},specsCustom:JSON.parse(JSON.stringify(S.specs)),specsG:{X:{}}};S.runId=-1;SPI_TEST_HOOK.switchRun(c.id)`);
+    assert.equal(w.eval("S.specSrc"), "none", src + " → 未定義");
+    assert.equal(w.eval("S.specsG"), null); assert.equal(w.eval("S.A"), null, "不計算任何分析");
+    assert.equal(w.eval("'specsCustom' in S"), false);
+    w.eval('SPI_TEST_HOOK.setTab("issues")');
+    assert.equal(d.querySelector("#p-gate").hidden, false, "分析頁顯示鎖定畫面"); assert.equal(d.querySelector("#p-issues").hidden, true);
+    w.eval('SPI_TEST_HOOK.setTab("data")');
+    assert.equal(d.querySelector("#p-data").hidden, false, "資料與規格頁可用"); assert.equal(d.querySelector("#p-gate").hidden, true);
+  }
+  w.eval('const c=S.runs.find(r=>r.id===S.runId);c.sample=true;S.runId=-1;SPI_TEST_HOOK.switchRun(c.id)');
+  assert.equal(w.eval("S.specSrc"), "sample"); assert.ok(w.eval("!!S.A"), "範例資料照常分析");
 });

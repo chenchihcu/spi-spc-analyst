@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const { HTML, withIdb } = require("./_load");
+const { HTML, withIdb, seedPartSpec } = require("./_load");
 
 let JSDOM, VirtualConsole;
 try { ({ JSDOM, VirtualConsole } = require("jsdom")); } catch { /* 未安裝 jsdom 時略過 */ }
@@ -91,12 +91,13 @@ test("匯入資料中的 HTML 不會被執行（XSS）", { skip: !JSDOM && "未�
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
     Object.defineProperty(w.HTMLElement.prototype, "offsetParent", { get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; } });
     w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
-    w.Chart = class { constructor() {} destroy() {} static register() {} }; withIdb(w); } });
+    w.Chart = class { constructor() {} destroy() {} static register() {} }; withIdb(w); w.SPI_TEST_HOOK = {}; } });
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
   await new Promise((r) => setTimeout(r, 50));
   const csv = "Board,Pad,Component,Result,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `"B${Math.floor(i / 6) + 1}<img src=x onerror=1>",P${i % 6}<b>x</b>,U<svg onload=1>1,"NG<img src=y>",${i === 13 ? 40 : 100 + (i % 5)},120,${i === 13 ? 40 : 100}`).join("\n");
   $("[data-tab=data]").click(); $("#pasteIn").value = csv; $("#btnRead").click(); $("#inRunName").value = "<img src=z onerror=1>";
-  $("#inLot").value = "L1<img src=q onerror=1>"; $("#inPart").value = "P<svg onload=1>"; $("#btnApply").click();
+  $("#inLot").value = "L1<img src=q onerror=1>"; $("#inPart").value = "P<svg onload=1>";
+  await seedPartSpec(w, "Psvg onload=1"); $("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.runs.length") < 3; i++) await new Promise((r) => setTimeout(r, 20));
   assert.equal(w.eval("S.runs.length"), 3, "存入資料庫後建立回合");
   $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $('.subtab[data-sub="runs"]').click(); $('.subtab[data-sub="records"]').click();

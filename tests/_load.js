@@ -35,4 +35,14 @@ function withIdb(w) {
   if (!w.TextDecoder) w.TextDecoder = TextDecoder;
 }
 
-module.exports = { loadCore, baseState, HTML, withIdb };
+// 規格一律由使用者定義：匯入流程測試先替料號存一版料號規格並設為預設（數值等同內建起始值、鋼板 120 µm），
+// 匯入同料號時就會自動套用並帶入鋼板厚度，分析結果與改版前相同
+async function seedPartSpec(w, part, { stencil = 120, specs = null, groups = {} } = {}) {
+  const js = `(async()=>{const sp={schema:"spi-part-spec/1",part:${JSON.stringify(part)},stencilRef:${stencil},specs:{},groups:${JSON.stringify(groups)},note:"測試"};
+    const src=${specs ? JSON.stringify(specs) : "DEF_SPECS"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...src[k]};
+    const e=partSpecEncode(sp);if(e.error)throw new Error(e.error);
+    try{return await SPI_TEST_HOOK.RecDB.create({kind:"spec",part:sp.part,makeDefault:true},e.bytes)}catch(er){if(er.existing)return null;throw er}})()`;
+  return w.eval(js);
+}
+
+module.exports = { loadCore, baseState, HTML, withIdb, seedPartSpec };

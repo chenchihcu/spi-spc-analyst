@@ -1,4 +1,4 @@
-// 機台模式：群組規格由該群組 PASS 讀值 min～max 推估時，不可再拿同一份資料判系統性能力不足（自我參照誤報）
+// 系統性能力判定：規格過窄時照常判嚴重（規格一律由使用者定義）；高度 % 匯入的鋼板厚度換算
 // 全部使用合成資料（不含客戶資料）
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -17,14 +17,6 @@ function synth({ nb = 20, ncomp = 60, seed = 11 } = {}) {
   }
   return rows;
 }
-
-test("機台模式＋逐位號群組：推估規格不據以判系統性能力不足（修正前每群組×項目都出卡）", () => {
-  const rows = synth(), st0 = baseState(c, { rows });
-  const m = c.machineSpecs(rows, st0, c.DEF_SPECS);
-  const S = baseState(c, { rows, specSrc: "machine", specs: m.specs, specsG: m.groups });
-  const sys = c.detectIssues(S).filter((x) => x.sig && x.sig.t === "sys");
-  assert.equal(sys.length, 0, `實得 ${sys.length} 張系統性能力卡`);
-});
 
 test("自訂規格模式不受影響：規格過窄時照常判系統性能力嚴重", () => {
   const rows = synth({ ncomp: 4 }), specs = JSON.parse(JSON.stringify(c.DEF_SPECS));

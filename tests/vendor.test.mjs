@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML, withIdb } = require("./_load.js");
+const { HTML, withIdb, seedPartSpec } = require("./_load.js");
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function page() {
@@ -21,6 +21,7 @@ function page() {
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
     w.addEventListener("error", (e) => errs.push(e.message));
     withIdb(w);
+    w.SPI_TEST_HOOK = {};
   } });
   return { dom, errs };
 }
@@ -61,6 +62,7 @@ test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標�
   assert.equal(d.querySelector("#inRunName").value, "DEMO-01_TOP_spi");
   assert.equal(d.querySelector("#inPart").value, "DEMO-01", "料號預填座標檔料號");
   d.querySelector("#inLot").value = "LOT-A";
+  await seedPartSpec(w, "DEMO-01");
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
   const rows = JSON.parse(w.eval("JSON.stringify(S.rows)"));
@@ -78,7 +80,7 @@ test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標�
   assert.deepEqual(g9.map((r) => r.board), ["B02", "B03"]);
   assert.equal(g9[0].pad, "G9-1");
   assert.equal(g9[0].group, "G", "座標檔沒有的位號依字首分群");
-  assert.ok(rows.some((r) => r.mNG), "保留機台判定 FAIL");
+  assert.ok(!rows.some((r) => r.mNG != null || r.result != null), "機台判定欄（Result）讀入後忽略：好壞只依使用者定義的料號規格");
   assert.deepEqual(errs, []);
 });
 
@@ -131,6 +133,7 @@ test("立榮格式高度 % 匯入後改鋼板厚度：µm 高度依比例換算�
   setVendor(dom, "lirong");
   await pick(dom, "#fileIn", "DEMO-02_TOP_spi.csv", Buffer.from(WIDE));
   d.querySelector("#inLot").value = "LOT-B"; d.querySelector("#inPart").value = "DEMO-02";
+  await seedPartSpec(w, "DEMO-02");
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
   const pick1 = () => JSON.parse(w.eval("JSON.stringify(S.rows.find((r) => r.pad === 'C1-1' && r.board === 'B02'))"));
