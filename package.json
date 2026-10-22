@@ -1,6 +1,6 @@
 {
   "name": "spi-spc-analyst",
-  "version": "9.13.3",
+  "version": "9.13.4",
   "private": true,
   "description": "SPI·SPC 分析台：錫膏印刷檢測數據的問題偵測與試產分析",
   "scripts": {

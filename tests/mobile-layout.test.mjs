@@ -16,7 +16,7 @@ try {
 } catch {}
 
 test('1. 版本與更新時間三方一致性 (version.mjs, CHANGELOG.md, spi-spc.html)', () => {
-  assert.equal(APP_VERSION, 'v9.13.3', 'APP_VERSION 應為 v9.13.3');
+  assert.equal(APP_VERSION, 'v9.13.4', 'APP_VERSION 應為 v9.13.4');
   
   const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
   const clMatch = changelog.match(/^##\s+(v[0-9.]+)\s+—\s+([0-9-]{10}(?:\s+[0-9:]{8})?)/m);
