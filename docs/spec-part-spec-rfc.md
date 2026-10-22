@@ -130,14 +130,14 @@
 | `name` | `規格_<料號>.json` |
 | `meta` | `{ isDefault, note, basedOn }`（`basedOn`＝來源版本 id） |
 
-- 版本號 v1…vn 由同料號依建立時間排序推得，不存欄位。
+- 版本號存於 `meta.ver`：建立時在同一句 INSERT 內取同料號現存最大值 +1（P1 實作；刪除其他版本不會讓既有版本改號，但刪除最新版後新版本會接續現存最大值）。
 - 內容完全相同時，既有重複判定（`idx_records_same_file`、`findDuplicate`）回 409，不會產生重複版本。
 
 ### 3.3 後端（只新增 kind 值與動作，不改既有欄位）
 | 檔案 | 修改 |
 |---|---|
 | `lib/records-core.mjs` `checkMeta` | 接受 `kind:"spec"`：必填 `part`；保留 `note`、`basedOn` 與 `makeDefault`（布林）。**不接受**用戶端直接寫 `isDefault`，預設只能由 `makeDefault` 或 `set_default_spec` 經伺服器原子操作設定 |
-| `lib/repo.mjs` | `setDefaultPlacement` 抽成 `setDefault(id, kind, user)`（place 依 part＋side、spec 依 part），原函式保留為包裝；新增 `getSpecsForPart(part)` |
+| `lib/repo.mjs` | 新增 `setDefaultSpec(id, user)`、`getSpecsForPart(part)`；`setDefaultPlacement` 不變（P1 實作：未合併成共用函式，避免改動座標檔行為；座標檔切換稽核補 from／to 屬 P4） |
 | `cloudflare/worker.mjs` | `GET /api/records?specs_for=<料號>` → `{ specs, part }`；`PATCH action:"set_default_spec"`；`set_default_place` 不變 |
 | 建立＋設為預設 | **同一個原子操作**：spec 建立請求帶 `makeDefault:true` 時，repo 在同一個 `db.batch` 內插入新紀錄、清除同料號其他版本的 `isDefault`、寫入 `set_default_spec` 稽核（含 `from`＝前一預設版 id、`to`＝新版 id）。不得只靠 `meta.isDefault` 寫入（現行座標檔上傳即是如此，會留下多個預設且沒有切換稽核，見 :7932–7951） |
 | 並行安全 | 清除舊預設必須在交易**執行當下**選取資料列（`UPDATE … WHERE kind='spec' AND part=? AND id<>? AND isDefault`），不得先讀出 id 清單再逐筆更新；D1 batch 依序執行，後到者會清掉先到者的預設，確保同料號恰好一個預設。稽核 `from` 為請求前讀取，僅供參考 |

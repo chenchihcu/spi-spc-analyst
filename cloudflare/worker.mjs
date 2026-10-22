@@ -1,10 +1,12 @@
 import { configured, handle as handleAuth } from '../lib/auth-handler.mjs';
 import { SEC } from '../lib/security-headers.mjs';
 import { Repo } from '../lib/repo.mjs';
-import { checkMeta, checkMetaPatch, MAX_GZ, MAX_RAW } from '../lib/records-core.mjs';
+import { checkMeta, checkMetaPatch, clean, MAX_GZ, MAX_RAW } from '../lib/records-core.mjs';
+import { checkSpecBody, MAX_SPEC_RAW } from '../lib/part-spec-core.mjs';
 import { handleAnalyze } from './ai.mjs';
 import { handleShare } from '../lib/share-core.mjs';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 
 const plain = (message, status) => new Response(message, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 const json = (obj, status = 200) => Response.json(obj, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -76,6 +78,12 @@ async function handleRecordsApi(req, repo, user) {
       const placements = await repo.getPlacementsForPart(placesFor, side);
       return json({ placements, part: placesFor });
     }
+    // 依料號查料號規格版本清單
+    const specsFor = url.searchParams.get('specs_for');
+    if (specsFor) {
+      const specs = await repo.getSpecsForPart(clean(specsFor, 64));
+      return json({ specs, part: specsFor });
+    }
 
     const kind = url.searchParams.get('kind') || 'spi';
     const part = url.searchParams.get('part') || null;
@@ -110,12 +118,26 @@ async function handleRecordsApi(req, repo, user) {
       return json({ error: '資料格式不正確（需為 gzip 壓縮）' }, 400);
     }
 
+    let bytes = rawBytes || bodyBuf.length, sha256 = clientSha, specNote = null;
+    // 料號規格：伺服器解壓並驗證本體（格式、數值、標準化、料號一致），指紋由伺服器計算
+    if (chk.meta.kind === 'spec') {
+      let raw;
+      try { raw = gunzipSync(bodyBuf, { maxOutputLength: MAX_SPEC_RAW }); } catch { return json({ error: '規格檔解壓失敗或超過上限' }, 400); }
+      const sc = checkSpecBody(raw, chk.meta);
+      if (sc.error) return json({ error: sc.error }, 400);
+      sha256 = createHash('sha256').update(raw).digest('hex');
+      if (sha256 !== clientSha) return json({ error: '規格檔指紋與 X-Raw-SHA256 不同' }, 400);
+      bytes = raw.length;
+      specNote = sc.spec.note; // 索引的備註一律取自已驗證的規格檔，不採用標頭欄位，避免同一版本有兩種說法
+    }
+
     const rec = {
       id: randomBytes(16).toString('base64url'),
       ...chk.meta,
-      bytes: rawBytes || bodyBuf.length,
+      ...(specNote != null ? { note: specNote } : {}),
+      bytes,
       gz_bytes: bodyBuf.length,
-      sha256: clientSha,
+      sha256,
       user,
       created: Date.now(),
     };
@@ -134,6 +156,11 @@ async function handleRecordsApi(req, repo, user) {
     }
     if (body.action === 'set_default_place') {
       const res = await repo.setDefaultPlacement(body.id, user);
+      if (res.error) return json(res, res.status || 500);
+      return json(res, 200);
+    }
+    if (body.action === 'set_default_spec') {
+      const res = await repo.setDefaultSpec(body.id, user);
       if (res.error) return json(res, res.status || 500);
       return json(res, 200);
     }
