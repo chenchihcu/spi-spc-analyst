@@ -127,87 +127,26 @@ test("D-57: 立榮寬表缺失 Component ID 欄位時拋出包含 4 項要素的
   assert.equal(unpivoted.tab.data.length, 4); // 2 pads x 2 boards
 });
 
-test("D-69 / TV-22: 機台判定碼自訂 codeMap 對照（例如 WARNING 映射為 OK）", () => {
-  const { hook } = createTestContext();
-
-  const tab = {
-    head: ["board", "pad", "volume", "height", "area", "result"],
-    data: [
-      ["B01", "P01", "100", "120", "100", "PASS"],
-      ["B01", "P02", "100", "120", "100", "WARNING"],
-      ["B01", "P03", "100", "120", "100", "CUSTOM_DEFECT"],
-      ["B01", "P04", "100", "120", "100", "UNKNOWN_CODE"]
-    ]
-  };
-  const map = { board: 0, pad: 1, volume: 2, height: 3, area: 4, result: 5 };
-
-  // 1. 不帶自訂 codeMap：WARNING 與 CUSTOM_DEFECT 視為 NG
-  const resDefault = hook.buildRows(tab, map);
-  assert.equal(resDefault.rows[0].mNG, false); // PASS -> OK
-  assert.equal(resDefault.rows[1].mNG, true);  // WARNING -> NG
-  assert.equal(resDefault.rows[2].mNG, true);  // CUSTOM_DEFECT -> NG
-
-  // 2. 帶有 codeMap: { warning: "ok", custom_defect: "ng" }
-  const resCustom = hook.buildRows(tab, map, {
-    codeMap: { warning: "ok", custom_defect: "ng" }
-  });
-  assert.equal(resCustom.rows[0].mNG, false); // PASS -> OK
-  assert.equal(resCustom.rows[1].mNG, false); // WARNING -> OK (透過 codeMap 映射)
-  assert.equal(resCustom.rows[2].mNG, true);  // CUSTOM_DEFECT -> NG
-  assert.equal(resCustom.rows[3].mNG, true);  // UNKNOWN_CODE -> NG
-});
-
-test("D-67 + D-71 / TV-23: 階梯鋼板推估規格窗重算 (recomputeMachineSpecs) 與涵蓋提示", () => {
+test("D-67 + D-71 / TV-23: 階梯鋼板依區域厚度 × 高度 % 判定，與涵蓋提示（規格不再由 PASS 範圍推估）", () => {
   const { hook, dom } = createTestContext();
   const S = hook.S;
 
-  // 構造 25 筆 OK 焊墊資料（高度在 110 ~ 130 之間分散以有變異）
+  // 構造 25 筆焊墊資料（高度在 110 ~ 130 之間分散以有變異）
   const rows = [];
   for (let i = 1; i <= 25; i++) {
-    rows.push({
-      board: "B01",
-      pad: "U1-" + i,
-      comp: "U1",
-      group: "U1",
-      x: 10 + i * 2,
-      y: 20,
-      w: 0.5,
-      d: 0.5,
-      height: 110 + (i % 5) * 5, // 110, 115, 120, 125, 130
-      volume: 100,
-      area: 100,
-      result: "PASS",
-      mNG: false
-    });
+    rows.push({ board: "B01", pad: "U1-" + i, comp: "U1", group: "U1", x: 10 + i * 2, y: 20, w: 0.5, d: 0.5, height: 110 + (i % 5) * 5, volume: 100, area: 100 });
   }
   S.rows = rows;
-  S.specSrc = "machine";
   S.stencil = 120;
-  S.step = { on: false, zones: [] };
-
-  // 1. 基礎厚度 120 µm 時推估 specs
-  hook.recomputeMachineSpecs();
-  assert.ok(S.specs.hpct);
-  const baseHpctLsl = S.specs.hpct.lsl;
-  const baseHpctUsl = S.specs.hpct.usl;
-  // 110 / 120 * 100 = 91.7%, 130 / 120 * 100 = 108.3%
-  assert.equal(baseHpctLsl, 91.7);
-  assert.equal(baseHpctUsl, 108.3);
-
-  // 2. 啟用階梯鋼板，將 U1 區域設定為 100 µm
-  S.step = {
-    on: true,
-    zones: [{ id: 1, name: "階梯區1", mode: "group", group: "U1", t: 100 }]
-  };
-
-  // 呼叫 zonesChanged 觸發 recomputeMachineSpecs
+  S.htol = { lo: 75, hi: 125 };
+  S.step = { on: true, zones: [{ id: 1, name: "階梯區1", mode: "group", group: "U1", t: 100 }] };
   hook.zonesChanged();
-
-  // 驗證 height / hpct 推估規格已重算：
-  // 在 100 µm 下，110 µm 高度的 hpct 為 110 / 100 * 100 = 110%
-  // 130 µm 高度的 hpct 為 130 / 100 * 100 = 130%
-  assert.equal(S.specs.hpct.lsl, 110);
-  assert.equal(S.specs.hpct.usl, 130);
+  // 規格不隨資料變動：高度 % 界限仍是使用者（示範）規格 75%–125%；區域厚度 100 µm → 高度界限 75–125 µm
+  assert.equal(S.specs.hpct.lsl, 75);
+  assert.equal(S.specs.hpct.usl, 125);
+  const lim = JSON.parse(JSON.stringify(dom.window.specFor(rows[0], "height", S)));
+  assert.equal(lim.lsl, 75); assert.equal(lim.usl, 125);
+  assert.equal(rows.filter((r) => dom.window.classify(r, S.specs, S).includes("HIH")).length, 5, "130 µm 的 5 筆超過 100 µm × 125%");
 
   // 3. 測試 renderZones 在找不到群組時插入（資料中沒有：...）選項
   S.step.zones.push({ id: 2, name: "無效區", mode: "group", group: "NON_EXISTENT", t: 150 });

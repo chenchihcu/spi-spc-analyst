@@ -169,10 +169,11 @@ test('D-53: UTC+8 timestamp and Compare MD volume CV% column', () => {
   assert.ok(html.includes('錫量 CV %'), 'btnCmpMd 報告表格應包含「錫量 CV %」欄位');
 });
 
-test('D-54 & D-55: DOE and AOI spec window disclosure notes', () => {
+test('D-54 & D-55: DOE disclosure; AOI window is reference only', () => {
   const html = fs.readFileSync(HTML, 'utf8');
   assert.ok(html.includes('註：各因子單獨檢定、未調整其他因子與交互作用。'), 'DOE 應標示單獨檢定未調整交互作用之揭露');
-  assert.ok(html.includes('AOI 建議窗（'), 'specSrcText 應揭露 AOI 建議窗來源');
+  assert.ok(html.includes('建議窗口只供參考，不會自動套用'), 'AOI 建議窗只供參考，不再直接套用成規格');
+  assert.ok(!html.includes('id="btnAoiApply"') && !html.includes('S.specSrc="aoi"'), 'AOI 建議窗不能當規格來源');
 });
 
 test('D-34: Inferred board disclosure across UI and reports', () => {
@@ -181,29 +182,9 @@ test('D-34: Inferred board disclosure across UI and reports', () => {
   assert.ok(html.includes('板號為推定（每 N 筆）') || html.includes('板號為推定（每'), '頂端狀態列與報告應揭露推定板號');
 });
 
-test('M-19: Work order spec parser and application', () => {
-  const { parseWorkorderSpec, applyWorkorderSpec, S } = core;
-
-  const jsonSpec = JSON.stringify({
-    part: 'TEST-PART-01',
-    specs: {
-      volume: { lsl: 60, target: 100, usl: 140 },
-      height: { lsl: 70, target: 110, usl: 150 }
-    }
-  });
-
-  const parsed = parseWorkorderSpec(jsonSpec, 'mes_spec.json');
-  assert.equal(parsed.part, 'TEST-PART-01');
-  assert.equal(parsed.fileName, 'mes_spec.json');
-  assert.equal(parsed.specs.volume.lsl, 60);
-  assert.equal(parsed.specs.volume.usl, 140);
-  assert.equal(parsed.specs.height.tgt, 110);
-
-  applyWorkorderSpec(parsed);
-  assert.equal(S.specSrc, 'workorder');
-  assert.equal(S.woSpecFile, 'mes_spec.json');
-  assert.equal(S.specs.volume.lsl, 60);
-  assert.equal(S.specs.volume.usl, 140);
+test('M-19（已移除）: 工單規格匯入不再提供，規格一律由使用者定義', () => {
+  const html = fs.readFileSync(HTML, 'utf8');
+  assert.ok(!/parseWorkorderSpec|applyWorkorderSpec|id="woSpecIn"/.test(html), '工單規格匯入已移除');
 });
 
 test('M-20: issuesXlsx OpenXML export and xlsxTable roundtrip', async () => {

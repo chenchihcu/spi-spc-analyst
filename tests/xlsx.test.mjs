@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML, withIdb } = require("./_load.js");
+const { HTML, withIdb, seedPartSpec } = require("./_load.js");
 const FIX = new URL("./fixtures/spi-sample.xlsx", import.meta.url);
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,6 +23,7 @@ function page(limits) {
     if (limits) w.SPI_TEST_LIMITS = limits;
     w.addEventListener("error", (e) => errs.push(e.message));
     withIdb(w);
+    w.SPI_TEST_HOOK = {};
   } });
   return { dom, errs };
 }
@@ -45,6 +46,7 @@ test("xlsx：略過空白說明頁、讀到資料頁、欄位自動對應、日�
   assert.match(d.querySelector("#toast")?.textContent || "", /SPI資料.*共 2 個工作表/);
   assert.equal(d.querySelector("#inRunName").value, "spi-sample");
   d.querySelector("#inLot").value = "X1"; d.querySelector("#inPart").value = "P1";
+  await seedPartSpec(w, "P1");
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 50 && w.eval("S.rows.length") !== 240; i++) await tick(20);
   assert.equal(w.eval("S.rows.length"), 240);

@@ -404,6 +404,7 @@ test('步驟 7 (D-19 & D-52): 觸控裝置 hitRadius: 24、toast <= 4s 含關閉
   SPI_TEST_HOOK.startImport(csv, 'dup.csv');
   document.getElementById('inLot').value = 'LOT-01';
   document.getElementById('inPart').value = 'PART-01';
+  document.getElementById('inImpStencil').value = '120';
 
   await document.getElementById('btnApply').onclick();
   const dupNotice = document.getElementById('impDupNotice');

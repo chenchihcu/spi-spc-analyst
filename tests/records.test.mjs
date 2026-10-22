@@ -60,6 +60,8 @@ test("必填欄位：量測紀錄需批號與料號，座標檔需料號與版�
   assert.equal(checkMeta({ kind: "place", part: "X3000", rev: "V5", comps: 1000 }).meta.rev, "V5");
   assert.equal(checkMeta(spi({ lot: "<b>L1</b>" })).meta.lot, "bL1/b");
   assert.equal(checkMeta(spi({ placeId: "bad" })).meta.placeId, "");
+  assert.equal(checkMeta(spi({ stencil: 120 })).meta.stencil, 120, "匯入時填寫的鋼板厚度存入紀錄");
+  assert.equal(checkMeta(spi({ stencil: 9999 })).meta.stencil, 0, "超出 30–300 µm 不存");
 });
 
 test("不能修改：PUT／PATCH 一律拒絕，紀錄不變", async () => {

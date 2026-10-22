@@ -1,4 +1,4 @@
-// v9.10 統計稽核修正：能力指標、P' 圖、判異規則範圍、機台規格、擦拭相位、量測一致性、失效模式交叉比對
+// v9.10 統計稽核修正：能力指標、P' 圖、判異規則範圍、料號規格群組覆寫、擦拭相位、量測一致性、失效模式交叉比對
 // 全部使用合成資料（不含客戶資料）
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -80,17 +80,6 @@ test("判異規則：P' 圖只用 1–4、EWMA／CUSUM 只用規則 1；管制�
   assert.ok(p.nel.rules.filter((r) => r.na).every((r) => r.idx.length === 0), "不適用規則不得有觸發點");
   assert.equal(p.nelX.flag.size, x.nel.flag.size, "穩定性判斷與所選管制圖無關");
   assert.equal(p.stable, x.stable);
-});
-
-test("規格來源：與機台判定一致時好壞以機台為準，規格窗推估自 PASS 範圍", () => {
-  const rows = synth({ nb: 8 }).map((r, i) => ({ ...r, result: i % 97 === 0 ? "FAIL" : "PASS", mNG: i % 97 === 0 }));
-  const m = c.machineSpecs(rows, st(rows), c.DEF_SPECS);
-  const pass = rows.filter((r) => !r.mNG).map((r) => r.volume);
-  assert.ok(m.specs.volume.lsl <= Math.min(...pass) && m.specs.volume.usl >= Math.max(...pass));
-  assert.equal(m.specs.volume.lsl, Math.min(...pass), "不向外取整：規格窗就是 PASS 實際範圍（能力為下限）");
-  const S = st(rows, { specSrc: "machine", specs: m.specs });
-  assert.ok(rows.every((r) => (c.classify(r, S.specs, S).length > 0) === r.mNG), "判定與機台完全一致");
-  assert.deepEqual([...c.classify({ ...rows[0], mNG: true, volume: 100, area: 100, height: 120, offx: 0, offy: 0 }, S.specs, S)], ["MNG"]);
 });
 
 test("擦拭週期：未知第一次擦拭位置時，相位掃描找回擦拭後第 1 片並校正 p 值", () => {
@@ -177,26 +166,16 @@ test("進階分析刮刀比較：資料有方向欄位時依欄位分組（與�
   assert.equal(V2.strokeFromField, false);
 });
 
-test("機台規格：群組某量測項目有效值不足 20 筆時沿用全板推估；試產比較整體 Ppk 取最差群組", () => {
-  const rows = synth({ nb: 8 }).map((r, i) => ({ ...r, result: "PASS", mNG: false, area: r.group === "FINE" && i % 50 ? null : r.area }));
-  const m = c.machineSpecs(rows, st(rows), c.DEF_SPECS);
-  assert.deepEqual({ ...m.groups.FINE.area }, { ...m.specs.area }, "FINE 面積有效值不足，沿用全板");
-  assert.notDeepEqual({ ...m.groups.FINE.volume }, { ...m.specs.volume }, "FINE 體積有足夠資料，用群組推估");
-  const S = st(rows, { specSrc: "machine", specs: m.specs, specsG: m.groups });
+test("料號規格群組覆寫：只覆寫的項目用群組規格、其餘沿用全板；試產比較整體 Ppk 取最差群組", () => {
+  const rows = synth({ nb: 8 });
+  const base = JSON.parse(JSON.stringify(c.DEF_SPECS)), G = c.buildPartSpecsG(base, { FINE: { volume: { lsl: 85, tgt: 100, usl: 115 } } }, 120);
+  assert.deepEqual({ ...G.FINE.area }, { ...base.area }, "FINE 面積未覆寫，沿用全板");
+  assert.equal(G.FINE.volume.lsl, 85, "FINE 體積用群組覆寫");
+  const S = st(rows, { specSrc: "part", partSpec: { id: "x" }, specs: base, specsG: G });
   const out = c.compareRuns(S, S, "volume"), all = out.find((x) => x.g === "整體");
   const worst = Math.min(...out.filter((x) => x.g !== "整體").map((x) => x.a.ppk));
   assert.equal(all.a.ppk, worst);
 });
-
-test("機台模式：沒有判定碼的焊墊與不良歸類用該群組的推估規格", () => {
-  const base = JSON.parse(JSON.stringify(c.DEF_SPECS)), G = { A: JSON.parse(JSON.stringify(base)) };
-  G.A.volume = { lsl: 95, usl: 105, tgt: 100 };
-  const S = { specSrc: "machine", specsG: G, specs: base, step: { on: false }, stencil: 120 };
-  const r = { group: "A", volume: 90, area: 100, height: 120, offx: 0, offy: 0 };
-  assert.deepEqual([...c.classify(r, base, S)], ["INS"], "群組規格 95–105 下 90 為少錫");
-  assert.deepEqual([...c.classify({ ...r, group: "B" }, base, S)], [], "其他群組沿用共用規格 70–130");
-});
-
 test("刮刀方向欄位不完整（只有一種方向）時不以奇偶推定、也不做方向比較", () => {
   const rows = c.sampleData().map((r) => ({ ...r, stroke: "前" })), S = st(rows), A = c.analyze(S), V = c.advAnalyze(S, A);
   assert.equal(V.stroke, null);
