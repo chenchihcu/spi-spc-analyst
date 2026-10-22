@@ -130,14 +130,14 @@
 | `name` | `規格_<料號>.json` |
 | `meta` | `{ isDefault, note, basedOn }`（`basedOn`＝來源版本 id） |
 
-- 版本號 v1…vn 由同料號依建立時間排序推得，不存欄位。
+- 版本號存於 `meta.ver`：建立時在同一句 INSERT 內取同料號現存最大值 +1（P1 實作；刪除其他版本不會讓既有版本改號，但刪除最新版後新版本會接續現存最大值）。
 - 內容完全相同時，既有重複判定（`idx_records_same_file`、`findDuplicate`）回 409，不會產生重複版本。
 
 ### 3.3 後端（只新增 kind 值與動作，不改既有欄位）
 | 檔案 | 修改 |
 |---|---|
 | `lib/records-core.mjs` `checkMeta` | 接受 `kind:"spec"`：必填 `part`，`isDefault`、`note`、`basedOn` |
-| `lib/repo.mjs` | `setDefaultPlacement` 抽成 `setDefault(id, kind, user)`（place 依 part＋side、spec 依 part），原函式保留為包裝；新增 `getSpecsForPart(part)` |
+| `lib/repo.mjs` | 新增 `setDefaultSpec(id, user)`、`getSpecsForPart(part)`；`setDefaultPlacement` 不變（P1 實作：未合併成共用函式，避免改動座標檔行為） |
 | `cloudflare/worker.mjs` | `GET /api/records?specs_for=<料號>` → `{ specs, part }`；`PATCH action:"set_default_spec"`；`set_default_place` 不變 |
 | 權限 | 刪除沿用「只有建立者」；建立、設為預設、刪除都寫 `audit_log` |
 | Migration | **不需要** |

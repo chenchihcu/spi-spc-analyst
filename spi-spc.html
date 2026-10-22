@@ -658,7 +658,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.13.5</b> · 更新 <b class="num" id="appBuilt">2026-10-22 14:57:18</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v9.14.0</b> · 更新 <b class="num" id="appBuilt">2026-10-22 16:23:15</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -1427,7 +1427,7 @@ textarea{width:100%;min-height:140px;font-family:var(--f-mono);font-size:12px}
       </div>
 
       <div class="sheet-ver-info">
-        <p>SPI·SPC 分析台 <b>v9.13.5</b></p>
+        <p>SPI·SPC 分析台 <b>v9.14.0</b></p>
         <p>最後更新：2026-10-18 13:00:00</p>
       </div>
     </div>
@@ -2229,6 +2229,39 @@ function parseWorkorderSpec(text, fileName="workorder_spec.json"){
   }
   return { ...res, fileName };
 }
+/* 料號規格（kind:"spec"）本體：驗證與標準化序列化（鍵排序、無空白）。與伺服器端 lib/part-spec-core.mjs 同一套規則（測試會核對兩邊一致） */
+const PART_SPEC_SCHEMA="spi-part-spec/1",PART_SPEC_METRICS=["volume","hpct","area","offx","offy"],PART_SPEC_MAX_GROUPS=500;
+const PART_SPEC_LABEL={volume:"體積",hpct:"高度 %",area:"面積",offx:"X 偏移",offy:"Y 偏移"};
+const specClean=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\u007f]/g,"").trim().slice(0,n);
+function partSpecWin(w,where){if(!w||typeof w!=="object"||Array.isArray(w))return{error:`${where} 格式不正確`};
+  const lsl=typeof w.lsl==="number"?w.lsl:NaN,usl=typeof w.usl==="number"?w.usl:NaN;
+  if(!Number.isFinite(lsl)||!Number.isFinite(usl))return{error:`${where} 的 LSL／USL 必須是數字`};
+  if(!(lsl<usl))return{error:`${where} 的 LSL 必須小於 USL`};
+  let tgt=null;if(w.tgt!=null){tgt=typeof w.tgt==="number"?w.tgt:NaN;if(!Number.isFinite(tgt)||tgt<lsl||tgt>usl)return{error:`${where} 的目標必須介於 LSL 與 USL 之間`}}
+  return{w:{lsl,tgt,usl}}}
+function partSpecCheck(o){if(!o||typeof o!=="object"||Array.isArray(o))return{error:"規格檔格式不正確"};
+  if(o.schema!==PART_SPEC_SCHEMA)return{error:`規格檔版本必須是 ${PART_SPEC_SCHEMA}`};
+  const part=specClean(o.part,64);if(!part)return{error:"規格檔缺少產品料號"};
+  if(!o.specs||typeof o.specs!=="object")return{error:"規格檔缺少全板規格"};
+  const specs={};for(const k of PART_SPEC_METRICS){const r=partSpecWin(o.specs[k],`全板 ${PART_SPEC_LABEL[k]}`);if(r.error)return r;specs[k]=r.w}
+  const groups={};
+  if(o.groups!=null){if(typeof o.groups!=="object"||Array.isArray(o.groups))return{error:"群組覆寫格式不正確"};
+    const keys=Object.keys(o.groups);if(keys.length>PART_SPEC_MAX_GROUPS)return{error:`群組覆寫最多 ${PART_SPEC_MAX_GROUPS} 個`};
+    for(const g0 of keys){const g=specClean(g0,64),src=o.groups[g0];if(!g)return{error:"群組覆寫的群組名稱不可空白"};
+      if(!src||typeof src!=="object"||Array.isArray(src))return{error:`群組 ${g} 格式不正確`};
+      const ov={};for(const k of Object.keys(src)){if(!PART_SPEC_METRICS.includes(k))return{error:`群組 ${g} 的量測項目 ${specClean(k,32)} 不支援`};const r=partSpecWin(src[k],`群組 ${g} ${PART_SPEC_LABEL[k]}`);if(r.error)return r;ov[k]=r.w}
+      if(!Object.keys(ov).length)continue;groups[g]={...(groups[g]||{}),...ov}}}
+  const sr=typeof o.stencilRef==="number"&&Number.isFinite(o.stencilRef)&&o.stencilRef>=30&&o.stencilRef<=300?o.stencilRef:null;
+  return{spec:{schema:PART_SPEC_SCHEMA,part,stencilRef:sr,specs,groups,note:specClean(o.note,200)}}}
+function partSpecCanon(v){if(Array.isArray(v))return"["+v.map(partSpecCanon).join(",")+"]";
+  if(v&&typeof v==="object")return"{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+partSpecCanon(v[k])).join(",")+"}";return JSON.stringify(v)}
+/* 由規格物件產生要存入資料庫的位元組（標準化 JSON 的 UTF-8）；不合格時回傳 error */
+function partSpecEncode(o){const chk=partSpecCheck(o);if(chk.error)return chk;return{spec:chk.spec,bytes:new TextEncoder().encode(partSpecCanon(chk.spec))}}
+/* 存檔前核對本體（同伺服器 checkSpecBody）：可解析、通過驗證、已標準化、料號與紀錄欄位相同 */
+function partSpecBodyCheck(u8,meta){if(!u8||u8.length>256*1024)return{error:"規格檔超過上限 256 KB"};let text,o;
+  try{text=new TextDecoder("utf-8",{fatal:true}).decode(u8);o=JSON.parse(text)}catch(e){return{error:"規格檔不是有效的 JSON"}}
+  const chk=partSpecCheck(o);if(chk.error)return chk;if(partSpecCanon(chk.spec)!==text)return{error:"規格檔必須是標準化格式（請由系統產生）"};
+  if(chk.spec.part!==meta.part)return{error:"規格檔的產品料號與紀錄欄位不同"};return{spec:chk.spec}}
 function applyWorkorderSpec(parsed){
   if(!parsed||!parsed.specs)return;
   for(const k of Object.keys(parsed.specs)){
@@ -4709,7 +4742,7 @@ function issuesXlsx(F){
   ]);
 }
 
-if(typeof module!=="undefined")module.exports={rescaleHpct,sampleData,analyze,rowsFingerprint,anKey,anHas,anPutKey,anWork,anUnpack,clsSig,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
+if(typeof module!=="undefined")module.exports={rescaleHpct,sampleData,analyze,rowsFingerprint,anKey,anHas,anPutKey,anWork,anUnpack,clsSig,S,nelson,machineSpecs,specOfGroup,specClassify,wipeScan,msaCheck,failureModes,crossValidate,Phi,andersonDarling,c4,parseCSV,DEF_SPECS,padThk,classify,advAnalyze,alignFit,welch,tP,aperture,areaRatio,maxThkForAR,detectIssues,overallVerdict,compareRuns,dfmTable,parseAOI,sampleAOI,aoiCorr,doeAnalyze,parseGRR,sampleGRR,grrAnalyze,samplePhmeCSV,csvTable,autoMap,guessOpts,buildRows,strokeOf,realXY,ALL_GRP,isAllGrp,FIELDS,NUMF,normH,resolutionOf,isoStat,isoScan,poissonSf,strokeCalP,wipeCalP,GEN_TABLE,genRow,issuesCsv,ISS_CSV_COLS,fastMcd2D,passFailMatrix,buildStatsData,statsDataCsv,hotellingT2,shapiroWilk,computeXbarR,AIAG_CONSTANTS,SPI_PROCESS_KB_RULES,fmtNowUtc8,formatUtc8Date,parseWorkorderSpec,applyWorkorderSpec,issuesXlsx,createZipStored,applyTimeFilter,partSpecCheck,partSpecCanon,partSpecEncode,partSpecBodyCheck,PART_SPEC_SCHEMA,PART_SPEC_METRICS,fitBoxCox,fitJohnson,fitIsoPercentile,calcNonNormalCapability,analyzePauseDecay,calcMoranAndLISA,calcPrinterCorrection,mean,sd,wipeStat,wipeStatBuf,selMed};
 </script>
 <script>
 "use strict";
@@ -7310,6 +7343,8 @@ function recCheck(m){const c=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\
     o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"};
     if(m.qualitySnapshot)o.qualitySnapshot=m.qualitySnapshot;
     if(m.placeMatch)o.placeMatch=m.placeMatch;
+  }else if(m.kind==="spec"){
+    o.name=o.name||"料號規格.json";o.note=c(m.note,200);o.basedOn=/^[A-Za-z0-9_-]{22}$/.test(m.basedOn||"")?m.basedOn:"";o.makeDefault=Boolean(m.makeDefault);
   }else{
     o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"};
     o.side=m.side==="TOP"||m.side==="BOT"?m.side:"";
@@ -7328,9 +7363,21 @@ const LocalRec={db:null,
   req(r){return new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})},
   async index(){return this.tx(["meta"],"readonly",t=>this.req(t.objectStore("meta").getAll()))},
   async create(meta,u8,user){const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);
-    const rec={...chk.meta,id:newRecId(),bytes:u8.length,sha256:await sha256Hex(u8),user,created:Date.now()};
-    const dup=(await this.index()).find(r=>recSame(r,rec));if(dup){const e=new Error("這個檔案已經存過（相同內容與相同回溯欄位）");e.existing=dup.id;e.status=409;throw e}
-    await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").put(u8,rec.id);t.objectStore("meta").put(rec);t.objectStore("log").add({action:"create",at:rec.created,by:user,id:rec.id,kind:rec.kind,lot:rec.lot||"",supplierWo:rec.supplierWo||"",outsourceWo:rec.outsourceWo||"",part:rec.part,rev:rec.rev||"",name:rec.name,sha256:rec.sha256,bytes:rec.bytes})});return rec},
+    const{makeDefault,...m0}=chk.meta,rec={...m0,id:newRecId(),bytes:u8.length,sha256:await sha256Hex(u8),user,created:Date.now()};
+    const all=await this.index(),dup=all.find(r=>recSame(r,rec));if(dup){const e=new Error("這個檔案已經存過（相同內容與相同回溯欄位）");e.existing=dup.id;e.status=409;throw e}
+    /* 料號規格：與雲端相同的本體驗證；版本號依同料號遞增；設為預設時在同一個交易清掉其他預設並記錄切換 */
+    let prev=[];if(rec.kind==="spec"){const sc=partSpecBodyCheck(u8,rec);if(sc.error)throw new Error(sc.error);
+      const same=all.filter(r=>r.kind==="spec"&&r.part===rec.part);rec.ver=Math.max(0,...same.map(r=>r.ver||0))+1;rec.isDefault=Boolean(makeDefault);
+      if(makeDefault)prev=same.filter(r=>r.isDefault)}
+    await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").put(u8,rec.id);t.objectStore("meta").put(rec);t.objectStore("log").add({action:"create",at:rec.created,by:user,id:rec.id,kind:rec.kind,lot:rec.lot||"",supplierWo:rec.supplierWo||"",outsourceWo:rec.outsourceWo||"",part:rec.part,rev:rec.rev||"",name:rec.name,sha256:rec.sha256,bytes:rec.bytes});
+      if(rec.kind==="spec"&&makeDefault)this.specSwitch(t,prev,rec,user,rec.created)});return rec},
+  /* 在交易 t 內把 to 設為同料號唯一預設版，稽核記錄前後版本 */
+  specSwitch(t,prev,to,user,at){for(const r of prev)if(r.id!==to.id){r.isDefault=false;t.objectStore("meta").put(r)}
+    t.objectStore("log").add({action:"set_default_spec",at,by:user,id:to.id,kind:"spec",part:to.part,rev:"",name:to.name,sha256:to.sha256,bytes:to.bytes,from:prev.map(r=>r.id).filter(x=>x!==to.id),to:to.id})},
+  async setDefaultSpec(id,user){const all=await this.index(),hit=all.find(x=>x.id===id);if(!hit||hit.kind!=="spec")throw new Error("找不到指定的料號規格");
+    const prev=all.filter(r=>r.kind==="spec"&&r.part===hit.part&&r.isDefault);if(prev.length===1&&prev[0].id===id)return{success:true,defaultId:id,part:hit.part,unchanged:true};
+    await this.tx(["meta","log"],"readwrite",t=>{hit.isDefault=true;t.objectStore("meta").put(hit);this.specSwitch(t,prev,hit,user,Date.now())});
+    return{success:true,defaultId:id,part:hit.part,from:prev.map(r=>r.id).filter(x=>x!==id)}},
   async get(id){return this.tx(["files"],"readonly",t=>this.req(t.objectStore("files").get(id)))},
   async del(id,user){const all=await this.index(),r=all.find(x=>x.id===id);if(!r)throw new Error("找不到這筆紀錄（可能已被刪除）");if(r.user!==user)throw new Error(`只有上傳者（${r.user}）可以刪除這筆紀錄`);
     await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").delete(id);t.objectStore("meta").delete(id);t.objectStore("log").add({action:"delete",at:Date.now(),by:user,id,kind:r.kind,lot:r.lot||"",part:r.part,rev:r.rev||"",name:r.name,sha256:r.sha256,bytes:r.bytes,uploaded:r.created})})},
@@ -7340,6 +7387,7 @@ var RecDB={mode:"local",me:"本機",cache:null,ready:null,
   async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));e.existing=j.existing;e.status=r.status;throw e}return j},
   async list(){await this.ready;let l;if(this.mode==="cloud"){const j=await this.jfetch("/api/records?limit=100");this.me=j.me||this.me;l=j.records||[]}else l=(await LocalRec.index()).sort((a,b)=>b.created-a.created);return this.cache=l.map(r=>deepClean(r))},
   async create(meta,bytes){await this.ready;const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
+    if(chk.meta.kind==="spec"){const sc=partSpecBodyCheck(u8,chk.meta);if(sc.error)throw new Error(sc.error)}
     if(this.mode==="cloud"){
       if(!window.CompressionStream)throw new Error("此瀏覽器不支援 CompressionStream，請更新瀏覽器");
       const clientSha=await sha256Hex(u8);
@@ -7383,6 +7431,14 @@ var RecDB={mode:"local",me:"本機",cache:null,ready:null,
     }
     return {success:true,defaultId:id};
   },
+  /* 料號規格：依料號列出版本（新到舊；欄位 ver、isDefault、note、basedOn） */
+  async specsFor(part){await this.ready;if(!part)return[];
+    if(this.mode==="cloud")return((await this.jfetch("/api/records?specs_for="+encodeURIComponent(part))).specs||[]).map(r=>deepClean(r));
+    return(await LocalRec.index()).filter(r=>r.kind==="spec"&&r.part===part).sort((a,b)=>b.created-a.created).map(r=>deepClean({id:r.id,kind:"spec",part:r.part,name:r.name,user:r.user,created:r.created,bytes:r.bytes,sha256:r.sha256,ver:r.ver||0,isDefault:Boolean(r.isDefault),note:r.note||"",basedOn:r.basedOn||""}))},
+  /* 料號規格設為預設：任何登入者都可以；同料號只留一個預設並記錄切換 */
+  async setDefaultSpec(id){await this.ready;this.cache=null;
+    if(this.mode==="cloud")return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"set_default_spec",id})});
+    return LocalRec.setDefaultSpec(id,this.me)},
   async updateMeta(id,patch){
     await this.ready;this.cache=null;
     if(this.mode==="cloud"){
