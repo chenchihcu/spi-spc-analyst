@@ -150,3 +150,73 @@ test("立榮格式高度 % 匯入後改鋼板厚度：µm 高度依比例換算�
   assert.ok(Math.abs(pick1().height - 122.4) < 1e-9, "改回 120 µm 換回原值");
   assert.deepEqual(errs, []);
 });
+
+test("v9.13.3 前匯入的高度 % 回合（沒有 hPctThk）：回合管理與試產比較顯示警示，重新匯入後取代並消失", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page();
+  await tick(60);
+  const w = dom.window, d = w.document, H = "SPI_TEST_HOOK";
+  setVendor(dom, "lirong");
+  await pick(dom, "#fileIn", "DEMO-03_TOP_spi.csv", Buffer.from(WIDE));
+  d.querySelector("#inLot").value = "LOT-C"; d.querySelector("#inPart").value = "DEMO-03";
+  await seedPartSpec(w, "DEMO-03");
+  d.querySelector("#btnApply").click();
+  for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
+  const id = w.eval("S.runId");
+  assert.ok(w.eval("!!S.runs.find((r) => r.id === S.runId).info.src"), "匯入後回合連結資料庫原始檔");
+  const runsTab = () => d.querySelector('#p-data .subtab[data-sub="runs"]');
+  const waitFor = async (fn) => { for (let i = 0; i < 100 && !fn(); i++) await tick(20); return fn(); };
+
+  w.eval(`${H}.setTab("data")`); runsTab().click();
+  await tick(100);
+  assert.equal(d.querySelector("#runLegacy").hidden, true, "新版匯入（有 hPctThk）不警示");
+
+  // 模擬舊版回合：拿掉換算厚度紀錄
+  w.eval("delete S.runs.find((r) => r.id === S.runId).info.hPctThk");
+  runsTab().click();
+  assert.ok(await waitFor(() => !d.querySelector("#runLegacy").hidden), "回合管理顯示警示");
+  assert.match(d.querySelector("#runLegacy").textContent, /舊版匯入的高度 % 資料.*重新匯入原始檔/);
+  assert.match(d.querySelector("#runTbl").textContent, /高度需重新匯入/);
+
+  // 試產比較：與範例回合比較時也警示，並說明差異可能只是換算厚度不同
+  w.eval(`S.cmpA = ${id}; S.cmpB = S.runs.find((r) => r.sample).id; ${H}.setTab("compare")`);
+  await tick(100);
+  assert.equal(d.querySelector("#cmpLegacy").hidden, false, "試產比較顯示警示");
+  assert.match(d.querySelector("#cmpLegacy").textContent, /差異可能只是換算厚度不同/);
+  w.eval(`S.cmpA = S.runs.filter((r) => r.sample)[0].id; S.cmpB = S.runs.filter((r) => r.sample)[1].id; ${H}.setTab("compare")`);
+  await tick(100);
+  assert.equal(d.querySelector("#cmpLegacy").hidden, true, "比較的兩個回合都正常時不警示");
+
+  // 重新匯入：開啟原始檔並預選「取代目前回合」，套用後回合記下厚度、警示消失
+  w.eval(`${H}.setTab("data")`); runsTab().click();
+  await waitFor(() => d.querySelector("#runLegacy [data-reimp]"));
+  d.querySelector("#runLegacy [data-reimp]").click();
+  assert.ok(await waitFor(() => !d.querySelector("#mapBox").hidden), "開啟原始檔的匯入預覽");
+  assert.equal(d.querySelector("input[name=impMode][value=replace]").checked, true, "預選取代目前回合");
+  const n = w.eval("S.runs.length");
+  await d.querySelector("#btnApply").onclick();
+  await tick(100);
+  assert.equal(w.eval("S.runs.length"), n, "取代而非新增回合");
+  assert.equal(w.eval(`S.runs.find((r) => r.id === ${id}).info.hPctThk`), 120, "重新匯入後記下換算厚度");
+  w.eval(`${H}.setTab("data")`); runsTab().click();
+  await tick(100);
+  assert.equal(d.querySelector("#runLegacy").hidden, true, "重新匯入後不再警示");
+  assert.deepEqual(errs, []);
+});
+
+test("沒有 hPctThk 但來源不是高度 % 格式（通用格式）的回合不警示", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = page();
+  await tick(60);
+  const w = dom.window, d = w.document;
+  const csv = ["Board,Pad,Volume,Height,Area", ...[1, 2, 3, 4, 5].flatMap((b) => ["C1-1", "C1-2", "R2-1"].map((p, i) => `B${b},${p},${100 + i},${120 + b},${98 + i}`))].join("\n");
+  await pick(dom, "#fileIn", "DEMO-04_TOP_spi.csv", Buffer.from(csv));
+  d.querySelector("#inLot").value = "LOT-D"; d.querySelector("#inPart").value = "DEMO-04";
+  await seedPartSpec(w, "DEMO-04");
+  d.querySelector("#btnApply").click();
+  for (let i = 0; i < 100 && w.eval("S.rows.length") !== 15; i++) await tick(20);
+  assert.equal(w.eval("S.runs.find((r) => r.id === S.runId).info.hPctThk"), undefined, "通用格式本來就沒有 hPctThk");
+  w.eval(`SPI_TEST_HOOK.setTab("data")`); d.querySelector('#p-data .subtab[data-sub="runs"]').click();
+  await tick(300);
+  assert.equal(d.querySelector("#runLegacy").hidden, true);
+  assert.doesNotMatch(d.querySelector("#runTbl").textContent, /高度需重新匯入/);
+  assert.deepEqual(errs, []);
+});

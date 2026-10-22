@@ -659,7 +659,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.1.0</b> · 更新 <b class="num" id="appBuilt">2026-10-22 21:25:20</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.1.1</b> · 更新 <b class="num" id="appBuilt">2026-10-22 22:15:40</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
@@ -1015,6 +1015,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
       <button id="btnCmpMd">匯出比較報告 .md</button>
     </div>
     <div class="verdict" id="cmpVerdict" style="margin-top:12px"><div class="mark"></div><div><h2 id="cmpTitle"></h2><p id="cmpText"></p></div></div>
+    <div id="cmpLegacy" role="status" hidden></div>
     <div class="tbl" style="margin-top:12px"><table id="cmpTbl"></table></div>
   </div>
   <div class="grid2">
@@ -1224,6 +1225,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   </div>
   <div class="grid2" data-sub="runs" hidden>
     <div class="card"><h3>試產回合管理 <small id="runSaveNote">回合資料保存在這台電腦的瀏覽器，重新整理不會遺失</small></h3>
+      <div id="runLegacy" role="status" hidden></div>
       <div class="tbl"><table id="runTbl"></table></div>
       <div class="row" style="margin-top:8px"><button id="btnAddB">新增範例：改版 B 回合</button><button id="btnSample">還原範例並清除已保存的回合</button></div></div>
   </div>
@@ -4892,6 +4894,28 @@ function applyStencil(t,lo,hi){if(isFinite(t)&&t>0){S.stencil=t;stencilRescale()
 function stencilRescale(){const run=curRun(),thk=run&&run.info&&run.info.hPctThk;if(!thk||thk===S.stencil)return;
   const rows=new Set([...(run._rawRows||[]),...run.rows,...(S._rawRows||[]),...S.rows]);const n=rescaleHpct(rows,thk,S.stencil,S);run.info.hPctThk=S.stencil;
   if(n)toast(`原始資料為高度 %：已依新鋼板厚度 ${S.stencil} µm 換算 ${n.toLocaleString()} 筆高度（µm），高度 % 不變`)}
+/* v9.13.3 前匯入的高度 % 回合沒有記下換算厚度（info.hPctThk），改鋼板厚度時 µm 高度不會跟著換算，也無從補算。
+   依來源原始檔表頭判斷是否為高度 % 橫排格式；結果依檔案指紋快取，每份原始檔只取回一次（失敗也不重試） */
+const HPCT_SRC=new Map();let hpctBusy=false;
+const hpctKey=r=>{const s=r&&r.info&&r.info.src;return s&&!r.info.hPctThk&&!r.sample?(s.sha256||s.id):null};
+function legacyHpct(r){const k=hpctKey(r);return!!k&&HPCT_SRC.get(k)===true}
+function hpctHead(head){const w=wideCols(head);return!!(w&&w.bases.some(b=>wideRole(b)==="h"&&/%/.test(b)))}
+async function probeLegacyHpct(){if(hpctBusy)return;hpctBusy=true;let hit=false;
+  try{for(;;){const r=(S.runs||[]).find(x=>{const k=hpctKey(x);return k&&!HPCT_SRC.has(k)});if(!r)break;const k=hpctKey(r);HPCT_SRC.set(k,false);
+    try{const rec=await recFind(r.info.src.id);if(!rec)continue;const g=await RecDB.get(rec);if(!g.ok)continue;
+      const head=/\.xlsx$/i.test(rec.name)?(await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length))).tab.head:csvTable(decodeBytes(g.bytes)).head;
+      if(hpctHead(head)){HPCT_SRC.set(k,true);hit=true}}catch(e){}}}
+  finally{hpctBusy=false}
+  if(hit){renderRuns();if(S.tab==="compare")renderCompare()}}
+function legacyHpctNote(box,runs,cmp){const L=runs.filter(legacyHpct);box.hidden=!L.length;if(!L.length){box.innerHTML="";return}
+  box.innerHTML=`<p class="note" style="margin:8px 0"><span class="pill warn">注意</span> ${L.map(r=>`「${esc(r.name)}」`).join("、")}是舊版匯入的高度 % 資料，當時換算 µm 高度用的鋼板厚度沒有記錄，無法自動修正：之後改過鋼板厚度的話，高度、高度 % 與相關判定都可能偏差${cmp?"，這次比較的差異可能只是換算厚度不同，不代表製程變化":""}。請從資料庫重新匯入原始檔，取代這個回合。</p><div class="row">${L.map(r=>`<button data-reimp="${r.id}">重新匯入${L.length>1?`「${esc(r.name)}」`:""}</button>`).join("")}</div>`;
+  box.querySelectorAll("[data-reimp]").forEach(b=>b.onclick=()=>reimportRun(+b.dataset.reimp))}
+/* 先切到該回合，再開啟原始檔並預選「取代目前回合」；確認鋼板厚度後由使用者按「套用匯入」 */
+async function reimportRun(id){const r=S.runs.find(x=>x.id===id);if(!r)return;
+  const rec=await recFind(r.info.src.id,true).catch(()=>null);if(!rec){toast("資料庫找不到這個回合的原始檔，請到「匯入與規格」手動重新匯入");return}
+  if(S.runId!==id)switchRun(id);setTab("data");await openRecord(rec);if(!IMP||IMP.err)return;
+  const rp=document.querySelector("input[name=impMode][value=replace]");if(rp)rp.checked=true;
+  toast(`已開啟「${r.name}」的原始檔：確認鋼板厚度後按「套用匯入」，會取代這個回合`)}
 $("#inStencil2").onchange=e=>applyStencil(parseFloat(e.target.value));
 /* ---------- 效能量測：網址加 ?perf=1 或 localStorage「spi-perf」設為 1 時，於主控台列出各步驟耗時；預設完全不輸出 ---------- */
 const PERF_ON=(()=>{try{return /[?&]perf=1\b/.test(location.search)||localStorage.getItem("spi-perf")==="1"}catch(e){return false}})(),PERF_LOG=[];let perfT=0;
@@ -6004,7 +6028,7 @@ let CMP=null;
 function runIssues(run,st){if(run.id===S.runId&&S.F&&!S.F.pending&&S.F.rowsRef===run.rows)return S.F;
   const k=JSON.stringify([run.rows.length,st.specs,st.stencil,st.htol,st.step,st.aperture,st.wipe]);
   if(run._F&&run._Fk===k&&run._Fr===run.rows)return run._F;run._F=detectIssues(st);run._Fk=k;run._Fr=run.rows;return run._F}
-function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTitle").textContent="需要至少兩個試產回合";$("#cmpText").textContent="到「資料與規格」匯入第二份 SPI 資料（選「新增為新回合」），或新增範例 B 回合。";$("#cmpVerdict").className="verdict warn";return}
+function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpLegacy").hidden=true;$("#cmpTitle").textContent="需要至少兩個試產回合";$("#cmpText").textContent="到「資料與規格」匯入第二份 SPI 資料（選「新增為新回合」），或新增範例 B 回合。";$("#cmpVerdict").className="verdict warn";return}
   const ids=S.runs.map(r=>[String(r.id),r.name]);if(!S.runs.some(r=>r.id===S.cmpA))S.cmpA=S.runs[0].id;if(!S.runs.some(r=>r.id===S.cmpB)||S.cmpB===S.cmpA)S.cmpB=(S.runs.find(r=>r.id!==S.cmpA)).id;
   fillSelect($("#cmpA"),ids,String(S.cmpA));fillSelect($("#cmpB"),ids,String(S.cmpB));
   const ra=S.runs.find(r=>r.id===S.cmpA),rb=S.runs.find(r=>r.id===S.cmpB),ms=ra.metrics.filter(k=>rb.metrics.includes(k));if(!ms.includes(S.cmpM))S.cmpM=ms.includes("volume")?"volume":ms[0];
@@ -6012,6 +6036,7 @@ function renderCompare(){if(S.runs.length<2){$("#cmpTbl").innerHTML="";$("#cmpTi
   const sa=runState(ra),sb=runState(rb),R=compareRuns(sa,sb,S.cmpM),all=R.find(x=>x.g==="整體"),gs=R.filter(x=>x.g!=="整體");
   const FA=runIssues(ra,sa),FB=runIssues(rb,sb);
   CMP={ra,rb,R,FA,FB};
+  legacyHpctNote($("#cmpLegacy"),[ra,rb],true);probeLegacyHpct();
   const lv={改善:"ok",惡化:"ng",有好有壞:"warn",無顯著差異:"warn"}[all.verdict];
   $("#cmpVerdict").className="verdict "+lv;
   $("#cmpTitle").textContent=`${rb.name} 相對 ${ra.name}：${all.verdict}`;
@@ -6661,10 +6686,11 @@ function initRuns(reset){S.runs=[];S.runId=null;
   S.cmpA=1;S.cmpB=2;switchRun(a)}
 function renderRuns(){if(!S.runs)return;fillSelect($("#selRun"),S.runs.map(r=>[String(r.id),r.name]),String(S.runId));
   $("#runTbl").innerHTML=`<thead><tr><th>回合名稱</th><th>批號／產品料號</th><th class="num">板</th><th class="num">焊墊</th><th class="num">鋼板 µm</th><th></th></tr></thead><tbody>`+S.runs.map(r=>{const cfg=r.id===S.runId?snapCfg():r.cfg;
-    return`<tr${r.id===S.runId?' style="background:var(--accent-soft)"':""}><td><input type="text" id="rn-${r.id}" data-rid="${r.id}" value="${esc(r.name)}" style="min-width:180px" aria-label="回合名稱"></td><td>${runSrc(r)?`<b>${esc(runSrc(r).lot)}</b><br><span class="note">${esc(runSrc(r).part)}${runSrc(r).side?" · "+esc(runSrc(r).side):""}</span>`:'<span class="note">'+(r.sample?"範例資料":"未連結資料庫")+"</span>"}</td><td class="num mono">${new Set(r.rows.map(x=>x.board)).size}</td><td class="num mono">${new Set(r.rows.map(x=>x.pad)).size}</td><td class="num mono">${cfg.stencil}${cfg.step&&cfg.step.on?"·階梯":""}</td>
+    return`<tr${r.id===S.runId?' style="background:var(--accent-soft)"':""}><td><input type="text" id="rn-${r.id}" data-rid="${r.id}" value="${esc(r.name)}" style="min-width:180px" aria-label="回合名稱"></td><td>${runSrc(r)?`<b>${esc(runSrc(r).lot)}</b><br><span class="note">${esc(runSrc(r).part)}${runSrc(r).side?" · "+esc(runSrc(r).side):""}</span>`:'<span class="note">'+(r.sample?"範例資料":"未連結資料庫")+"</span>"}</td><td class="num mono">${new Set(r.rows.map(x=>x.board)).size}</td><td class="num mono">${new Set(r.rows.map(x=>x.pad)).size}</td><td class="num mono">${cfg.stencil}${cfg.step&&cfg.step.on?"·階梯":""}${legacyHpct(r)?'<br><span class="pill warn" title="舊版匯入的高度 % 資料，換算厚度未記錄">高度需重新匯入</span>':""}</td>
     <td style="white-space:nowrap">${r.id===S.runId?'<span class="pill ok">目前</span>':`<button data-use="${r.id}">設為目前</button>`} <button data-delrun="${r.id}" ${S.runs.length<2?"disabled":""}>刪除</button></td></tr>`}).join("")+"</tbody>";
   $$("#runTbl [data-rid]").forEach(el=>el.onchange=()=>{const r=S.runs.find(x=>x.id===+el.dataset.rid);r.name=safeId(el.value)||r.name;saveRunsSoon();if(r.id===S.runId)S.source=r.name;syncControls();renderTab()});
   $$("#runTbl [data-use]").forEach(b=>b.onclick=()=>switchRun(+b.dataset.use));
+  legacyHpctNote($("#runLegacy"),S.runs);probeLegacyHpct();
   $$("#runTbl [data-delrun]").forEach(b=>b.onclick=()=>{const id=+b.dataset.delrun;if(S.runs.length<2)return;S.runs=S.runs.filter(r=>r.id!==id);saveRunsSoon();if(id===S.runId){S.runId=null;switchRun(S.runs[0].id)}else{syncControls();renderTab()}})}
 $("#selRun").onchange=e=>switchRun(+e.target.value);
 $("#btnAddB").onclick=()=>{const cb=sampleCfg();cb.aperture={groups:{"U2 BGA":{red:-8}}};cb.wipe=3;const id=addRun("改版 B 範例 "+(S.runs.length+1),sampleData({variant:"B",seed:20261020+S.runs.length}),["volume","height","area","offx","offy"],cb);S.runs.find(r=>r.id===id).sample=true;S.cmpB=id;switchRun(id)};
