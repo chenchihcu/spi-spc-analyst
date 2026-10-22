@@ -166,6 +166,21 @@ test("D1：任何登入者都能設為預設；已是預設時不重複寫稽核
   assert.equal(JSON.parse(db.sqlite.prepare("SELECT meta FROM records WHERE id=?").get(place.id).meta).isDefault, true, "座標檔預設不受影響");
 });
 
+test("D1 並行：建立新版設預設與切換預設同時發生（都以同一份舊狀態讀取），執行後同料號仍恰好一個預設", async () => {
+  const db = makeD1(), repo = new Repo(db, r2());
+  const a = specRec(spec(), { makeDefault: true }), b = specRec(spec(undefined, { note: "v2" }));
+  await repo.createRecord(a.rec, a.gz); await repo.createRecord(b.rec, b.gz);
+  // 兩個請求都讀完舊預設後才放行各自的 batch（D1 依序執行 batch）
+  const batch = db.batch.bind(db), waiting = [];
+  db.batch = (list) => new Promise((ok, no) => { waiting.push(() => batch(list).then(ok, no)); if (waiting.length === 2) waiting.reduce((p, f) => p.then(f), Promise.resolve()); });
+  const c = specRec(spec(undefined, { note: "v3" }), { makeDefault: true });
+  await Promise.all([repo.createRecord(c.rec, c.gz), repo.setDefaultSpec(b.rec.id, "other@x.tw")]);
+  const sw = audits(db, "set_default_spec").slice(-2);
+  assert.deepEqual(sw.map((x) => x.detail.from), [[a.rec.id], [a.rec.id]], "兩者讀到同一份舊狀態");
+  assert.equal(defaults(db, "301-000100124").length, 1, "清除在交易執行當下選取資料列，不會留下兩個預設");
+  assert.deepEqual(defaults(db, "301-000100124"), [sw[1].detail.to], "後執行者（稽核順序在後）勝出");
+});
+
 /* ---------- Worker 路由（含登入） ---------- */
 test("Worker：POST 料號規格由伺服器驗證本體與指紋；specs_for 列出版本；PATCH set_default_spec 切換預設", async () => {
   const AUTH = { AUTH_USERS: JSON.stringify({ "local@example.com": "pepper-hmac-sha256$600000$" + "0".repeat(64) }), AUTH_PEPPER: "p".repeat(40), AUTH_SECRET: "s".repeat(40), AUTH_KDF_ITER: "600000" };
