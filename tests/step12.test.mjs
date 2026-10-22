@@ -301,6 +301,15 @@ test('[M-18] 小樣本門檻：隨 n 單調不增、不低於 χ² 漸近值，�
   for (let i = 1; i < thr.length; i++) assert.ok(thr[i] <= thr[i - 1], `mcdThr(${ns[i]})=${thr[i]} 不得大於 mcdThr(${ns[i - 1]})=${thr[i - 1]}`);
   for (const t of thr) assert.ok(t >= core.MCD_CHI2, `門檻 ${t} 不得低於 ${core.MCD_CHI2}`);
   assert.ok(Math.abs(core.mcdThr(30000) - core.MCD_CHI2) < 0.02, 'n 很大時收斂到 18.42');
+  // 格點上等於校準表；格點之間落在相鄰兩格之間；n<30 取第一格；n>600 依 600/n 衰減
+  core.MCD_THR_N.forEach((n, i) => assert.equal(core.mcdThr(n), core.MCD_THR[i], `mcdThr(${n}) 應等於表值`));
+  for (let i = 1; i < core.MCD_THR_N.length; i++) {
+    const n = Math.round(Math.sqrt(core.MCD_THR_N[i - 1] * core.MCD_THR_N[i]));
+    const t = core.mcdThr(n);
+    assert.ok(t <= core.MCD_THR[i - 1] && t >= core.MCD_THR[i], `mcdThr(${n})=${t} 應介於相鄰格點之間`);
+  }
+  assert.equal(core.mcdThr(10), core.MCD_THR[0]);
+  assert.ok(Math.abs(core.mcdThr(1200) - (core.MCD_CHI2 + (18.93 - core.MCD_CHI2) / 2)) < 1e-9, 'n=1200 時超出 χ² 的部分減半');
 
   // i.i.d. 雙變量常態、焊墊群組常見大小：修正前 P(任一離群) 為 8.9%（n=36）／7.2%（n=48），名目約 0.4%
   let seed = 2468;
