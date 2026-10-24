@@ -123,7 +123,7 @@ details.iss-card>summary:focus-visible{outline:2px solid var(--accent);outline-o
 .iss-chev{color:var(--muted);transition:transform .15s}
 details[open].iss-card .iss-chev{transform:rotate(180deg)}
 details[open].iss-card>summary{border-bottom:1px solid var(--line);border-radius:var(--r) var(--r) 0 0}
-.iss-detail{padding:12px 16px 14px;display:grid;gap:8px}
+.iss-detail{padding:12px 16px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
 .iss-tools{display:flex;gap:6px;margin-left:auto}
 @media (max-width:860px){.iss-spark{display:none}details.iss-card>summary{grid-template-columns:auto minmax(0,1fr) auto}}
 @media (max-width:480px){details.iss-card>summary{padding:8px 10px;gap:2px 8px}.iss-sum-l{min-width:auto;gap:4px}}
@@ -137,7 +137,7 @@ details[open].iss-card>summary{border-bottom:1px solid var(--line);border-radius
 .toc{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 0;border-bottom:1px solid var(--line);background:var(--bg)}
 .toc[hidden]{display:none}
 .toc .lbl{font-size:11px;color:var(--muted);align-self:center;white-space:nowrap;margin-right:2px}
-.toc button{all:unset;cursor:pointer;white-space:nowrap;font-size:12.5px;padding:5px 11px;border-radius:999px;background:var(--surface2);color:var(--ink)}
+.toc button{all:unset;cursor:pointer;white-space:nowrap;font-size:12.5px;padding:5px 11px;border-radius:999px;background:var(--surface2);color:var(--ink);flex-shrink:0}
 .toc button:hover,.toc button:focus-visible{background:var(--line)}
 #toTop{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:25;width:44px;height:44px;border-radius:50%;padding:0;font-size:18px;box-shadow:0 4px 14px rgba(0,0,0,.16)}
 #toTop[hidden]{display:none}
@@ -217,6 +217,9 @@ table.show-all tr.more-row{display:table-row}
 .iss-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:8px;min-width:0}
 .iss-card.flash{outline:2px solid var(--accent);outline-offset:2px}
 .iss-head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.iss-head>*,.iss-detail>.note>*,.iss-foot>*{min-width:0}
+/* 規則名稱是判讀證據：窄螢幕換行顯示全文，不截斷；多行時改小圓角 */
+.iss-head .pill{white-space:normal;overflow-wrap:anywhere;border-radius:10px}
 .iss-head .no{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
 .iss-head .cat{font-size:12px;color:var(--muted);letter-spacing:.04em}
 .iss-card h3{font-size:16px;margin:0;line-height:1.45}
@@ -250,7 +253,7 @@ button:disabled{opacity:.5;cursor:default}
 .tabs-bar{display:flex;align-items:center;gap:4px;margin-top:4px;border-bottom:1px solid var(--line)}
 .tabs{display:flex;flex:1 1 auto;min-width:0;gap:2px;overflow-x:auto;scrollbar-width:none}
 .tab-scroll{flex:0 0 auto;min-width:44px;min-height:44px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:16px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
-.tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;color:var(--muted);white-space:nowrap;min-height:40px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:8px 14px;color:var(--muted);white-space:nowrap;min-height:40px;flex-shrink:0}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
 /* 頁籤列可左右滑動時，在有更多頁籤的一側淡出提示 */
 .tabs.fr{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
@@ -258,14 +261,13 @@ button:disabled{opacity:.5;cursor:default}
 .tabs.fl.fr{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px,#000 calc(100% - 40px),transparent)}
 /* 平板與手機（觸控）：放大可點範圍到約 44px，輸入欄位 16px 防止 iOS Safari 自動放大，畫布拖曳不觸發頁面捲動 */
 @media (pointer:coarse){
-  button,select,input[type=number],input[type=text],textarea{min-height:44px;min-width:44px}
-  select,input[type=number],input[type=text],textarea{font-size:16px!important}
+  button,select,input[type=number],input[type=text],input[type=date],textarea{min-height:44px;min-width:44px}
+  select,input[type=number],input[type=text],input[type=date],textarea{font-size:16px!important}
   .tab{min-height:46px;min-width:44px;padding:10px 16px}
   #btnMore,.chip.chipBtn,a.chip,.chipbtn{min-height:44px;min-width:44px;padding:6px 14px;display:inline-flex;align-items:center;justify-content:center}
   #bannerRecentRuns{min-height:44px}
-  .card .cbtn, .toc button, .how summary{min-height:44px;min-width:44px;display:inline-flex;align-items:center;padding:0 12px}
+  .card .cbtn, .toc button, .how summary, details.fm>summary{min-height:44px;min-width:44px;display:inline-flex;align-items:center;padding:0 12px}
   .pmap-cells button{min-height:44px;min-width:28px}
-  .seg button{min-height:44px;min-width:44px}
   input[type=checkbox],input[type=radio]{width:24px;height:24px;min-width:24px;min-height:24px}
   input[type=range]{min-height:44px}
   #zoneMap{touch-action:none}
@@ -316,6 +318,10 @@ td.num,th.num{text-align:right}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .seg button{border:none;border-radius:0;background:var(--surface);min-height:32px;padding:5px 11px}
+#startupDbBanner button{min-height:36px}
+#recPickerQ,#recPickerReload{min-height:34px}
+/* 觸控：放在基準高度之後，否則同權重的基準規則會蓋掉 44px */
+@media (pointer:coarse){.seg button,#startupDbBanner button,#recPickerQ,#recPickerReload{min-height:44px;min-width:44px}}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-ink);font-weight:500}
 .ai-out{font-size:14px;line-height:1.75;max-width:80ch}
 .ai-out h4{font-size:15px;margin:16px 0 4px}
@@ -351,7 +357,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   #moreWrap{display:none!important}
   .brand .tag{display:none!important}
   .brand .ver{display:none!important}
-  .toprow .chip{display:none!important}
+  header.top .toprow .chip{display:none!important}
 
   header.top{
     position:sticky;
@@ -478,7 +484,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   .lbl,.tabgrp,.ver,.click-hint,.ev-cap,.how,.kpi .k,.kpi .s,.pill,th,.fact,.pmap-lab,.note,small,#aiPayloadPre{font-size:12px!important}
 
   button,select,input,textarea,summary,[role="button"]{min-height:44px}
-  select,input[type=number],input[type=text],textarea{font-size:16px!important}
+  select,input[type=number],input[type=text],input[type=date],textarea{font-size:16px!important}
   .card .cbtn,.toc button,.how summary{min-height:44px!important;display:inline-flex!important;align-items:center!important;padding:0 12px!important}
   .chipbtn,.chip.chipBtn,a.chip,.seg button,.linkbtn,.rec-act button{min-height:44px!important;min-width:44px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 
@@ -529,6 +535,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   #p-issues>.iss-top h2{font-size:16px!important}
   #p-issues>.iss-top #issSub,#p-issues>.iss-top #fmLine{display:none}
   #p-issues>#issFilter{order:2;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px}
+  #p-issues>#issFilter>*{flex-shrink:0}
   #p-issues>#issList{order:3}
   #p-issues>.card{order:4}
   #p-issues>details.how{order:5}
@@ -665,7 +672,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.3.0</b> · 更新 <b class="num" id="appBuilt">2026-10-23 14:00:00</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.3.1</b> · 更新 <b class="num" id="appBuilt">2026-10-24 12:29:56</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn load-state" id="stateSpi" data-state="idle" title="查看量測紀錄"><span class="light" aria-hidden="true"></span><span>量測紀錄：未套用</span></button>
@@ -778,9 +785,9 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
       </div>
     </div>
     <div class="row" style="gap:8px;margin:0;align-items:center">
-      <button type="button" class="primary" id="btnBannerLoadDb" style="padding:6px 14px;min-height:36px;font-size:13px">📂 從資料庫載入記錄</button>
-      <button type="button" id="btnBannerGoImport" style="padding:6px 14px;min-height:36px;font-size:13px">匯入新檔案</button>
-      <button type="button" id="btnBannerDismiss" title="略過提示並維持範例資料" style="padding:6px 10px;min-height:36px;font-size:12.5px;background:transparent;border:none;cursor:pointer;color:var(--c-sub)">✕ 略過</button>
+      <button type="button" class="primary" id="btnBannerLoadDb" style="padding:6px 14px;font-size:13px">📂 從資料庫載入記錄</button>
+      <button type="button" id="btnBannerGoImport" style="padding:6px 14px;font-size:13px">匯入新檔案</button>
+      <button type="button" id="btnBannerDismiss" title="略過提示並維持範例資料" style="padding:6px 10px;font-size:12.5px;background:transparent;border:none;cursor:pointer;color:var(--c-sub)">✕ 略過</button>
     </div>
   </div>
   <div class="iss-top">
@@ -1158,7 +1165,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
         <div class="row" id="placeRow" hidden>
           <span class="lbl" style="align-self:center">② 受控座標檔（必選）</span>
           <div class="field"><label for="placePart">座標檔產品料號（必填）</label><input type="text" id="placePart" maxlength="64" placeholder="例：301-000100124"></div>
-          <div class="field"><label for="placeRev">版本（必填）</label><input type="text" id="placeRev" maxlength="32" placeholder="例：V5" style="min-width:0;width:min(100%,90px);flex:0 1 90px"></div>
+          <div class="field"><label for="placeRev">版本（必填）</label><input type="text" id="placeRev" maxlength="32" placeholder="例：V5" style="min-width:0;width:min(100%,90px)"></div>
           <button type="button" id="btnSelectPlace">從資料庫選取</button>
           <div class="field"><label for="placeSide">上傳面別</label><select id="placeSide"><option value="">請選擇</option><option value="TOP">TOP</option><option value="BOT">BOT</option><option value="BOTH">TOP＋BOT</option></select></div>
           <label class="row" style="cursor:pointer"><input type="file" id="placeIn" accept=".csv" class="sr"><span class="chipbtn" style="border:1px solid var(--line);display:inline-flex;align-items:center">管理者上傳座標檔</span></label>
@@ -1491,8 +1498,8 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
           <button type="button" class="seg-btn" id="btnPickPlace" style="padding:5px 14px;border:none;border-radius:6px;background:transparent;cursor:pointer;font-size:13px">📍 座標檔庫 (<span id="countPickPlace">0</span>)</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex:1 1 240px;max-width:380px">
-          <input type="text" id="recPickerQ" aria-label="搜尋批號、料號、工單、上傳者" placeholder="搜尋批號、料號、工單、上傳者…" style="width:100%;min-height:34px;font-size:13px">
-          <button type="button" id="recPickerReload" title="重新整理" style="padding:4px 12px;min-height:34px">↻</button>
+          <input type="text" id="recPickerQ" aria-label="搜尋批號、料號、工單、上傳者" placeholder="搜尋批號、料號、工單、上傳者…" style="width:100%;font-size:13px">
+          <button type="button" id="recPickerReload" title="重新整理" style="padding:4px 12px">↻</button>
         </div>
       </div>
 
@@ -1565,8 +1572,8 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
       </div>
     </div>
     <div class="sheet-foot" style="padding:10px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:var(--surface2);flex:0 0 auto">
-      <span class="note" style="font-size:12px">安全保證：原始檔案存入後不可修改，以 SHA-256 指紋驗證無篡改</span>
-      <div style="display:flex;gap:8px">
+      <span class="note" style="font-size:12px;min-width:0">安全保證：原始檔案存入後不可修改，以 SHA-256 指紋驗證無篡改</span>
+      <div style="display:flex;gap:8px;flex:none">
         <button type="button" id="btnRecPickerGoImport" style="font-size:13px">＋ 匯入新檔案</button>
         <button type="button" id="btnRecPickerCloseBottom" class="primary" style="font-size:13px">完成</button>
       </div>

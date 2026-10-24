@@ -197,3 +197,36 @@ test('6. PWA 與進階無障礙 (Apple Touch Icon, scroll-margin, 44px 報告標
     assert.match(html, /env\(safe-area-inset-right/i, '登入頁需支援 safe-area-inset-right 避讓');
   });
 });
+
+test('7. 版面回歸：同權重 CSS 的先後順序、flex 壓縮與行內高度 (Playwright 稽核找到的問題)', () => {
+  const at = (s) => { const i = htmlSource.indexOf(s); assert.ok(i >= 0, `找不到 CSS：${s}`); return i; };
+
+  // a. 手機頁首隱藏 chip 的選擇器權重須高於後面的 .chip.chipBtn{display:inline-flex!important}，否則頁首按鈕會蓋住設定鈕與子分頁
+  assert.match(htmlSource, /header\.top \.toprow \.chip\{display:none!important\}/, '手機頁首 chip 隱藏規則需提高權重');
+  assert.doesNotMatch(htmlSource, /\n\s*\.toprow \.chip\{display:none!important\}/, '不可退回與 .chip.chipBtn 同權重的寫法');
+
+  // b. 問題卡片：長規則名稱可換行，欄寬不被內容撐開
+  assert.match(htmlSource, /\.iss-detail\{[^}]*grid-template-columns:minmax\(0,1fr\)/, '.iss-detail 欄寬需為 minmax(0,1fr)');
+  assert.match(htmlSource, /\.iss-head \.pill\{[^}]*white-space:normal/, '問題卡片的規則標籤需可換行');
+
+  // c. 觸控 44px 規則須排在基準高度之後（同權重時後者勝出）
+  assert.ok(at('@media (pointer:coarse){.seg button,#startupDbBanner button,#recPickerQ,#recPickerReload{min-height:44px') >
+    at('.seg button{border:none;border-radius:0;background:var(--surface);min-height:32px'), '觸控 .seg 規則需在基準規則之後');
+  assert.match(htmlSource, /\.how summary, details\.fm>summary\{min-height:44px/, '交叉驗證失效模式摘要需有 44px 觸控高度');
+  assert.match(htmlSource, /@media \(pointer:coarse\)\{\n\s*button,select,input\[type=number\],input\[type=text\],input\[type=date\],textarea\{min-height:44px/, '日期欄位需在觸控 44px 規則內');
+
+  // d. 行內 min-height 會蓋過觸控規則，改由 CSS 管理
+  for (const id of ['btnBannerLoadDb', 'btnBannerGoImport', 'btnBannerDismiss', 'recPickerQ', 'recPickerReload']) {
+    const tag = htmlSource.match(new RegExp(`<[^>]*id="${id}"[^>]*>`))[0];
+    assert.doesNotMatch(tag, /min-height/, `#${id} 不可有行內 min-height`);
+  }
+
+  // e. 可橫向捲動的列不可壓縮項目（觸控 min-width:44px 取代了 flex 預設的 min-width:auto，文字會互相重疊）
+  assert.match(htmlSource, /\n\.tab\{[^}]*flex-shrink:0/, '頁籤不可被壓縮');
+  assert.match(htmlSource, /\n\.toc button\{[^}]*flex-shrink:0/, '本頁目錄按鈕不可被壓縮');
+  assert.match(htmlSource, /#p-issues>#issFilter>\*\{flex-shrink:0\}/, '手機問題篩選 chip 不可被壓縮');
+
+  // f. 欄位容器是直向 flex，flex-basis 會變成高度：版本欄位不可用 flex 基準寬
+  const rev = htmlSource.match(/<input[^>]*id="placeRev"[^>]*>/)[0];
+  assert.doesNotMatch(rev, /flex:/, '#placeRev 不可設定 flex（會變成 90px 高）');
+});
