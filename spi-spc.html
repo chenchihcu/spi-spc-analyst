@@ -672,7 +672,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.3.1</b> · 更新 <b class="num" id="appBuilt">2026-10-24 12:29:56</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.3.2</b> · 更新 <b class="num" id="appBuilt">2026-10-24 13:52:21</b></span>
   </div>
   <div class="row toprow">
     <button type="button" class="chip chipBtn load-state" id="stateSpi" data-state="idle" title="查看量測紀錄"><span class="light" aria-hidden="true"></span><span>量測紀錄：未套用</span></button>
@@ -7753,7 +7753,7 @@ async function renderRecords(force){if(!$("#recSpi"))return;await RecDB.ready;$(
   $("#recSpiSub").textContent=`${S1.length} 筆${q?"（篩選後）":""}`;$("#recPlaceSub").textContent=`${P1.length} 筆${q?"（篩選後）":""}`;
   $("#recSpi").innerHTML=S1.length?`<thead><tr><th>批號</th><th>產品料號</th><th>工單</th><th>面別</th><th>原始檔</th><th class="num">板 × 焊墊</th><th>上傳者</th><th>上傳時間</th><th>檔案指紋</th><th></th></tr></thead><tbody>`+S1.map(r=>{
     const wo=[r.workOrder?`製令:${esc(r.workOrder)}`:"",r.measuredDate?`日期:${esc(r.measuredDate)}`:"",r.supplierWo?`廠:${esc(r.supplierWo)}`:"",r.outsourceWo?`委:${esc(r.outsourceWo)}`:""] .filter(Boolean).join("<br>")||"未提供";
-    return `<tr><td><b>${esc(r.lot||"未提供")}</b></td><td>${esc(r.part)} ${esc(r.rev||"")}<br><span class="note">${esc(r.lifecycle||"legacy")}</span></td><td style="font-size:11px">${wo}</td><td>${esc(r.side||"—")}</td><td>${esc(r.name)}<br><span class="note">${(r.bytes/1024).toFixed(0)} KB</span></td><td class="num mono">${r.boards||"—"} × ${r.pads||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
+    return `<tr><td><b>${esc(r.lot||"未提供")}</b></td><td>${esc(r.part)} ${esc(r.rev||"")}<br><span class="note">${esc(r.lifecycle==="active"?"有效":r.lifecycle==="pending_review"?"待管理者判定":r.lifecycle==="superseded"?"已被修正":"歷史未驗證")}</span></td><td style="font-size:11px">${wo}</td><td>${esc(r.side||"—")}</td><td>${esc(r.name)}<br><span class="note">${r.bytes<1024?`${r.bytes} B`:`${(r.bytes/1024).toFixed(0)} KB`}</span></td><td class="num mono">${r.boards||"—"} × ${r.pads||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
     <td><div class="rec-act">${r.lifecycle!=="pending_review"?`<button data-ract="open" data-id="${esc(r.id)}">${r.lifecycle==="superseded"?"歷史檢視":"開啟分析"}</button>`:""}<button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`;
   }).join("")+"</tbody>":`<tbody><tr><td colspan="10" class="note">${q?"沒有符合的量測紀錄":"尚無量測紀錄。在「匯入與規格」匯入檔案並填寫批號、產品料號後，原始檔會自動存到這裡。"}</td></tr></tbody>`;
   $("#recPlace").innerHTML=P1.length?`<thead><tr><th>產品料號</th><th>版次／面別</th><th>原始檔</th><th class="num">元件數</th><th>上傳者</th><th>上傳時間</th><th>檔案指紋</th><th></th></tr></thead><tbody>`+P1.map(r=>`<tr${PLACE&&PLACE.recId===r.id?' style="background:var(--accent-soft)"':""}><td><b>${esc(r.part)}</b></td><td>${esc(r.rev)} ${esc(r.side)}<br><span class="note">${esc(r.lifecycle==="active"?"有效":r.lifecycle==="archived"?"已封存":"歷史未驗證")}</span></td><td>${esc(r.name)}</td><td class="num mono">${r.comps||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>

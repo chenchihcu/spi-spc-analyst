@@ -223,8 +223,9 @@ async function handleRecordsApi(req, repo, user, env) {
       created: Date.now(),
       ...(chk.meta.kind === 'spec' ? {} : {
         validationSource: 'server_verified', lifecycle: related.length ? 'pending_review' : 'active',
-        ...(chk.meta.kind === 'place' ? { sides: verified.sides, factor: verified.factor, formatVersion: verified.formatVersion }
-          : { unmatchedRefs: verified.missing, unmatchedConfirmed: !!verified.missing.length, formatVersion: verified.formatVersion }),
+        ...(chk.meta.kind === 'place' ? { comps: verified.items.length, sides: verified.sides, factor: verified.factor, formatVersion: verified.formatVersion }
+          : { boards: verified.boards, rows: verified.points, pads: verified.pads,
+            unmatchedRefs: verified.missing, unmatchedConfirmed: !!verified.missing.length, formatVersion: verified.formatVersion }),
       }),
     };
 
@@ -279,7 +280,7 @@ async function handleRecordsApi(req, repo, user, env) {
       const verified = validatePlacement(table, chk.meta);
       if (verified.error) return json(verified, 422);
       const rec = { id: randomBytes(16).toString('base64url'), ...chk.meta, isDefault: false,
-        sides: verified.sides, factor: verified.factor, formatVersion: verified.formatVersion,
+        comps: verified.items.length, sides: verified.sides, factor: verified.factor, formatVersion: verified.formatVersion,
         bytes: raw.length, gz_bytes: gz.length, sha256: legacy.sha256, user, created: Date.now(),
         validationSource: 'server_verified', lifecycle: 'active', meta: { sourceLegacyId: legacy.id } };
       const res = await repo.createRecord(rec, gz);

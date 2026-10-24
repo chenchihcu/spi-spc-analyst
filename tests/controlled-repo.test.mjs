@@ -145,9 +145,11 @@ test('authenticated API enforces admin upload, server validation, unmatched conf
   }), env);
   assert.equal(nonAdminRoles.status, 403);
   assert.equal((await upload('user@example.com', placeMeta, placeCsv)).status, 403);
-  const created = await upload('admin@example.com', placeMeta, placeCsv);
+  const created = await upload('admin@example.com', { ...placeMeta, comps: 999 }, placeCsv);
   assert.equal(created.status, 201);
-  const placeId = (await created.json()).record.id;
+  const placeRecord = (await created.json()).record;
+  assert.equal(placeRecord.comps, 1, '伺服器解析值覆蓋不可信的上傳計數');
+  const placeId = placeRecord.id;
   assert.equal((await upload('admin@example.com', placeMeta, placeCsv)).status, 200);
   const spiMeta = { kind: 'spi', part: 'P', rev: 'V5', side: 'TOP', placeId, workOrder: 'WO-1', name: 'm.csv' };
   assert.equal((await upload('user@example.com', { ...spiMeta, measuredDate: '2026-02-30' },
@@ -156,9 +158,12 @@ test('authenticated API enforces admin upload, server validation, unmatched conf
   const needsConfirm = await upload('user@example.com', spiMeta, spiCsv);
   assert.equal(needsConfirm.status, 422);
   assert.deepEqual((await needsConfirm.json()).missing, ['R1']);
-  const accepted = await upload('user@example.com', { ...spiMeta, unmatchedConfirmed: true, unmatchedRefs: ['R1'] }, spiCsv);
+  const accepted = await upload('user@example.com', { ...spiMeta, boards: 999, pads: 999, rows: 999,
+    unmatchedConfirmed: true, unmatchedRefs: ['R1'] }, spiCsv);
   assert.equal(accepted.status, 201);
-  const acceptedId = (await accepted.json()).record.id;
+  const acceptedRecord = (await accepted.json()).record;
+  assert.deepEqual([acceptedRecord.boards, acceptedRecord.pads, acceptedRecord.rows], [1, 2, 2]);
+  const acceptedId = acceptedRecord.id;
   const same = await upload('user@example.com', { ...spiMeta, workOrder: 'WO-2', unmatchedConfirmed: true, unmatchedRefs: ['R1'] }, spiCsv);
   assert.equal(same.status, 409);
   assert.equal((await same.json()).existing, acceptedId);

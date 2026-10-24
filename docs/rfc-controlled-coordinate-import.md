@@ -1,6 +1,6 @@
 # RFC-SPI-COORD-20261023：受控座標檔與量測匯入
 
-狀態：產品規則已確認；本地實作與驗證進行中。正式環境 migration、資料回填與部署均須另外驗收。
+狀態：產品規則已確認；本地實作與合成資料 staging 驗收已完成，詳見 `controlled-import-staging-acceptance-20261024.md`。正式環境 migration、資料回填與新版部署仍須另外驗收。
 
 ## 不變的業務身分
 

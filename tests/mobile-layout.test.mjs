@@ -213,7 +213,7 @@ test('7. 版面回歸：同權重 CSS 的先後順序、flex 壓縮與行內高�
   assert.ok(at('@media (pointer:coarse){.seg button,#startupDbBanner button,#recPickerQ,#recPickerReload{min-height:44px') >
     at('.seg button{border:none;border-radius:0;background:var(--surface);min-height:32px'), '觸控 .seg 規則需在基準規則之後');
   assert.match(htmlSource, /\.how summary, details\.fm>summary\{min-height:44px/, '交叉驗證失效模式摘要需有 44px 觸控高度');
-  assert.match(htmlSource, /@media \(pointer:coarse\)\{\n\s*button,select,input\[type=number\],input\[type=text\],input\[type=date\],textarea\{min-height:44px/, '日期欄位需在觸控 44px 規則內');
+  assert.match(htmlSource, /@media \(pointer:coarse\)\{\r?\n\s*button,select,input\[type=number\],input\[type=text\],input\[type=date\],textarea\{min-height:44px/, '日期欄位需在觸控 44px 規則內');
 
   // d. 行內 min-height 會蓋過觸控規則，改由 CSS 管理
   for (const id of ['btnBannerLoadDb', 'btnBannerGoImport', 'btnBannerDismiss', 'recPickerQ', 'recPickerReload']) {
