@@ -9,7 +9,7 @@ test('前端 API 路由與同源請求皆在 Worker 路由或靜態資產清單�
   const workerSrc = readFileSync('cloudflare/worker.mjs', 'utf8');
 
   // 抓取 /api/* 呼叫
-  const apiCalls = [...html.matchAll(/\/api\/[a-zA-Z0-9_\-]+/g)].map((m) => m[0]);
+  const apiCalls = [...html.matchAll(/\/api\/[a-zA-Z0-9_\-/]+/g)].map((m) => m[0]);
   const uniqueApis = [...new Set(apiCalls)];
 
   for (const api of uniqueApis) {

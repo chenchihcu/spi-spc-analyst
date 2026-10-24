@@ -645,6 +645,12 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   font-size: 13.5px;
   font-weight: 600;
 }
+.load-state{display:inline-flex;align-items:center;gap:6px;min-height:36px;max-width:min(36vw,260px);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.load-state .light{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.load-state[data-state="ok"] .light{background:var(--ok)}
+.load-state[data-state="error"] .light{background:var(--ng)}
+.load-state>span:last-child{overflow:hidden;text-overflow:ellipsis}
+@media(max-width:720px){.load-state{max-width:44vw;min-height:44px}}
 </style>
 <!-- 開機期間：瀏覽器可能在主程式執行前先畫出空的問題頁，之後清單填入會把下方內容整片推走（CLS）；主程式跑完才顯示 -->
 <style id="bootHide">#p-issues>:not(.iss-top){visibility:hidden}</style>
@@ -659,9 +665,11 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   <div class="brand">
     <h1>SPI·SPC 分析台</h1>
     <span class="tag">錫膏印刷檢測 · 統計製程管制</span>
-    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.2.3</b> · 更新 <b class="num" id="appBuilt">2026-10-23 00:21:17</b></span>
+    <span class="ver" title="系統版本與最後更新時間（UTC+8）">版本 <b class="num" id="appVer">v10.3.0</b> · 更新 <b class="num" id="appBuilt">2026-10-23 14:00:00</b></span>
   </div>
   <div class="row toprow">
+    <button type="button" class="chip chipBtn load-state" id="stateSpi" data-state="idle" title="查看量測紀錄"><span class="light" aria-hidden="true"></span><span>量測紀錄：未套用</span></button>
+    <button type="button" class="chip chipBtn load-state" id="statePlace" data-state="idle" title="選取座標檔"><span class="light" aria-hidden="true"></span><span>座標檔：未套用</span></button>
     <button type="button" class="chip chipBtn" id="btnOpenRecModal" title="開啟量測紀錄與座標檔資料庫，選取歷史檔案載入分析" style="cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px">📂 載入記錄檔 ▾</button>
     <span class="chip" title="目前分析的試產回合">回合 <b id="srcName">範例資料</b> · <b id="srcBoards" class="num">—</b> 板 · <b id="srcPads" class="num">—</b> 焊墊</span>
     <div class="menuwrap" id="moreWrap" hidden>
@@ -765,7 +773,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
           <b style="color:var(--accent-ink);font-size:14.5px">目前載入為範例資料</b>
           <span class="pill" style="font-size:11px;background:var(--surface)">試產 1 · 鋼板 V1</span>
         </div>
-        <div class="note" style="color:var(--ink);font-size:12.5px;margin-top:2px">已連線產線雲端資料庫，可直接點選最近記錄一鍵載入分析：</div>
+        <div class="note" id="bannerCloudState" style="color:var(--ink);font-size:12.5px;margin-top:2px">正在確認雲端資料庫連線…</div>
         <div id="bannerRecentRuns" style="margin-top:8px;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;align-items:center" hidden></div>
       </div>
     </div>
@@ -1145,14 +1153,16 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
       <div class="vendor" id="vendorBox">
         <div class="row">
           <div class="field"><label for="selVendor">① 加工廠 SPI 格式</label><select id="selVendor"><option value="generic">通用格式（每列一筆量測）</option><option value="lirong">立榮電子（每列一焊墊、各板橫排）</option><option value="zsf">振順豐（絕對值橫排）</option></select></div>
-          <div class="field" id="sideField" hidden><label for="selSide">面別</label><select id="selSide"><option value="auto">依檔名判斷（TOP／BOT）</option><option value="TOP">TOP 面</option><option value="BOT">BOT 面</option></select></div>
+          <div class="field" id="sideField"><label for="selSide">量測面別（必選）</label><select id="selSide"><option value="">請選擇</option><option value="TOP">TOP 面</option><option value="BOT">BOT 面</option></select></div>
         </div>
         <div class="row" id="placeRow" hidden>
-          <span class="lbl" style="align-self:center">② 座標檔（選用）</span>
+          <span class="lbl" style="align-self:center">② 受控座標檔（必選）</span>
           <div class="field"><label for="placePart">座標檔產品料號（必填）</label><input type="text" id="placePart" maxlength="64" placeholder="例：301-000100124"></div>
           <div class="field"><label for="placeRev">版本（必填）</label><input type="text" id="placeRev" maxlength="32" placeholder="例：V5" style="min-width:0;width:min(100%,90px);flex:0 1 90px"></div>
-          <label class="row" style="cursor:pointer"><input type="file" id="placeIn" accept=".csv,.txt,.tsv,.xlsx" class="sr"><span class="chipbtn" style="border:1px solid var(--line);display:inline-flex;align-items:center">上傳座標檔</span></label>
-          <div class="field"><label for="placeUnit">座標單位</label><select id="placeUnit"><option value="auto">自動判斷</option><option value="mil">mil</option><option value="mm">mm</option><option value="inch">inch</option></select></div>
+          <button type="button" id="btnSelectPlace">從資料庫選取</button>
+          <div class="field"><label for="placeSide">上傳面別</label><select id="placeSide"><option value="">請選擇</option><option value="TOP">TOP</option><option value="BOT">BOT</option><option value="BOTH">TOP＋BOT</option></select></div>
+          <label class="row" style="cursor:pointer"><input type="file" id="placeIn" accept=".csv" class="sr"><span class="chipbtn" style="border:1px solid var(--line);display:inline-flex;align-items:center">管理者上傳座標檔</span></label>
+          <div class="field"><label for="placeUnit">座標單位</label><select id="placeUnit"><option value="">請選擇</option><option value="mm">mm</option><option value="mil">mil</option><option value="inch">inch</option></select></div>
           <button id="placeClear" hidden>移除座標檔</button>
           <span class="note" id="placeState"></span>
         </div>
@@ -1178,8 +1188,8 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
         </div>
         <div class="tbl" style="max-height:300px;overflow:auto"><table id="mapTbl"></table></div>
         <div id="mapPrev" class="note"></div>
-        <div class="row recrow" id="recRow"><div class="field"><label for="inLot">批號（必填）</label><input type="text" id="inLot" maxlength="64" placeholder="例：L2410-01"></div><div class="field"><label for="inPart">產品料號（必填）</label><input type="text" id="inPart" maxlength="64" placeholder="例：301-000100124"></div><div class="field"><label for="inImpStencil">鋼板厚度 µm（必填）</label><input type="number" id="inImpStencil" min="30" max="300" step="1" list="stencilList" placeholder="例：120" required aria-required="true"></div><div class="field"><label for="inSupplierWo">廠商工單號</label><input type="text" id="inSupplierWo" maxlength="64" placeholder="例：SWO-202410-01"></div><div class="field"><label for="inOutsourceWo">外包工單號</label><input type="text" id="inOutsourceWo" maxlength="64" placeholder="例：OWO-88912"></div><span class="note" id="recNote" style="align-self:center;max-width:52ch"></span></div>
-        <p class="note" id="impSaveNotice" style="margin:6px 0;max-width:70ch">原始檔將存入本站資料庫，登入帳號皆可檢視；可於資料庫頁刪除（只有上傳者）；永久保存，直到上傳者刪除。</p>
+        <div class="row recrow" id="recRow"><div class="field"><label for="inLot">批號（選填）</label><input type="text" id="inLot" maxlength="64" placeholder="例：L2410-01"></div><div class="field"><label for="inPart">產品料號（必填）</label><input type="text" id="inPart" maxlength="64" placeholder="例：301-000100124"></div><div class="field"><label for="inRev">正式版次（必填）</label><input type="text" id="inRev" maxlength="32" placeholder="例：V5"></div><div class="field"><label for="inWorkOrder">製令工單（與量測日期至少填一項）</label><input type="text" id="inWorkOrder" maxlength="64"></div><div class="field"><label for="inMeasuredDate">量測日期（與製令工單至少填一項）</label><input type="date" id="inMeasuredDate"></div><div class="field"><label for="inImpStencil">鋼板厚度 µm（必填）</label><input type="number" id="inImpStencil" min="30" max="300" step="1" list="stencilList" placeholder="例：120" required aria-required="true"></div><div class="field"><label for="inSupplierWo">廠商工單號</label><input type="text" id="inSupplierWo" maxlength="64" placeholder="例：SWO-202410-01"></div><div class="field"><label for="inOutsourceWo">外包工單號</label><input type="text" id="inOutsourceWo" maxlength="64" placeholder="例：OWO-88912"></div><span class="note" id="recNote" style="align-self:center;max-width:52ch"></span></div>
+        <p class="note" id="impSaveNotice" style="margin:6px 0;max-width:70ch">正式匯入須連線登入、選取有效受控座標檔；待管理者判定的新檔不納入預設分析。</p>
         <div class="row"><label class="row" style="font-size:13px"><input type="radio" name="impMode" value="new" checked> 新增為新回合</label><input type="text" id="inRunName" aria-label="新回合名稱" placeholder="回合名稱，例：試產 2 · 鋼板 V2" style="min-width:min(100%,220px)">
           <label class="row" style="font-size:13px"><input type="radio" name="impMode" value="replace"> 取代目前回合</label><button class="primary" id="btnApply">套用匯入</button></div>
       </div>
@@ -1245,12 +1255,13 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
   </div>
   <div class="card" data-sub="records" hidden id="recCard">
     <h3>量測紀錄與座標檔資料庫 <small id="recMode"></small></h3>
-    <p class="note" style="margin:0 0 10px;max-width:80ch">每次匯入量測紀錄（填批號、產品料號）或上傳座標檔（填產品料號、版本）時，原始檔會自動存入這裡，並記錄上傳者、時間與檔案指紋（SHA-256）。原始檔不能修改；只有上傳者本人可以刪除，刪除後仍留下稽核紀錄。「驗證」會重新計算指紋，確認檔案與上傳時完全相同。</p>
+    <p class="note" style="margin:0 0 10px;max-width:80ch">正式座標檔依料號、版次、面別受控；原始檔與 SHA-256 保留。量測需選取有效座標，製令工單或量測日期至少填一項。待判定與已被修正的量測不進入預設統計。舊本機資料僅供查閱。</p>
     <div class="row"><div class="field"><label for="recQ">搜尋批號、料號、檔名或上傳者</label><input type="text" id="recQ" placeholder="例：L2410 或 301-000100124" style="min-width:min(100%,240px)"></div><button id="recReload">重新整理</button><span class="note" id="recState" role="status"></span></div>
     <h3 style="margin-top:14px">量測紀錄 <small id="recSpiSub"></small></h3>
     <div class="tbl"><table id="recSpi"></table></div>
     <h3 style="margin-top:16px">座標檔 <small id="recPlaceSub"></small></h3>
     <div class="tbl"><table id="recPlace"></table></div>
+    <section id="adminUsersSection" hidden aria-label="管理者角色" style="margin-top:16px"><h3>管理者角色</h3><p class="note">只有既有登入帳號可授予管理權限；最後一位可登入管理者不能撤銷。</p><div id="adminUsers" class="tbl"></div><p id="adminUsersState" class="note" role="status"></p></section>
     <h3 style="margin-top:16px">料號規格 <small id="recSpecSub"></small></h3>
     <p class="note" style="margin:0 0 6px;max-width:80ch">列出上方量測紀錄、座標檔與目前回合用到的產品料號的規格版本。版本存檔後不能修改；任何登入者都可以把某一版設為預設，切換會寫入稽核紀錄。</p>
     <div class="tbl"><table id="recSpec"></table></div>
@@ -1446,8 +1457,8 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
       </div>
 
       <div class="sheet-ver-info">
-        <p>SPI·SPC 分析台 <b>v10.0.0</b></p>
-        <p>最後更新：2026-10-18 13:00:00</p>
+        <p>SPI·SPC 分析台 <b id="moreAppVer"></b></p>
+        <p>最後更新：<span id="moreAppBuilt"></span></p>
       </div>
     </div>
   </div>
@@ -1488,7 +1499,7 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
       <!-- SMT 產線快捷過濾列 -->
       <div id="recFilterBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border-radius:8px">
         <span class="note" style="font-size:12px;font-weight:600">篩選：</span>
-        <select id="pickPartFilter" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface)">
+        <select id="pickPartFilter" aria-label="依產品料號篩選" style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface)">
           <option value="">全部料號</option>
         </select>
         <div class="seg" id="pickSideSeg" style="display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden">
@@ -1518,29 +1529,29 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
         <!-- 獨立上傳新座標檔展開區塊 -->
         <div id="boxUploadPlaceForm" class="card" style="padding:10px 14px;background:var(--surface2);border:1px dashed var(--line);border-radius:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <b style="font-size:13px">📍 上傳新座標檔至料號庫</b>
-            <span class="note" style="font-size:11.5px">支援 .csv, .txt, .tsv, .xlsx</span>
+            <b style="font-size:13px">📍 登錄受控座標檔</b>
+            <span class="note" style="font-size:11.5px">目前正式登錄支援 .csv</span>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <div class="field" style="margin:0"><input type="text" id="upPlacePart" maxlength="64" placeholder="產品料號（必填）" style="width:130px;font-size:12px;padding:4px 8px"></div>
-            <div class="field" style="margin:0"><input type="text" id="upPlaceRev" maxlength="32" placeholder="版次（例：V1）" style="width:85px;font-size:12px;padding:4px 8px"></div>
+            <div class="field" style="margin:0"><input type="text" id="upPlacePart" aria-label="正式產品料號" maxlength="64" placeholder="產品料號（必填）" style="width:130px;font-size:12px;padding:4px 8px"></div>
+            <div class="field" style="margin:0"><input type="text" id="upPlaceRev" aria-label="正式料號版次" maxlength="32" placeholder="版次（例：V1）" style="width:85px;font-size:12px;padding:4px 8px"></div>
             <div class="field" style="margin:0">
-              <select id="upPlaceSide" style="font-size:12px;padding:4px 8px">
-                <option value="">面別：自動/雙面</option>
+              <select id="upPlaceSide" aria-label="座標檔面別" style="font-size:12px;padding:4px 8px">
+                <option value="">請選擇面別</option>
                 <option value="TOP">TOP (正面)</option>
                 <option value="BOT">BOT (反面)</option>
+                <option value="BOTH">TOP＋BOT</option>
               </select>
             </div>
             <div class="field" style="margin:0">
-              <select id="upPlaceUnit" style="font-size:12px;padding:4px 8px">
-                <option value="auto">單位：自動</option>
+              <select id="upPlaceUnit" aria-label="座標單位" style="font-size:12px;padding:4px 8px">
+                <option value="">請選擇單位</option>
                 <option value="mm">mm</option>
                 <option value="mil">mil</option>
                 <option value="inch">inch</option>
               </select>
             </div>
-            <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="upPlaceIsDefault" checked> 設為預設</label>
-            <label class="row" style="cursor:pointer;margin:0"><input type="file" id="upPlaceFile" accept=".csv,.txt,.tsv,.xlsx" class="sr"><span class="chipbtn" style="border:1px solid var(--line);padding:4px 10px;font-size:12px">選取檔案</span></label>
+            <label class="row" style="cursor:pointer;margin:0"><input type="file" id="upPlaceFile" accept=".csv" class="sr"><span class="chipbtn" style="border:1px solid var(--line);padding:4px 10px;font-size:12px">選取 CSV</span></label>
             <span id="upPlaceFileName" class="note" style="font-size:11.5px"></span>
             <button type="button" class="primary" id="btnSubmitPlace" style="font-size:12px;padding:4px 12px">存入資料庫</button>
           </div>
@@ -1608,15 +1619,30 @@ input[aria-invalid="true"]{border-color:var(--ng);border-width:2px}
     </div>
   </div>
 </div>
+<!-- 量測紀錄：完整未對應位號 -->
+<div class="db-modal" id="unmatchedRefsModal" role="dialog" aria-modal="true" aria-labelledby="unmatchedRefsTitle" aria-describedby="unmatchedRefsList" hidden>
+  <div class="db-modal-panel" style="max-width:480px;margin:auto">
+    <div style="padding:16px;overflow:auto">
+      <h3 id="unmatchedRefsTitle" style="margin:0 0 8px;font-size:15px">無座標位號</h3>
+      <p id="unmatchedRefsList" style="margin:0;overflow-wrap:anywhere"></p>
+    </div>
+    <div class="sheet-foot" style="padding:10px 16px;border-top:1px solid var(--line)">
+      <button type="button" data-close>關閉</button>
+    </div>
+  </div>
+</div>
 <!-- 工單號與備註修改彈窗 -->
-<div class="db-modal" id="recEditModal" role="dialog" aria-modal="true" aria-label="修改工單號與備註" hidden>
+<div class="db-modal" id="recEditModal" role="dialog" aria-modal="true" aria-label="修改量測鑑別資料與備註" hidden>
   <div class="db-modal-panel" style="max-width:440px;margin:auto">
     <div class="sheet-head" style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
-      <h3 style="margin:0;font-size:15px">修改工單與備註</h3>
+      <h3 style="margin:0;font-size:15px">修改量測鑑別資料與備註</h3>
       <button type="button" class="sheet-close" id="recEditClose" aria-label="關閉">✕</button>
     </div>
     <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
       <div class="note" id="recEditTarget" style="font-size:12px;color:var(--accent-ink)"></div>
+      <div class="field"><label for="recEditWorkOrder">製令工單（與量測日期至少填一項）</label><input type="text" id="recEditWorkOrder" maxlength="64"></div>
+      <div class="field"><label for="recEditMeasuredDate">量測日期</label><input type="date" id="recEditMeasuredDate"></div>
+      <div class="field"><label for="recEditLot">批號（選填）</label><input type="text" id="recEditLot" maxlength="64"></div>
       <div class="field"><label for="recEditSupplierWo">廠商工單號</label><input type="text" id="recEditSupplierWo" maxlength="64" placeholder="例：SWO-202610-01"></div>
       <div class="field"><label for="recEditOutsourceWo">外包工單號</label><input type="text" id="recEditOutsourceWo" maxlength="64" placeholder="例：OWO-88912"></div>
       <div class="field"><label for="recEditNote">備註（最多 200 字）</label><textarea id="recEditNote" maxlength="200" rows="3" placeholder="選填，可輸入批次說明或測試標記…"></textarea></div>
@@ -2568,7 +2594,7 @@ function buildRows(tab,map,opts={},sub=5){
   const hasBoardCol=col("board")!=null||col("panel")!=null;
   const rawRows=[];
   const cBoard=col("board"),cPanel=col("panel"),cFig=col("figure");
-  const cComp=col("comp"),cPin=col("pin"),cPad=col("pad");
+  const cComp=col("comp"),cPin=col("pin"),cPad=col("pad"),cRawComp=tab.head.findIndex(h=>normH(h)==="rawcomponentid");
   const cPkg=col("pkg"),cStrk=col("stroke"); /* 機台判定欄（Result／判定）讀入後忽略：好壞一律依使用者定義的料號規格 */
   const cDate=col("date"),cTime=col("time");
   const numGetters=activeNumFields.map(k=>{
@@ -2600,12 +2626,7 @@ function buildRows(tab,map,opts={},sub=5){
     }
     let comp=cComp!=null?safeId(c[cComp]):null;
     let pin=cPin!=null?safeId(c[cPin]):undefined,padId=cPad!=null?safeId(c[cPad]):undefined;
-    let sufFig=null;
-    if(comp){
-      const sm=String(comp).match(/^(.*?)_(\d+)$/);
-      if(sm){comp=sm[1];sufFig=sm[2];}
-    }
-    const effFig=figure!=null&&figure!==""?figure:sufFig;
+    const effFig=figure!=null&&figure!==""?figure:null;
     let pad;
     if(padId!=null&&padId!==""){
       pad=comp&&pin!=null&&pin!==""?`${comp}-${pin}`:(comp&&!String(padId).startsWith(comp)?`${comp}-${padId}`:String(padId));
@@ -2615,6 +2636,7 @@ function buildRows(tab,map,opts={},sub=5){
       pad="P"+(hasBoardCol?i+1:(i%sub)+1);
     }
     const r={board:board!=null?String(board):null,pad,comp};
+    if(cRawComp>=0)r.rawComponentId=String(c[cRawComp]??"");
     if(panel!=null)r.panel=String(panel);
     if(effFig!=null)r.figure=String(effFig);
     if(cPkg!=null&&c[cPkg]!=null)r.pkg=String(safeId(c[cPkg]));
@@ -2671,27 +2693,26 @@ function buildRows(tab,map,opts={},sub=5){
 
   let placeInfo=null;
   if(o.place&&o.place.items){
-    const byRef=new Map(),dupCoords=[],matchedRefs=new Set(),unmatchRefs=new Set();
+    const byRef=new Map(),dupCoords=[],matchedRefs=new Set(),unmatchRefs=new Set(),otherRefs=new Set();
     for(const it of o.place.items){
-      if(byRef.has(it.ref))dupCoords.push(it);
-      else byRef.set(it.ref,it);
+      const key=it.side+"\0"+it.ref;
+      if(byRef.has(key))dupCoords.push(it);
+      else byRef.set(key,it);
     }
     for(const r of rows){
       const ref=r.comp||r.pad;
-      let it=byRef.get(ref);
-      if(!it&&ref){
-        const sm=String(ref).match(/^(.*?)_(\d+)$/);
-        if(sm)it=byRef.get(sm[1]);
-      }
+      const side=o.side||"";
+      const it=byRef.get(side+"\0"+ref);
       if(it){
         matchedRefs.add(ref);
-        r.x=it.x;r.y=it.y;r.gridPos=false;
+        r.componentX=it.x;r.componentY=it.y;
         if(!r.pkg&&it.pkg)r.pkg=it.pkg;
       }else if(ref){
         unmatchRefs.add(ref);
+        if(byRef.has((side==="TOP"?"BOT":"TOP")+"\0"+ref))otherRefs.add(ref);
       }
     }
-    placeInfo={matched:matchedRefs.size,unmatched:unmatchRefs.size,missing:[...unmatchRefs],duplicates:dupCoords};
+    placeInfo={matched:matchedRefs.size,unmatched:unmatchRefs.size,missing:[...unmatchRefs],other:[...otherRefs],duplicates:dupCoords};
   }
 
   const pads=[...new Set(rows.map(r=>r.pad))],side=Math.ceil(Math.sqrt(pads.length));
@@ -2711,7 +2732,7 @@ function buildRows(tab,map,opts={},sub=5){
     if(r.group===ALL_GRP)r.group="ALL_USER";
 
     const pi=padIdx.get(r.pad);
-    if(r.x==null||r.y==null){
+    if((r.x==null||r.y==null)&&!o.place?.controlled){
       r.x=4+(pi%side)*(52/Math.max(side-1,1));
       r.y=4+Math.floor(pi/side)*(32/Math.max(side-1,1));
       r.gridPos=true;
@@ -4844,6 +4865,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 /* 版本單一來源：主頁標題的版本與更新時間，報告與匯出一律讀這裡 */
 const APP={get ver(){return ($("#appVer")||{}).textContent||""},get built(){return ($("#appBuilt")||{}).textContent||""}};
+$("#moreAppVer").textContent=APP.ver;
+$("#moreAppBuilt").textContent=APP.built;
 const charts={};
 function mk(id,cfg){if(charts[id])charts[id].destroy();if(!window.Chart)return;const c=document.getElementById(id);if(!c||!c.offsetParent)return;charts[id]=new Chart(c,cfg)}
 function baseOpts(extra={}){const ink=css("--muted"),grid=css("--grid"),coarse=typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(pointer:coarse)").matches;return Object.assign({responsive:true,maintainAspectRatio:false,animation:false,
@@ -6732,9 +6755,10 @@ function runState(run){return run.id===S.runId?{...S}:{...S,rows:run.rows,metric
 function addRun(name,rows,metrics,cfg,info){name=safeId(name)||"未命名回合";const id=Math.max(0,...S.runs.map(r=>r.id))+1;S.runs.push({id,name,rows,metrics:withHpct(metrics),cfg:cfg||snapCfg(),info:info||null,aoi:null,_rawRows:rows});return id}
 function switchRun(id){const c=curRun();if(c)c.cfg=snapCfg();const n=S.runs.find(r=>r.id===id);if(!n)return;
   S.runId=id;S.rows=n.rows;S._rawRows=n._rawRows||n.rows;S.timeFilter=null;S.partialBoards=null;S.metrics=n.metrics;S.source=n.name;S.issEnt=null;S.ctx=null;S.specSrc="none";S.partSpec=null;S.specDraft=null;S.specsG=null;S.sqDir="Y";Object.assign(S,clone(n.cfg));delete S.specsCustom;S.group="ALL";S.board=null;S.pad=null;
+  LOAD_ERROR.spi="";
   /* 規格一律由使用者定義：舊版的機台推估、自訂、工單、AOI 建議窗回合一律視為未定義（鎖定到套用料號規格為止）；範例資料用示範規格 */
   if(n.sample)S.specSrc="sample";else if(S.specSrc!=="part"||!S.partSpec||!S.partSpec.id){S.specSrc="none";S.partSpec=null;S.specsG=null}
-  if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon();
+  if(!S.metrics.includes(S.metric))S.metric=S.metrics[0];syncControls();recompute();saveRunsSoon();updateLoadStates();
   if(typeof updateStartupDbBanner==="function")updateStartupDbBanner()}
 /* ---------- 回合保存（IndexedDB）：資料留在這台電腦的瀏覽器，不上傳 ---------- */
 const RunDB={
@@ -6754,6 +6778,19 @@ async function restoreRuns(){try{const d=await RunDB.get("runs");
     const sig=r=>JSON.stringify([r.name,r.cfg,r.aoi||null,r.rows.length]);
     if(d.runs.every(r=>r.sample)&&d.runs.length===S.runs.length&&d.runs.every((r,i)=>sig(r)===sig(S.runs[i])))return false;
     S.runs=d.runs;S.cmpA=d.cmpA;S.cmpB=d.cmpB;S.runId=null;switchRun(S.runs.some(r=>r.id===d.runId)?d.runId:S.runs[0].id);
+    // Saved runs are snapshots. Resolve their current server lifecycle before
+    // treating a restored active run as part of the default analysis.
+    try{
+      await RecDB.ready;
+      const current=RecDB.mode==="cloud"?await RecDB.list():[];
+      const byId=new Map(current.filter(r=>r.kind==="spi").map(r=>[r.id,r]));
+      for(const run of S.runs){const src=runSrc(run);if(src)src.lifecycle=byId.get(src.id)?.lifecycle||"unavailable"}
+      if(runSrc(curRun())&&runSrc(curRun()).lifecycle!=="active"){
+        const next=S.runs.find(run=>!runSrc(run)||runSrc(run).lifecycle==="active");
+        if(next)switchRun(next.id);
+      }
+      updateLoadStates();saveGate=true;saveRunsSoon();
+    }catch(e){for(const run of S.runs){const src=runSrc(run);if(src)src.lifecycle="unavailable"}updateLoadStates()}
     toast(`已還原上次的 ${d.runs.length} 個試產回合（${new Date(d.savedAt).toLocaleString("zh-TW",{hour12:false})} 保存）`);return true}
   catch(e){return false}finally{saveGate=true}}
 function toast(msg,ms=3800){let t=$("#toast");if(!t){t=document.createElement("div");t.id="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.innerHTML=`<span class="toast-msg">${esc(msg)}</span><button type="button" class="toast-close" aria-label="關閉提示">✕</button>`;const btn=t.querySelector(".toast-close");if(btn)btn.onclick=()=>{clearTimeout(t._h);t.classList.remove("on")};t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),Math.min(4000,Math.max(1000,ms)))}
@@ -6765,7 +6802,7 @@ function initRuns(reset){S.runs=[];S.runId=null;
   S.cmpA=1;S.cmpB=2;switchRun(a)}
 function renderRuns(){if(!S.runs)return;fillSelect($("#selRun"),S.runs.map(r=>[String(r.id),r.name]),String(S.runId));
   $("#runTbl").innerHTML=`<thead><tr><th>回合名稱</th><th>批號／產品料號</th><th class="num">板</th><th class="num">焊墊</th><th class="num">鋼板 µm</th><th></th></tr></thead><tbody>`+S.runs.map(r=>{const cfg=r.id===S.runId?snapCfg():r.cfg;
-    return`<tr${r.id===S.runId?' style="background:var(--accent-soft)"':""}><td><input type="text" id="rn-${r.id}" data-rid="${r.id}" value="${esc(r.name)}" style="min-width:180px" aria-label="回合名稱"></td><td>${runSrc(r)?`<b>${esc(runSrc(r).lot)}</b><br><span class="note">${esc(runSrc(r).part)}${runSrc(r).side?" · "+esc(runSrc(r).side):""}</span>`:'<span class="note">'+(r.sample?"範例資料":"未連結資料庫")+"</span>"}</td><td class="num mono">${new Set(r.rows.map(x=>x.board)).size}</td><td class="num mono">${new Set(r.rows.map(x=>x.pad)).size}</td><td class="num mono">${cfg.stencil}${cfg.step&&cfg.step.on?"·階梯":""}${legacyHpct(r)?'<br><span class="pill warn" title="舊版匯入的高度 % 資料，換算厚度未記錄">高度需重新匯入</span>':""}</td>
+    return`<tr${r.id===S.runId?' style="background:var(--accent-soft)"':""}><td><input type="text" id="rn-${r.id}" data-rid="${r.id}" value="${esc(r.name)}" style="min-width:180px" aria-label="回合名稱"></td><td>${runSrc(r)?`<b>${esc(runSrc(r).lot||"未提供")}</b><br><span class="note">${esc(runSrc(r).part)}${runSrc(r).side?" · "+esc(runSrc(r).side):""}</span>${runSrc(r).lifecycle!=="active"?'<br><span class="pill warn">歷史／未驗證</span>':""}`:'<span class="note">'+(r.sample?"範例資料":"未連結資料庫")+"</span>"}</td><td class="num mono">${new Set(r.rows.map(x=>x.board)).size}</td><td class="num mono">${new Set(r.rows.map(x=>x.pad)).size}</td><td class="num mono">${cfg.stencil}${cfg.step&&cfg.step.on?"·階梯":""}${legacyHpct(r)?'<br><span class="pill warn" title="舊版匯入的高度 % 資料，換算厚度未記錄">高度需重新匯入</span>':""}</td>
     <td style="white-space:nowrap">${r.id===S.runId?'<span class="pill ok">目前</span>':`<button data-use="${r.id}">設為目前</button>`} <button data-delrun="${r.id}" ${S.runs.length<2?"disabled":""}>刪除</button></td></tr>`}).join("")+"</tbody>";
   $$("#runTbl [data-rid]").forEach(el=>el.onchange=()=>{const r=S.runs.find(x=>x.id===+el.dataset.rid);r.name=safeId(el.value)||r.name;saveRunsSoon();if(r.id===S.runId)S.source=r.name;syncControls();renderTab()});
   $$("#runTbl [data-use]").forEach(b=>b.onclick=()=>switchRun(+b.dataset.use));
@@ -6795,7 +6832,8 @@ function impOpts(){
     dateFormat:($("#optDateFmt")||{}).value||"auto",
     dupMode:($("#optDupMode")||{}).value||"last",
     groupFallback:($("#optGrpFallback")||{}).value||"comp",
-    place:(!IMP||!IMP.conv)&&PLACE?PLACE.res:null
+    side:$("#selSide").value,
+    place:PLACE?PLACE.res:null
   };
 }
 /* ---------- 加工廠 SPI 格式：橫排（每列一焊墊、各板量測橫向排列，如立榮電子）轉成一列一筆；座標檔補位置與封裝 ---------- */
@@ -6808,27 +6846,31 @@ function detectSide(name){const s=String(name||"");return/(^|[^a-z])(bot|bottom|
 /* 依別名優先順序找欄位 */
 const findCol=(n,al)=>{for(const a of al){const i=n.indexOf(a);if(i>=0)return i}return-1};
 /* 座標檔（Layout 匯出的元件座標）：位號、X、Y、封裝、面別、角度；單位換算為 mm */
-function parsePlacement(t,unit="auto"){const n=t.head.map(normH),c=al=>findCol(n,al);
-  const iR=c(["refdes","designator","ref","reference","位號","componentid","component","partname"]),iX=c(["x","centerx","midx","posx","xpos","locationx","座標x"]),iY=c(["y","centery","midy","posy","ypos","locationy","座標y"]),
+function parsePlacement(t,unit="mm",selectedSide=""){const n=t.head.map(normH),c=al=>findCol(n,al);
+  const iR=c(["refdes","designator","ref","reference","位號","componentid","component","partname"]),iX=c(["x","xmm","xmil","xin","centerx","midx","posx","xpos","locationx","座標x"]),iY=c(["y","ymm","ymil","yin","centery","midy","posy","ypos","locationy","座標y"]),
     iT=c(["parttype","package","footprint","pkg","封裝","partdecal","pattern"]),iL=c(["layer","side","面別","面","tb","mirror"]),iO=c(["orient","rotation","rot","angle","角度"]);
   if(iR<0||iX<0||iY<0)throw new Error("座標檔需要位號（RefDes）與 X、Y 欄位");
-  const items=t.data.map(r=>({ref:safeId(r[iR]),x:+r[iX],y:+r[iY],pkg:iT>=0?safeId(r[iT])||"":"",side:iL>=0?(/bot|bottom|^b$|底/i.test(r[iL])?"BOT":/top|^t$|頂|正/i.test(r[iL])?"TOP":""):"",rot:iO>=0?+r[iO]||0:0})).filter(p=>p.ref&&r0(p.x)&&r0(p.y));
-  if(!items.length)throw new Error("座標檔沒有可用的位號與座標");
-  const mx=Math.max(...items.map(p=>Math.max(Math.abs(p.x),Math.abs(p.y))));
+  if(!["mm","mil","inch"].includes(unit))throw new Error("請選擇座標單位");
+  if(!["TOP","BOT","BOTH"].includes(selectedSide))throw new Error("請選擇座標檔面別");
   const isInch=t.head.some(h=>/\((inch|in)\)/i.test(h)||/_in$/i.test(h));
   const isMil=t.head.some(h=>/\(mil\)/i.test(h)||/_mil$/i.test(h));
   const isMm=t.head.some(h=>/\(mm\)/i.test(h)||/_mm$/i.test(h));
-  let u=unit;
-  if(unit==="auto"){
-    if(isInch)u="inch";
-    else if(isMil)u="mil";
-    else if(isMm)u="mm";
-    else if(mx>1000)u="mil";
-    else u="mm";
-  }
-  const k=u==="mil"?0.0254:u==="inch"?25.4:1;
-  items.forEach(p=>{p.x=+(p.x*k).toFixed(3);p.y=+(p.y*k).toFixed(3)});
-  return{items,unit:u,auto:unit==="auto",mx,top:items.filter(p=>p.side==="TOP").length,bot:items.filter(p=>p.side==="BOT").length}}
+  const hinted=isInch?"inch":isMil?"mil":isMm?"mm":"";
+  if(hinted&&hinted!==unit)throw new Error(`欄名標示 ${hinted}，與選取的 ${unit} 不一致`);
+  if(selectedSide==="BOTH"&&iL<0)throw new Error("雙面座標檔必須有面別欄位");
+  const k=unit==="mil"?0.0254:unit==="inch"?25.4:1,items=[],seen=new Map();
+  t.data.forEach((r,i)=>{if(r.every(v=>!String(v??"").trim()))return;
+    const ref=safeId(r[iR]),sx=String(r[iX]??"").trim(),sy=String(r[iY]??"").trim(),x=+sx,y=+sy;
+    if(!ref||!sx||!sy||!r0(x)||!r0(y))throw new Error(`上傳失敗：座標資料不完整（第 ${i+2} 列，${[!ref&&"RefDes",(!sx||!r0(x))&&"X",(!sy||!r0(y))&&"Y"].filter(Boolean).join("、")}）`);
+    const side=iL>=0?(/bot|bottom|^b$|底/i.test(r[iL])?"BOT":/top|^t$|頂|正/i.test(r[iL])?"TOP":""):selectedSide;
+    if(!side||(selectedSide!=="BOTH"&&side!==selectedSide))throw new Error(`上傳失敗：面別錯誤（第 ${i+2} 列）`);
+    const key=side+"\0"+ref;if(seen.has(key))throw new Error(`上傳失敗：重複位號（${side} ${ref}，第 ${seen.get(key)}、${i+2} 列）`);
+    seen.set(key,i+2);items.push({ref,x:x*k,y:y*k,pkg:iT>=0?safeId(r[iT])||"":"",side,rot:iO>=0?+r[iO]||0:0});
+  });
+  if(!items.length)throw new Error("座標檔沒有可用的位號與座標");
+  const top=items.filter(p=>p.side==="TOP").length,bot=items.filter(p=>p.side==="BOT").length;
+  if(selectedSide==="BOTH"&&(!top||!bot))throw new Error("雙面座標檔必須同時包含 TOP 與 BOT");
+  return{items,unit,auto:false,top,bot,controlled:true}}
 function r0(v){return typeof v==="number"&&isFinite(v)}
 /* 橫排轉一列一筆。o：{side, place（parsePlacement 結果）, stencil（µm，高度 % 換算用）, st, apertures} */
 function unpivotWide(tab,o={}){const w=wideCols(tab.head),R={};
@@ -6845,7 +6887,7 @@ function unpivotWide(tab,o={}){const w=wideCols(tab.head),R={};
   const idx=[...new Set(Object.values(R).flatMap(x=>Object.keys(w.m[x.b]).map(Number)))].sort((a,b)=>a-b),thk=o.stencil||120;
   const split=s=>{const v=safeId(s)||"",m=v.match(/^(.*?)_(\d+)$/);return m?[m[1],m[2]]:[v,""]};
   const sufs=new Set(tab.data.map(c=>split(c[iComp])[1]).filter(Boolean)),useFig=sufs.size>1;
-  const P=o.place,byRef=new Map();if(P)for(const it of P.items){const cur=byRef.get(it.ref);if(!cur||(o.side&&it.side===o.side&&cur.side!==o.side))byRef.set(it.ref,it)}
+  const P=o.place,byRef=new Map();if(P)for(const it of P.items)if(it.side===o.side)byRef.set(it.ref,it);
 
   if(isZsf){
     const missingApertures=[];
@@ -6876,20 +6918,20 @@ function unpivotWide(tab,o={}){const w=wideCols(tab.head),R={};
     if(/^\d{1,4}$/.test(hv)&&(v1==null||String(c[v1]??"").trim()==="")&&(a1==null||String(c[a1]??"").trim()==="")){const d=c.slice();d[iPad]=hv;d[i1]="";shifted++;return d}return c});
   tab={head:tab.head,data:rowsIn};
   const padsOf={};tab.data.forEach(c=>{const[ref]=split(c[iComp]),p=iPad>=0?safeId(c[iPad]):"";(padsOf[ref]=padsOf[ref]||[]);if(!padsOf[ref].includes(p))padsOf[ref].push(p)});
-  const pos=(it,k,np)=>{const cols=Math.ceil(Math.sqrt(np)),rows=Math.ceil(np/cols),cx=(k%cols)-(cols-1)/2,cy=Math.floor(k/cols)-(rows-1)/2,a=(it.rot||0)*Math.PI/180;
-    return[+(it.x+(cx*Math.cos(a)-cy*Math.sin(a))*0.5).toFixed(3),+(it.y+(cx*Math.sin(a)+cy*Math.cos(a))*0.5).toFixed(3)]};
-  const head=["Board",...(useFig?["Figure"]:[]),"Component ID","PAD ID",...(P?["X","Y","Package"]:[]),...(R.h?["Height(um)"]:[]),...(R.v?["Volume(%)"]:[]),...(R.a?["Area(%)"]:[]),...(R.ox?["Offset X(um)"]:[]),...(R.oy?["Offset Y(um)"]:[]),...(R.r?["Result"]:[])];
+  const head=["Board",...(useFig?["Figure"]:[]),"Component ID","Raw Component ID","PAD ID",...(P?["X","Y","Package"]:[]),...(R.h?["Height(um)"]:[]),...(R.v?["Volume(%)"]:[]),...(R.a?["Area(%)"]:[]),...(R.ox?["Offset X(um)"]:[]),...(R.oy?["Offset Y(um)"]:[]),...(R.r?["Result"]:[])];
   const data=[],missing=new Set(),other=new Set(),matched=new Set();
   for(const c of tab.data){const[ref,fig]=split(c[iComp]),pad=iPad>=0?safeId(c[iPad]):"";if(!ref)continue;
     let xy=null,pkg="",apL=null,apW=null;
     if(P){
       const it=byRef.get(ref);
       if(it){
-        matched.add(ref);if(o.side&&it.side&&it.side!==o.side)other.add(ref);
-        xy=pos(it,padsOf[ref].indexOf(pad),padsOf[ref].length);pkg=it.pkg;
+        matched.add(ref);
+        // 元件中心不是焊墊座標。X/Y 欄保持空白，精確位置圖會顯示無焊墊座標。
+        pkg=it.pkg;
         apL=it.apL||it.w;apW=it.apW||it.d;
       } else {
         missing.add(ref);
+        if(P.items.some(x=>x.ref===ref&&x.side!==o.side))other.add(ref);
         pkg=(ref.match(/^[A-Za-z]+/)||[ref])[0];
       }
     }
@@ -6909,21 +6951,21 @@ function unpivotWide(tab,o={}){const w=wideCols(tab.head),R={};
       } else {
         if(h!==""&&isFinite(+h)&&R.h&&R.h.pct) h=String(+(+h/100*thk).toFixed(2));
       }
-      data.push(["B"+String(i).padStart(2,"0"),...(useFig?[fig]:[]),ref,pad,...(P?[xy?String(xy[0]):"",xy?String(xy[1]):"",pkg]:[]),...(R.h?[h]:[]),...(R.v?[vol]:[]),...(R.a?[area]:[]),...(R.ox?[v("ox")]:[]),...(R.oy?[v("oy")]:[]),...(R.r?[v("r")]:[])])}}
+      data.push(["B"+String(i).padStart(2,"0"),...(useFig?[fig]:[]),ref,String(c[iComp]??""),pad,...(P?[xy?String(xy[0]):"",xy?String(xy[1]):"",pkg]:[]),...(R.h?[h]:[]),...(R.v?[vol]:[]),...(R.a?[area]:[]),...(R.ox?[v("ox")]:[]),...(R.oy?[v("oy")]:[]),...(R.r?[v("r")]:[])])}}
   if(!data.length)throw new Error("轉換後沒有資料列");
   return{tab:{head,data},info:{boards:idx.length,pads:tab.data.length,comps:Object.keys(padsOf).length,shifted,hPct:!!(R.h&&R.h.pct),thk,fig:useFig?sufs.size:0,isZsf,
     place:P?{matched:matched.size,missing:[...missing].sort(),other:[...other].sort()}:null}}}
 /* 加工廠格式與座標檔設定（記在這台電腦，下次自動帶入） */
 let PLACE=null;
-function placeLoad(){try{const s=JSON.parse(localStorage.getItem("spi-place")||"null");if(s&&s.tab){PLACE={recId:s.recId||null,part:s.part||"",rev:s.rev||"",name:s.name,tab:s.tab,res:parsePlacement(s.tab,$("#placeUnit").value)};$("#placePart").value=PLACE.part;$("#placeRev").value=PLACE.rev}}catch(e){PLACE=null}}
-function placeSave(){try{if(PLACE)localStorage.setItem("spi-place",JSON.stringify({recId:PLACE.recId,part:PLACE.part,rev:PLACE.rev,name:PLACE.name,tab:PLACE.tab}));else localStorage.removeItem("spi-place")}catch(e){}}
-function placeShow(){const st=$("#placeState");$("#placeClear").hidden=!PLACE;if(!PLACE){st.textContent="未載入：焊墊位置以格點排列，元件群組依位號字首（C、R…）";return}
-  const r=PLACE.res;st.textContent=`${PLACE.part?`料號 ${PLACE.part} 版本 ${PLACE.rev} · `:""}${PLACE.name}：${r.items.length} 個元件（TOP ${r.top}、BOT ${r.bot}），單位 ${r.unit}${r.auto?"（自動判斷）":""}${PLACE.recId?" · 已存入資料庫":" · 未存入資料庫（請填料號與版本後重新上傳）"}`}
+function placeLoad(){try{const s=JSON.parse(localStorage.getItem("spi-place")||"null");if(s&&s.tab&&s.unit&&s.side){PLACE={recId:s.recId||null,part:s.part||"",rev:s.rev||"",name:s.name,tab:s.tab,side:s.side,unit:s.unit,res:parsePlacement(s.tab,s.unit,s.side)};$("#placePart").value=PLACE.part;$("#placeRev").value=PLACE.rev;$("#placeUnit").value=s.unit;$("#placeSide").value=s.side}}catch(e){PLACE=null}}
+function placeSave(){try{if(PLACE)localStorage.setItem("spi-place",JSON.stringify({recId:PLACE.recId,part:PLACE.part,rev:PLACE.rev,name:PLACE.name,tab:PLACE.tab,unit:PLACE.unit,side:PLACE.side}));else localStorage.removeItem("spi-place")}catch(e){}}
+function placeShow(){const st=$("#placeState");$("#placeClear").hidden=!PLACE;if(!PLACE){st.textContent="未套用受控座標檔";return}
+  const r=PLACE.res,declared=headerPlaceUnit(PLACE.tab.head);st.textContent=`料號 ${PLACE.part} 版次 ${PLACE.rev} · ${PLACE.name}：${r.items.length} 個元件（TOP ${r.top}、BOT ${r.bot}），單位 ${r.unit}${declared?`（欄名標示 ${declared}）`:"（登錄時選擇）"}；無焊墊座標`}
 function vendorUI(){
   const v=$("#selVendor").value,isWideV=v==="lirong"||v==="zsf";
-  $("#sideField").hidden=!isWideV;$("#placeRow").hidden=!isWideV;$("#vendorNote").hidden=!isWideV;
+  $("#sideField").hidden=false;$("#placeRow").hidden=false;$("#vendorNote").hidden=!isWideV;
   if(v==="zsf")$("#vendorNote").textContent="振順豐格式每列是一個焊墊，Height(mm)1、Volume(mm)1…為絕對值。系統會依座標檔或開孔設定換算為體積 %、高度 µm、面積 %。缺開孔尺寸或鋼板厚度時將拒絕換算。";
-  else $("#vendorNote").textContent="立榮格式每列是一個焊墊，Height(%)1、Volume(%)1…分別是第 1、2…片板。系統會轉成一列一筆，TOP 與 BOT 各匯入成一個回合。高度 % 依套用時填寫的鋼板厚度（必填）換算成 µm。座標檔（例如 Layout 匯出的 PartType、RefDes、X、Y、Layer）用位號對應，補上焊墊位置，並以封裝（C0402、R0603…）分元件群組。";
+  else $("#vendorNote").textContent="立榮格式每列是一個焊墊，Height(%)1、Volume(%)1…分別是第 1、2…片板。高度 % 依鋼板厚度換算；座標檔只提供元件中心，沒有實際焊墊座標時不產生位置推估。";
   placeShow();
 }
 try{const v=localStorage.getItem("spi-vendor");if(v&&[...$("#selVendor").options].some(o=>o.value===v))$("#selVendor").value=v}catch(e){}
@@ -6948,9 +6990,9 @@ function startImport(text,name,tab0,bytes){try{const raw=tab0||csvTable(text),nx
     $("#inRunName").value=impName();$("#mapBox").hidden=false;$("#parseErr").textContent="";recFields();renderMap()}
   catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true;IMP=null}}
 /* 批號、產品料號欄位：一般匯入為必填；從資料庫開啟時帶入且不可改；範例資料不需要 */
-function recFields(){if(!IMP)return;const rec=IMP.rec,demo=IMP.demo;$("#recRow").hidden=!!demo;["inLot","inPart","inSupplierWo","inOutsourceWo"].forEach(id=>{const el=$("#"+id);if(el)el.readOnly=!!rec});
-  if(rec){$("#inLot").value=rec.lot;$("#inPart").value=rec.part;if($("#inSupplierWo"))$("#inSupplierWo").value=rec.supplierWo||"";if($("#inOutsourceWo"))$("#inOutsourceWo").value=rec.outsourceWo||""}
-  else{$("#inLot").value="";if($("#inSupplierWo"))$("#inSupplierWo").value="";if($("#inOutsourceWo"))$("#inOutsourceWo").value="";if(!$("#inPart").value){let lp="";try{lp=localStorage.getItem("spi-last-part")||""}catch(e){}$("#inPart").value=(PLACE&&PLACE.part)||lp}}
+function recFields(){if(!IMP)return;const rec=IMP.rec,demo=IMP.demo;$("#recRow").hidden=!!demo;["inLot","inPart","inRev","inWorkOrder","inMeasuredDate","inSupplierWo","inOutsourceWo"].forEach(id=>{const el=$("#"+id);if(el)el.readOnly=!!rec});
+  if(rec){$("#inLot").value=rec.lot||"";$("#inPart").value=rec.part;$("#inRev").value=rec.rev||"";$("#inWorkOrder").value=rec.work_order||rec.workOrder||"";$("#inMeasuredDate").value=rec.measured_date||rec.measuredDate||"";if($("#inSupplierWo"))$("#inSupplierWo").value=rec.supplierWo||"";if($("#inOutsourceWo"))$("#inOutsourceWo").value=rec.outsourceWo||""}
+  else{$("#inLot").value="";$("#inRev").value=PLACE?.rev||"";$("#inWorkOrder").value="";$("#inMeasuredDate").value="";if($("#inSupplierWo"))$("#inSupplierWo").value="";if($("#inOutsourceWo"))$("#inOutsourceWo").value="";if(!$("#inPart").value){let lp="";try{lp=localStorage.getItem("spi-last-part")||""}catch(e){}$("#inPart").value=(PLACE&&PLACE.part)||lp}}
   $("#inImpStencil").removeAttribute("aria-invalid");$("#inImpStencil").value=rec&&thkOk(+rec.stencil)?rec.stencil:"";if(!demo)prefillImpThk();
   recPartNote()}
 /* 料號已有預設規格時，以規格存檔時的鋼板厚度預填（仍可修改；不覆蓋使用者已填的值） */
@@ -6960,7 +7002,7 @@ async function prefillImpThk(){const el=$("#inImpStencil"),part=safeId($("#inPar
     if(seq===THK_SEQ&&!el.value&&thkOk(sp.stencilRef)){el.value=sp.stencilRef;if(IMP&&IMP.conv&&IMP.conv.hPct)reconvertThk()}}catch(e){}}
 function reconvertThk(){if(!IMP||!IMP.conv||!IMP.conv.hPct||!thkOk(impThk())||IMP.conv.thk===impThk())return;try{convertImp(true);previewImport()}catch(e){$("#parseErr").textContent=e.message}}
 function recPartNote(){const n=$("#recNote");if(!IMP||IMP.demo){n.textContent="";return}if(IMP.rec){n.textContent=`來自資料庫的原始檔（${IMP.rec.user}，${fmtTime(IMP.rec.created)}），套用時不會重複存檔`;return}
-  const p=safeId($("#inPart").value);n.innerHTML=PLACE&&PLACE.part&&p&&p!==PLACE.part?`<span class="err">座標檔料號為 ${esc(PLACE.part)}，與量測料號不同，請確認</span>`:`套用時原始檔會存入${recWhere()}，之後可在「資料庫」回溯`}
+  const p=safeId($("#inPart").value);n.innerHTML=PLACE&&PLACE.part&&p&&p!==PLACE.part?`<span class="err">座標檔料號為 ${esc(PLACE.part)}，與量測料號不同</span>`:`正式匯入會保存原始檔與受控座標引用；${recWhere()}`}
 $("#inPart").oninput=recPartNote;
 $("#inPart").onchange=()=>prefillImpThk();
 $("#inImpStencil").onchange=()=>{$("#inImpStencil").removeAttribute("aria-invalid");reconvertThk()};
@@ -6968,21 +7010,30 @@ $("#inImpStencil").onchange=()=>{$("#inImpStencil").removeAttribute("aria-invali
 function reconvert(){if(!IMP||!IMP.raw)return;try{convertImp(false);$("#inRunName").value=impName();$("#parseErr").textContent="";renderMap()}catch(e){$("#parseErr").textContent=e.message;$("#mapBox").hidden=true;IMP=null}}
 $("#selVendor").onchange=()=>{try{localStorage.setItem("spi-vendor",$("#selVendor").value)}catch(e){}vendorUI();reconvert()};
 $("#selSide").onchange=reconvert;
-$("#placeUnit").onchange=()=>{if(PLACE){try{PLACE.res=parsePlacement(PLACE.tab,$("#placeUnit").value)}catch(e){}}placeShow();reconvert()};
+$("#placeUnit").onchange=()=>{if(PLACE)$("#placeUnit").value=PLACE.unit};
 $("#placeClear").onclick=()=>{PLACE=null;placeSave();placeShow();reconvert()};
+$("#btnSelectPlace").onclick=()=>{$("#btnOpenRecModal").click();$("#btnPickPlace").click()};
+async function saveControlledPlacement(fl,part,rev,side,unit){
+  if(RecDB.mode!=="cloud")throw new Error("請先登入並連線到雲端資料庫");
+  if(!RecDB.isAdmin){await RecDB.list();if(!RecDB.isAdmin)throw new Error("只有管理者可以上傳座標檔")}
+  if(!part||!rev||!side||!unit)throw new Error("請填寫正式料號與版次，並選擇面別與單位");
+  if(!/\.csv$/i.test(fl.name))throw new Error("目前受控上傳只接受 CSV 原始檔");
+  const u8=new Uint8Array(await readBuf(fl)),tab=csvTable(decodeBytes(u8)),res=parsePlacement(tab,unit,side);
+  const rec=await RecDB.create({kind:"place",part,rev,side,unit,name:safeId(fl.name),comps:res.items.length},u8);
+  return{rec,tab,res,u8};
+}
+function headerPlaceUnit(head){const xy=head.filter(h=>/^(?:x|y|center[xy]|mid[xy]|pos[xy]|[xy]pos|location[xy])/i.test(String(h).trim()));
+  const found=new Set(xy.flatMap(h=>/\bmil\b|_mil|\(mil\)/i.test(h)?["mil"]:/\binch\b|\(in\)|_in\b/i.test(h)?["inch"]:/\bmm\b|_mm\b/i.test(h)?["mm"]:[]));
+  return found.size===1?[...found][0]:""}
 /* 座標檔：先填產品料號與版本才能上傳；讀取成功後原始檔存入資料庫，再拿來對應位置 */
-$("#placeIn").onchange=e=>{const fl=e.target.files[0];e.target.value="";if(!fl)return;
-  const part=safeId($("#placePart").value),rev=safeId($("#placeRev").value);
-  if(!part||!rev){$("#placeState").innerHTML='<span class="err">請先填寫座標檔的產品料號與版本，再上傳檔案</span>';(part?$("#placeRev"):$("#placePart")).focus();return}
-  const fail=er=>{busy(false);$("#placeState").innerHTML=`<span class="err">${esc(er.message)}</span>`};
-  readBuf(fl).then(async b=>{const u8=new Uint8Array(b.slice(0)),name=safeId(fl.name);
-    const tab=/\.xlsx$/i.test(fl.name)?(await xlsxTable(b)).tab:csvTable(decodeBytes(u8)),res=parsePlacement(tab,$("#placeUnit").value);
-    busy(true,"正在存入資料庫…");let rec=null,reuse=false;
-    try{rec=await RecDB.create({kind:"place",part,rev,name,comps:res.items.length},u8)}catch(er){if(er.existing){rec=await recFind(er.existing);reuse=!!rec}if(!rec)throw new Error("無法存入資料庫："+er.message+"；未載入座標檔")}
-    busy(false);PLACE={recId:rec.id,part:rec.part,rev:rec.rev,name:rec.name,tab,res};placeSave();placeShow();reconvert();recPartNote();
-    const dupMsg=reuse?`這個座標檔已存過（${rec.user}，${fmtTime(rec.created)}），沿用既有紀錄`:"";
-    if(reuse){const dn=$("#impDupNotice");if(dn){dn.hidden=false;dn.textContent=dupMsg}$("#placeState").textContent+=` · ${dupMsg}`}
-    toast(reuse?dupMsg:`已存入座標檔 ${part} ${rev}：${res.items.length} 個元件`)}).catch(fail)};
+$("#placeIn").onchange=async e=>{const fl=e.target.files[0];e.target.value="";if(!fl)return;
+  const part=safeId($("#placePart").value),rev=safeId($("#placeRev").value),side=$("#placeSide").value;
+  const fail=er=>{busy(false);LOAD_ERROR.place=er.message;updateLoadStates();$("#placeState").innerHTML=`<span class="err">${esc(er.message)}</span>`};
+  let unit=$("#placeUnit").value;
+  if(!unit){try{unit=headerPlaceUnit(csvTable(decodeBytes(new Uint8Array(await readBuf(fl)))).head);if(unit){$("#placeUnit").value=unit;$("#placeState").textContent=`欄名標示單位 ${unit}，已預選；請確認登錄資料`}}catch(er){return fail(er)}}
+  busy(true,"正在驗證並存入座標檔…");saveControlledPlacement(fl,part,rev,side,unit).then(({rec,tab,res})=>{
+    busy(false);PLACE={recId:rec.id,part:rec.part,rev:rec.rev,name:rec.name,tab,res,unit,side};placeSave();placeShow();LOAD_ERROR.place="";updateLoadStates();reconvert();recPartNote();
+    toast(`已存入座標檔 ${part} ${rev}：${res.items.length} 個元件`)}).catch(fail)};
 function applyProfile(v){const head=IMP.tab.head;
   if(v==="auto"){IMP.map=autoMap(head);setOpts(guessOpts(head,IMP.map))}
   else if(v==="phme"){IMP.map=autoMap(head);delete IMP.map.board;setOpts({offUnit:"pct",heightUnit:"um",volBasis:"aperture"})}
@@ -7001,9 +7052,9 @@ function previewImport(){try{const{rows,metrics,info}=perfSpan("buildRows",()=>b
     let conv="";const cv=IMP.conv;
     if(cv){const pl=cv.place,vNameAuto=cv.isZsf?"振順豐（絕對值橫排）":"立榮（各板橫排）",vNameManual=cv.isZsf?"振順豐（絕對值橫排）":"立榮";
       conv=`<b>${IMP.autoV?`偵測到${vNameAuto}格式，已自動切換：`:`${vNameManual}格式已轉換：`}</b>${cv.boards} 片板 × ${cv.pads.toLocaleString()} 個焊墊（${cv.comps} 個元件）${cv.side?`，${cv.side} 面`:"，面別未知（檔名沒有 TOP／BOT，可在上方指定）"}${cv.fig?`，${cv.fig} 個子板`:""}${cv.hPct?`；高度 % 以鋼板厚度 ${cv.thk} µm 換算`:""}`
-        +(pl?`；座標檔對應 ${pl.matched}/${cv.comps} 個元件（座標檔只有元件中心，同一元件的焊墊位置為近似）`:"；未載入座標檔，焊墊位置以格點排列")+"<br>";
+        +(pl?`；座標檔對應 ${pl.matched}/${cv.comps} 個元件（只有元件中心，無焊墊座標）`:"；尚未選取受控座標檔")+"<br>";
       if(cv.shifted)warn.push(`${cv.shifted} 列的焊墊編號錯放在第 1 片板的高度欄（PAD ID 空白），已取回焊墊編號，這些焊墊的第 1 片板視為未量測`);
-      if(pl&&pl.missing.length)warn.push(`座標檔找不到 ${pl.missing.length} 個位號：${pl.missing.slice(0,10).join("、")}${pl.missing.length>10?"…":""}（這些元件以位號字首分群、位置以格點排列）`);
+      if(pl&&pl.missing.length)warn.push(`座標檔找不到 ${pl.missing.length} 個位號：${pl.missing.join("、")}（匯入時須確認；位置分析不使用）`);
       if(pl&&pl.other.length)warn.push(`${pl.other.length} 個位號在座標檔屬於另一面（${pl.other.slice(0,6).join("、")}${pl.other.length>6?"…":""}），請確認面別是否選對`);
     } else if(info.place){
       const pl=info.place;
@@ -7029,12 +7080,17 @@ function newRunCfg(thk,ps){const c=snapCfg();c.stencil=thk;c.specDraft=null;
   else Object.assign(c,{specSrc:"none",partSpec:null,specsG:null});return c}
 $("#btnApply").onclick=async()=>{if(!IMP||!IMP.res)return;const I0=IMP,demo=!!I0.demo,ti=$("#inImpStencil");let thk=demo?S.stencil:impThk();
   if(ti)ti.removeAttribute("aria-invalid");
-  // 先把原始檔存入資料庫（批號、產品料號必填），成功後才建立回合，確保每個回合都能回溯到原始檔
+  // 伺服器完成原始檔、受控座標與位號驗證後，才建立正式分析回合。
   let src=null,ps=null;
   const dn=$("#impDupNotice");if(dn){dn.hidden=true;dn.textContent=""}
-  if(!demo){const lot=safeId($("#inLot").value),part=safeId($("#inPart").value),
+  if(!demo){const lot=safeId($("#inLot").value),part=safeId($("#inPart").value),rev=safeId($("#inRev").value),
+    workOrder=safeId($("#inWorkOrder").value),measuredDate=$("#inMeasuredDate").value,
     supplierWo=safeId($("#inSupplierWo")?$("#inSupplierWo").value:""),outsourceWo=safeId($("#inOutsourceWo")?$("#inOutsourceWo").value:"");
-    if(!lot||!part){$("#recNote").innerHTML='<span class="err">請填寫批號與產品料號（資料回溯必填）</span>';(lot?$("#inPart"):$("#inLot")).focus();return}
+    if(!I0.rec&&(!part||!rev||!workOrder&&!measuredDate)){$("#recNote").innerHTML='<span class="err">請填寫料號、版次，以及製令工單或量測日期</span>';(!part?$("#inPart"):!rev?$("#inRev"):$("#inWorkOrder")).focus();return}
+    const impSide=(I0.conv&&I0.conv.side)||$("#selSide").value;
+    if(!I0.rec&&!["TOP","BOT"].includes(impSide)){$("#recNote").innerHTML='<span class="err">請選擇量測面別</span>';$("#selSide").focus();return}
+    if(!I0.rec&&(!PLACE?.recId||PLACE.part!==part||PLACE.rev!==rev||!PLACE.res.items.some(x=>x.side===impSide))){$("#recNote").innerHTML='<span class="err">請選擇同料號、版次與面別的有效受控座標檔</span>';$("#btnSelectPlace").focus();return}
+    if(RecDB.mode!=="cloud"&&!I0.rec){$("#recNote").innerHTML='<span class="err">正式新匯入必須連線並登入</span>';return}
     busy(true,"正在讀取料號規格…");
     try{ps=await defaultSpecFor(IMP.rec?IMP.rec.part:part)}catch(e){toast("無法取回料號規格："+e.message+"；此回合需重新套用規格")}
     busy(false);if(IMP!==I0)return;
@@ -7043,14 +7099,19 @@ $("#btnApply").onclick=async()=>{if(!IMP||!IMP.res)return;const I0=IMP,demo=!!I0
     if(!thkOk(thk)){$("#recNote").innerHTML='<span class="err">請填寫鋼板厚度（30–300 µm）：高度 % 與高度規格都依此換算</span>';if(ti){ti.setAttribute("aria-invalid","true");ti.focus()}return}
     // 高度 % 依「套用當下」的鋼板厚度換算（讀取後才改厚度也正確）
     if(IMP.conv&&IMP.conv.hPct&&IMP.conv.thk!==thk){try{convertImp(true);previewImport()}catch(e){$("#parseErr").textContent=e.message;return}if(!IMP.res)return}
-    if(IMP.rec)src=IMP.rec;
+    if(IMP.rec){if(IMP.rec.lifecycle==="pending_review"){$("#recNote").innerHTML='<span class="err">待判定紀錄不能套用到正式分析</span>';return}src=IMP.rec}
     else{busy(true,"正在存入資料庫…");
       const qSnap=computeQualitySnapshot(I0.res,ps?{...S,...newRunCfg(thk,ps)}:null),pMatch=computePlacementMatch(I0.res.rows,PLACE);
-      const impSide=(I0.conv&&I0.conv.side)||($("#selSide").value==="auto"?detectSide(I0.name):$("#selSide").value)||"";
-      try{src=await RecDB.create({kind:"spi",lot,part,supplierWo,outsourceWo,side:impSide,vendor:$("#selVendor").value,name:safeId(I0.name)||"量測紀錄.csv",rows:I0.res.rows.length,boards:I0.res.info.boards,pads:I0.res.info.pads,placeId:(I0.conv&&I0.conv.place&&PLACE&&PLACE.recId)||"",stencil:thk,...(qSnap?{qualitySnapshot:qSnap}:{}),placeMatch:pMatch},I0.bytes)}
-      catch(e){if(e.existing){src=await recFind(e.existing).catch(()=>null);if(src){const dupMsg=`這個檔案已存過（${src.user}，${fmtTime(src.created)}），回合已連結到既有紀錄`;if(dn){dn.hidden=false;dn.textContent=dupMsg}$("#recNote").textContent=dupMsg;toast(dupMsg)}}
-        if(!src){busy(false);$("#recNote").innerHTML=`<span class="err">無法存入資料庫：${esc(e.message)}；未建立回合</span>`;return}}
-      busy(false);if(IMP!==I0)return}
+      const unmatched=[...new Set([...(I0.conv?.place?.missing||[]),...(I0.res?.info?.place?.missing||[])])].sort();
+      if(unmatched.length&&!window.confirm(`以下 ${unmatched.length} 個位號在 ${impSide} 座標中找不到：\n${unmatched.join("、")}\n\n確認仍要匯入？這些量測保留在非位置統計，沒有座標。`)){busy(false);return}
+      try{src=await RecDB.create({kind:"spi",lot,part,rev,workOrder,measuredDate,supplierWo,outsourceWo,side:impSide,vendor:$("#selVendor").value,name:safeId(I0.name)||"量測紀錄.csv",rows:I0.res.rows.length,boards:I0.res.info.boards,pads:I0.res.info.pads,placeId:PLACE.recId,unmatchedRefs:unmatched,unmatchedConfirmed:!!unmatched.length,stencil:thk,...(qSnap?{qualitySnapshot:qSnap}:{}),placeMatch:pMatch},I0.bytes)}
+      catch(e){if(e.code==="unmatched_confirmation"&&e.missing?.length){busy(false);$("#recNote").textContent=`伺服器查出 ${e.missing.length} 個無座標位號：${e.missing.join("、")}。請核對座標檔與面別後重新套用。`;return}
+        if(e.existing){src=await recFind(e.existing).catch(()=>null);if(src){const changed=[["製令工單",workOrder,src.workOrder],["量測日期",measuredDate,src.measuredDate],["批號",lot,src.lot],["廠商工單",supplierWo,src.supplierWo],["外包工單",outsourceWo,src.outsourceWo]].filter(([,a,b])=>(a||"")!==(b||""));
+          const diff=changed.length?`；本次填寫與既有紀錄不同：${changed.map(([label,a,b])=>`${label}「${a||"未提供"}」／既有「${b||"未提供"}」`).join("、")}。請由管理者在資料庫修改並保留稽核。`:"";
+          const dupMsg=`這個檔案已存過（${src.user}，${fmtTime(src.created)}），已開啟既有紀錄${diff}`;if(dn){dn.hidden=false;dn.textContent=dupMsg}$("#recNote").textContent=dupMsg;toast("已開啟既有量測紀錄")}}
+        if(!src){busy(false);$("#recNote").innerHTML=`<span class="err">無法存入資料庫：${esc(e.message)}；未建立回合</span>`;LOAD_ERROR.spi=e.message;updateLoadStates();return}}
+      busy(false);if(IMP!==I0)return;
+      if(src.lifecycle==="pending_review"){$("#recNote").textContent="量測檔已保存為待管理者判定；尚未套用正式分析";toast("已保存待管理者判定的量測紀錄");await renderRecords(true);return}}
     try{localStorage.setItem("spi-last-part",part)}catch(e){}}
   const cfg=demo?sampleCfg():newRunCfg(thk,ps),locked=cfg.specSrc==="none",partNo=src?src.part:"";
   const{rows,metrics}=IMP.res,info={...IMP.res.info,src:src?srcInfo(src):null,...(IMP.conv&&IMP.conv.hPct?{hPctThk:IMP.conv.thk}:{})},mode=(document.querySelector("input[name=impMode]:checked")||{}).value,name=safeId($("#inRunName").value)||safeId(IMP.name);
@@ -7141,9 +7202,16 @@ function reportMd(){const A=S.A,u=METRICS[A.m].unit,lab={ok:"一致/正常",warn
   return`# SPI·SPC 分析報告\n\n- 產生時間：${fmtNowUtc8()}\n- 資料來源：${S.source}\n- 量測項目：${METRICS[A.m].label}；元件群組：${S.group==="ALL"?"全部":S.group}；管制圖：${chartName()}\n- 整體判定：${vd.label}（${vd.level}）${vd.reasons&&vd.reasons.length?" · 原因："+vd.reasons.join("；"):""}\n- 規格：LSL ${A.sp.lsl} / 目標 ${A.sp.tgt} / USL ${A.sp.usl} ${u}\n- 規格來源：${specSrcText()}\n- 刮刀行程方向：沿 ${S.sqDir||"Y"}；擦拭間隔：每 ${S.wipe} 片\n- 鋼板厚度：${S.stencil} µm（高度規格 ${S.htol.lo}%–${S.htol.hi}% 厚度）\n- 階梯鋼板：${S.step.on?S.step.zones.map(z=>`${z.name} ${z.t} µm（${z.mode==="group"?"群組 "+z.group:`X ${z.x0}–${z.x1}, Y ${z.y0}–${z.y1} mm`}）`).join("；")+`（涵蓋 ${stepCovered} 焊墊${stepCovered===0?" ⚠️ 未涵蓋任何焊墊":""}）`:"未啟用"}\n- 系統版本：${APP.ver} · 系統更新 ${APP.built}\n- 試產回合：${curRun()?curRun().name:""}\n${runSrc(curRun())?`- 資料來源追溯：${srcLine(runSrc(curRun()))}\n- 原始檔 SHA-256：${runSrc(curRun()).sha256}\n`:""}\n## 問題偵測（依嚴重度與佐證排序）\n\n${S.F.map(x=>`- #${x.no}［${x.level}］${x.title}（規則：${x.rule_id} ${x.rule_name}）\n  - 面向：${x.category}；量測項目：${x.metric}；板號：${x.boards}；焊墊：${x.pads}；群組：${x.group}；位號：${x.refdes}\n  - 觀測值：${x.observed}；界限：${x.limit}；z：${x.z}；p：${x.p}\n  - 事實：${x.facts.join("；")}\n  - 推論（信心 ${x.confidence}）：${x.inference}\n  - 建議動作：${x.action}${x.corroborated_by.length?"\n  - 跨面向佐證："+x.corroborated_by.map(i=>"#"+i).join("、"):""}${x.same_phenomenon.length?"\n  - 同一現象："+x.same_phenomenon.map(i=>"#"+i).join("、"):""}${x.explained_pads.length?"\n  - 已解釋焊墊："+x.explained_pads.join("；"):""}`).join("\n")||"- 未偵測到顯著問題"}\n\n## 一、統計結果（事實）\n\n| 指標 | 數值 |\n|---|---|\n| 樣本數 | ${A.N} |\n| 板數 | ${A.boards.length} |\n| 平均 | ${f(A.gMean,2)} ${u} |\n| σ 組內 / 整體 | ${f(A.sigmaW,3)} / ${f(A.overallSd,3)} |\n${A.cap?`| 能力計算方式 | ${A.cap.mixed?`逐元件群組（組內 σ），以最差群組 ${A.cap.worst} 代表`:"組內 σ"}${A.stable?"":"；製程未穩定，僅供參考"} |\n| Cp / Cpk | ${f(A.cap.cp)} / ${f(A.cap.cpk)} |\n| Cpk 95% 信賴區間（以 ${A.cap.nb} 片板計） | ${f(A.cap.ci[0])} – ${f(A.cap.ci[1])} |\n| Pp / Ppk | ${f(A.cap.pp)} / ${f(A.cap.ppk)} |\n| 預估 PPM / 超規 PPM（${mShort}） | ${fmtPpm(A.cap.ppmExp)} / ${fmtPpm(A.cap.ppmObs)} |\n| 不良 PPM（全部判定項目） | ${fmtPpm(defPpm)} |\n`:""}| Anderson-Darling p | ${A.ad.p<.001?"<0.001":f(A.ad.p,3)} |\n${A.sw&&A.sw.valid?`| Shapiro-Wilk W / p | ${f(A.sw.w,4)} / ${A.sw.p<.001?"<0.001":f(A.sw.p,3)} |\n`:""}| 不良焊墊（全部項目） | ${A.defRows.length} |\n\n${A.cap&&A.cap.mixed?`\n### 逐元件群組製程能力\n\n| 元件群組 | n | 平均 | 規格 | Cpk | Cpk 95% 信賴區間 | Ppk | 預估 PPM | 超規 PPM（${mShort}） |\n|---|---|---|---|---|---|---|---|---|\n${A.cap.groups.map(g=>`| ${g.g} | ${g.n} | ${f(g.mu,1)} | ${f(g.lsl,0)}–${f(g.usl,0)} | ${f(g.cpk)} | ${f(g.ci[0])}–${f(g.ci[1])} | ${f(g.ppk)} | ${fmtPpm(g.ppmExp)} | ${fmtPpm(g.ppmObs)} |`).join("\n")}\n`:""}\n## 二、Nelson 規則（X̄ 圖，管制狀態判斷依據）\n\n${(A.nelX||A.nel).rules.map(r=>`- 規則 ${r.name}：${r.idx.length?"觸發（"+r.idx.map(i=>A.xs.pts[i].lab).join(", ")+"）":"通過"}`).join("\n")}${S.chart!=="xbars"?`\n\n目前畫面管制圖（${chartName()}）：${A.nel.rules.filter(r=>!r.na).map(r=>`規則 ${r.id} ${r.idx.length?"觸發":"通過"}`).join("、")}`:""}\n\n## 三、交叉驗證\n\n| 面向 | 來源 | 判定 | 依據 |\n|---|---|---|---|\n${A.xv.rows.map(x=>`| ${x.k} | ${x.src} | ${lab[x.st]} | ${x.ev} |`).join("\n")}\n\n${fmMd().trim()||"## 失效模式交叉比對\n\n- 無資料"}\n\n## 進階分析\n\n${(()=>{const W=advSummary(A);return[`- EWMA 越界：${W.EWMA越界.join(", ")||"無"}；CUSUM 訊號：${W.CUSUM訊號.join(", ")||"無"}`,`- 面積比 / 轉移效率：${W.面積比.map(g=>`${g.群組} AR ${g.AR}、TE ${g.轉移效率}%`).join("；")}`,`- 最差焊墊 Cpk：${W.最差焊墊Cpk.map(p=>`${p.焊墊} ${p.Cpk}`).join("、")}`,`- 對位異常板：${W.對位異常板.map(a=>`${a.板}（平移 ${a.平移X}/${a.平移Y} µm，旋轉 ${a.旋轉度}°）`).join("；")||"無"}`,W.刮刀前後?`- 刮刀前後差：${W.刮刀前後.差值}，p = ${W.刮刀前後.p}`:"",`- 擦拭週期（每 ${W.擦拭週期.每幾片} 片）：斜率 ${W.擦拭週期.每片斜率}/片，p = ${W.擦拭週期.p}`].filter(Boolean).join("\n")})()}\n\n## 四、不良柏拉圖\n\n${Object.entries(A.pareto).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`- ${DEFECTS[k]}：${v}`).join("\n")||"- 無"}\n${S.ai?`\n## 五、Claude AI 分析（含推論，需工程驗證）\n\n${S.ai}\n`:""}\n## 八、資料範圍揭露與未納入證據 (Data Scope & Exclusions)\n\n- 匯入總筆數：${S.rows.length} 筆；納入分析筆數：${S.rows.length} 筆\n- 板號推定狀態：${(S.boardInferred || S.rows.some(r=>r.boardInferred)) ? `板號為推定（每 ${S.boardInferred || Math.round(S.rows.length / (A.boards.length||1))} 筆）` : "板號完整，無推定缺失"}\n- 時間區間篩選：${S.timeFilter ? `${S.timeFilter.start || "—"} ～ ${S.timeFilter.end || "—"}（UTC+8）` : "未設定時間篩選（全時段）"}\n- 部分焊墊板數：${S.partialBoards && S.partialBoards.length ? `${S.partialBoards.length} 片板僅含部分焊墊（${S.partialBoards.join("、")}）` : "無部分板（所有板皆含完整焊墊）"}\n- 刮刀方向狀態：${S.sqDir ? `刮刀方向設定為 ${S.sqDir} 向` : "依板序奇偶推定"}\n- 焊墊座標狀態：${PLACE ? `已套用座標檔：${esc(PLACE.part)} ${esc(PLACE.rev)}` : "未套用獨立座標檔（採用資料內建座標或相對位置）"}\n\n## 九、方法附錄與統計檢驗說明 (Methodology Appendix)\n\n- 判定規格來源：${specSrcText()}\n- 實驗設計 (DOE)：各因子單獨檢定、未調整其他因子與交互作用。\n`}
 /* 下載：在 claude.ai 內用平台下載功能；一般瀏覽器（例如 Netlify 部署）直接下載檔案 */
 function browserDownload(filename,data){const isXlsx=/\.xlsx$/i.test(filename);const type=isXlsx?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":(/\.csv$/.test(filename)?"text/csv;charset=utf-8":"text/markdown;charset=utf-8"),url=URL.createObjectURL(new Blob(isXlsx?[data]:["\uFEFF"+data],{type})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-async function save(filename,data){const st=$("#expState");try{const d=window.claude&&await window.claude.use("downloads");if(!d){browserDownload(filename,data);st.textContent="已下載 "+filename;return}await d.save({filename,data});st.textContent="已儲存 "+filename}catch(e){st.textContent=e&&e.code==="declined"?"已取消":"下載失敗："+(e&&e.message||e)}}
+async function save(filename,data){const st=$("#expState"),src=runSrc(curRun());
+  if(src&&RecDB.mode==="cloud"){
+    try{const j=await RecDB.jfetch("/api/records?id="+encodeURIComponent(src.id)+"&meta=1");src.lifecycle=j.record?.lifecycle||"unavailable"}
+    catch(e){src.lifecycle="unavailable";st.textContent="無法確認來源紀錄目前狀態，已停止匯出："+e.message;updateLoadStates();renderRuns();return}
+    saveRunsSoon();updateLoadStates();renderRuns();
+  }
+  if(src&&src.lifecycle!=="active"){st.textContent="此回合是歷史或待判定紀錄，不納入預設匯出";return}
+  try{const d=window.claude&&await window.claude.use("downloads");if(!d){browserDownload(filename,data);st.textContent="已下載 "+filename;return}await d.save({filename,data});st.textContent="已儲存 "+filename}catch(e){st.textContent=e&&e.code==="declined"?"已取消":"下載失敗："+(e&&e.message||e)}}
 const needSpec=()=>{if(specReady(S)&&S.A)return true;toast("此回合尚未套用料號規格，沒有分析結果可匯出");return false};
-$("#btnExpMd").onclick=()=>{if(needSpec())save("spi-spc-report.md",reportMd())};
+$("#btnExpMd").onclick=()=>{if(needSpec()){const md=reportMd();save("spi-spc-report.md",PLACE?md.replace("已套用座標檔：","已套用元件中心座標檔：").replace(/(焊墊座標狀態：[^\n]+)/, "$1；無焊墊座標"):md)}};
 $("#btnExpBoard").onclick=()=>{if(!needSpec())return;const src=runSrc(curRun()),swo=src&&src.supplierWo?src.supplierWo:"",owo=src&&src.outsourceWo?src.outsourceWo:"";save("board-stats.csv",toCSV([["board","supplier_wo","outsource_wo","n","mean","sd","min","q1","median","q3","max","defect_pads","defect_rate","spec_source"],...S.A.byBoard.map(b=>[b.board,swo,owo,b.n,f(b.mean,3),f(b.sd,3),b.min,f(b.q1,2),f(b.med,2),f(b.q3,2),b.max,b.defects,f(b.p,4),specSrcText()])]))};
 $("#btnExpDef").onclick=()=>needSpec()&&save("defect-pads.csv",toCSV([["board","pad","component","group","volume","height","area","offset_x","offset_y","defects","spec_source"],...S.A.defRows.map(r=>[r.board,r.pad,r.comp,r.group,r.volume,r.height,r.area,r.offx,r.offy,r.codes.map(c=>DEFECTS[c]).join(" / "),specSrcText()])]));
 
@@ -7521,16 +7589,18 @@ function computePlacementMatch(rows,place){
 function recCheck(m){const c=(v,n)=>String(v??"").replace(/[<>"'`&\u0000-\u001f\u007f]/g,"").trim().slice(0,n);const o={...m,part:c(m.part,64),name:c(m.name,200),supplierWo:c(m.supplierWo,64),outsourceWo:c(m.outsourceWo,64)};
   if(!o.part)return{error:"請填寫產品料號"};
   if(m.kind==="spi"){
-    o.lot=c(m.lot,64);if(!o.lot)return{error:"請填寫批號"};
+    o.lot=c(m.lot,64);o.rev=c(m.rev,32);o.workOrder=c(m.workOrder,64);o.measuredDate=c(m.measuredDate,10);
+    if(!o.rev||!o.workOrder&&!o.measuredDate)return{error:"請填寫正式版次，以及製令工單或量測日期"};
+    if(!/^[A-Za-z0-9_-]{22}$/.test(m.placeId||""))return{error:"請選擇受控座標檔"};
     if(m.qualitySnapshot)o.qualitySnapshot=m.qualitySnapshot;
     if(m.placeMatch)o.placeMatch=m.placeMatch;
   }else if(m.kind==="spec"){
     o.name=o.name||"料號規格.json";o.note=c(m.note,200);o.basedOn=/^[A-Za-z0-9_-]{22}$/.test(m.basedOn||"")?m.basedOn:"";o.makeDefault=Boolean(m.makeDefault);
   }else{
     o.rev=c(m.rev,32);if(!o.rev)return{error:"請填寫座標檔版本"};
-    o.side=m.side==="TOP"||m.side==="BOT"?m.side:"";
+    o.side=["TOP","BOT","BOTH"].includes(m.side)?m.side:"";
     o.comps=Number.isFinite(+m.comps)&&+m.comps>=0?Math.floor(+m.comps):0;
-    o.unit=["mil","mm","inch","auto"].includes(m.unit)?m.unit:"mm";
+    o.unit=["mil","mm","inch"].includes(m.unit)?m.unit:"";
     o.isDefault=Boolean(m.isDefault);
   }
   return{meta:o}}
@@ -7573,25 +7643,32 @@ const LocalRec={db:null,
     await this.tx(["files","meta","log"],"readwrite",t=>{t.objectStore("files").delete(id);t.objectStore("meta").delete(id);t.objectStore("log").add({action:"delete",at:Date.now(),by:user,id,kind:r.kind,lot:r.lot||"",part:r.part,rev:r.rev||"",name:r.name,sha256:r.sha256,bytes:r.bytes,uploaded:r.created})})},
   async audit(){return(await this.tx(["log"],"readonly",t=>this.req(t.objectStore("log").getAll()))).reverse().slice(0,500)}};
 function newRecId(){const b=crypto.getRandomValues(new Uint8Array(16));return btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
-var RecDB={mode:"local",me:"本機",cache:null,ready:null,
-  async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));e.existing=j.existing;e.status=r.status;throw e}return j},
-  async list(){await this.ready;let l;if(this.mode==="cloud"){ /* 伺服器未指定 kind 時只回量測紀錄，座標檔要另外取 */
-      const[j,p]=await Promise.all([this.jfetch("/api/records?kind=spi&limit=100"),this.jfetch("/api/records?kind=place&limit=100")]);this.me=j.me||this.me;l=[...(j.records||[]),...(p.records||[])].sort((a,b)=>b.created-a.created)}else l=(await LocalRec.index()).filter(r=>r.kind!=="spec").sort((a,b)=>b.created-a.created); /* 料號規格另由 specsFor 列出（與雲端一致） */return this.cache=l.map(r=>deepClean(r))},
-  async create(meta,bytes){await this.ready;const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
+function recordView(r){let meta={};try{meta=typeof r.meta==="string"?JSON.parse(r.meta):r.meta||{}}catch(e){}
+  let unmatched=[];try{unmatched=typeof r.unmatched_refs==="string"?JSON.parse(r.unmatched_refs):r.unmatchedRefs||[]}catch(e){}
+  return{...r,meta,placeId:r.placeId||r.place_id||"",workOrder:r.workOrder||r.work_order||"",measuredDate:r.measuredDate||r.measured_date||"",supplierWo:r.supplierWo||meta.supplierWo||"",outsourceWo:r.outsourceWo||meta.outsourceWo||"",note:r.note??meta.note??"",unit:r.unit||meta.unit||"",comps:r.comps||meta.comps||0,boards:r.boards||meta.boards||0,pads:r.pads||meta.pads||0,qualitySnapshot:r.qualitySnapshot||meta.qualitySnapshot||null,unmatchedRefs:unmatched}}
+var RecDB={mode:"local",me:"本機",isAdmin:false,cache:null,ready:null,
+  async jfetch(url,opt){const r=await fetch(url,{cache:"no-store",...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||("HTTP "+r.status));Object.assign(e,{existing:j.existing,status:r.status,code:j.code,missing:j.missing,wrongSide:j.wrongSide,detail:j.detail});throw e}return j},
+  async list(){await this.ready;let l;if(this.mode==="cloud"){
+      const pages=async kind=>{const rows=[];let cursor="";do{const j=await this.jfetch(`/api/records?kind=${kind}&limit=100${cursor?"&cursor="+encodeURIComponent(cursor):""}`);this.me=j.me||this.me;this.isAdmin=!!j.isAdmin;rows.push(...j.records);cursor=j.next||""}while(cursor);return rows};
+      const[j,p]=await Promise.all([pages("spi"),pages("place")]);l=[...j,...p].sort((a,b)=>b.created-a.created)}else l=(await LocalRec.index()).filter(r=>r.kind!=="spec").sort((a,b)=>b.created-a.created);
+    return this.cache=l.map(r=>deepClean(recordView(r)))},
+  async create(meta,bytes){await this.ready;if(this.mode!=="cloud")throw new Error("正式新紀錄必須登入並連線到雲端資料庫；本機舊資料僅供查閱");
+    if(!(bytes instanceof Uint8Array)&&!(bytes instanceof ArrayBuffer))throw new Error("未提供原始檔位元組，已停止儲存");
+    const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);if(!u8.length)throw new Error("原始檔是空的");const chk=recCheck(meta);if(chk.error)throw new Error(chk.error);this.cache=null;
     if(chk.meta.kind==="spec"){const sc=partSpecBodyCheck(u8,chk.meta);if(sc.error)throw new Error(sc.error)}
     if(this.mode==="cloud"){
       if(!window.CompressionStream)throw new Error("此瀏覽器不支援 CompressionStream，請更新瀏覽器");
       const clientSha=await sha256Hex(u8);
       const gzBody=await gzipBytes(u8);
       if(gzBody.length>4*1048576)throw new Error(`檔案壓縮後 ${(gzBody.length/1048576).toFixed(1)} MB，超過資料庫上限 4 MB`);
-      return deepClean((await this.jfetch("/api/records",{method:"POST",headers:{
+      return deepClean(recordView((await this.jfetch("/api/records",{method:"POST",headers:{
         "Content-Type":"application/gzip",
         "X-Rec-Meta":encodeURIComponent(JSON.stringify(chk.meta)),
         "X-Raw-Bytes":String(u8.length),
         "X-Raw-SHA256":clientSha
-      },body:gzBody})).record);
+      },body:gzBody})).record));
     }
-    return LocalRec.create(chk.meta,u8,this.me)},
+    throw new Error("正式新紀錄必須使用雲端資料庫")},
   /* 取回原始檔並重新計算指紋；ok＝與上傳時記錄的指紋相同 */
   async get(rec){await this.ready;let u8;
     if(this.mode==="cloud"){
@@ -7605,13 +7682,13 @@ var RecDB={mode:"local",me:"本機",cache:null,ready:null,
       if(!u8)throw new Error("找不到這筆紀錄的原始檔");
     }
     const sha=await sha256Hex(u8);return{bytes:u8,sha,ok:sha===rec.sha256}},
-  async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});return LocalRec.del(id,this.me)},
+  async del(id){await this.ready;this.cache=null;if(this.mode==="cloud")return this.jfetch("/api/records?id="+encodeURIComponent(id),{method:"DELETE"});throw new Error("本機舊資料僅供查閱")},
   async setDefaultPlace(id){
     await this.ready;this.cache=null;
     if(this.mode==="cloud"){
       return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"set_default_place",id})});
     }
-    return LocalRec.setDefaultPlace(id,this.me);
+    throw new Error("本機舊資料僅供查閱");
   },
   /* 料號規格：依料號列出版本（新到舊；欄位 ver、isDefault、note、basedOn） */
   async specsFor(part){await this.ready;if(!part)return[];
@@ -7620,22 +7697,16 @@ var RecDB={mode:"local",me:"本機",cache:null,ready:null,
   /* 料號規格設為預設：任何登入者都可以；同料號只留一個預設並記錄切換 */
   async setDefaultSpec(id){await this.ready;this.cache=null;
     if(this.mode==="cloud")return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"set_default_spec",id})});
-    return LocalRec.setDefaultSpec(id,this.me)},
+    throw new Error("本機舊資料僅供查閱")},
   async updateMeta(id,patch){
     await this.ready;this.cache=null;
     if(this.mode==="cloud"){
       return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"update_meta",id,...patch})});
     }
-    const all=await LocalRec.index();const hit=all.find(x=>x.id===id);
-    if(hit&&hit.kind==="spec")throw new Error("料號規格版本不能修改；備註記錄在規格檔內，請另存新版本");
-    if(hit){
-      if(patch.supplierWo!==undefined)hit.supplierWo=patch.supplierWo;
-      if(patch.outsourceWo!==undefined)hit.outsourceWo=patch.outsourceWo;
-      if(patch.note!==undefined)hit.note=patch.note;
-      await LocalRec.tx(["meta"],"readwrite",t=>t.objectStore("meta").put(hit));
-    }
-    return {success:true,id};
+    throw new Error("本機舊資料僅供查閱");
   },
+  async manage(id,action,targetId,details={}){await this.ready;if(this.mode!=="cloud")throw new Error("本機舊資料僅供查閱");this.cache=null;
+    return this.jfetch("/api/records",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,action,targetId,...details})})},
   async audit(){await this.ready;if(this.mode==="cloud")return((await this.jfetch("/api/records?audit=1")).entries||[]).map(x=>deepClean(x));return(await LocalRec.audit()).map(x=>deepClean(x))}};
 RecDB.ready=meP.then(j=>{if(j&&j.user){RecDB.mode="cloud";RecDB.me=j.user}}).catch(()=>{});
 function recWhere(){return RecDB.mode==="cloud"?"雲端資料庫":"這台電腦的瀏覽器"}
@@ -7645,25 +7716,41 @@ async function saveBytes(filename,u8){const d=window.claude&&await window.claude
   if(d){await d.save({filename,data:new Blob([u8])});return}
   const url=URL.createObjectURL(new Blob([u8],{type:"application/octet-stream"})),a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 /* 回合帶的來源資訊（批號、料號、原始檔指紋），顯示在回合清單、列印頁首與報告 */
-function srcInfo(r){return{id:r.id,lot:r.lot,part:r.part,supplierWo:r.supplierWo||"",outsourceWo:r.outsourceWo||"",side:r.side||"",name:r.name,sha256:r.sha256,user:r.user,created:r.created,store:RecDB.mode,placeId:r.placeId||"",placePart:PLACE&&PLACE.recId&&PLACE.recId===r.placeId?PLACE.part:"",placeRev:PLACE&&PLACE.recId&&PLACE.recId===r.placeId?PLACE.rev:""}}
+function srcInfo(r){return{id:r.id,lot:r.lot||"",part:r.part,rev:r.rev||"",workOrder:r.workOrder||r.work_order||"",measuredDate:r.measuredDate||r.measured_date||"",supplierWo:r.supplierWo||"",outsourceWo:r.outsourceWo||"",side:r.side||"",name:r.name,sha256:r.sha256,user:r.user,created:r.created,store:RecDB.mode,lifecycle:r.lifecycle||"legacy",unmatchedRefs:r.unmatchedRefs||[],placeId:r.placeId||r.place_id||"",placePart:PLACE&&PLACE.recId&&(PLACE.recId===r.placeId||PLACE.recId===r.place_id)?PLACE.part:"",placeRev:PLACE&&PLACE.recId&&(PLACE.recId===r.placeId||PLACE.recId===r.place_id)?PLACE.rev:""}}
 const runSrc=r=>r&&r.info&&r.info.src||null;
+let LOAD_ERROR={spi:"",place:""};
+function updateLoadStates(){const run=curRun(),src=runSrc(run),unmatched=src?.unmatchedRefs||[];
+  const set=(id,state,message)=>{const el=$(id);if(!el)return;el.dataset.state=state;el.querySelector("span:last-child").textContent=message;el.setAttribute("aria-label",message)};
+  const valid=src&&src.lifecycle==="active";
+  const spiText=src?.lifecycle==="pending_review"?"待管理者判定":src?.lifecycle==="superseded"?"歷史修正前版本":src?.lifecycle==="legacy"?"歷史未驗證":"未套用";
+  set("#stateSpi",LOAD_ERROR.spi?"error":valid?"ok":"idle",LOAD_ERROR.spi?`量測紀錄：${LOAD_ERROR.spi}`:valid?`量測紀錄：已套用${unmatched.length?`・${unmatched.length} 個位號無座標`:""}`:`量測紀錄：${spiText}`);
+  const applied=valid&&src.placeId;
+  set("#statePlace",LOAD_ERROR.place?"error":applied?"ok":"idle",LOAD_ERROR.place?`座標檔：${LOAD_ERROR.place}`:applied?"座標檔：已套用":PLACE?"座標檔：已選取":"座標檔：未套用");
+}
+$("#stateSpi").onclick=()=>{const refs=runSrc(curRun())?.unmatchedRefs||[];if(refs.length){$("#unmatchedRefsTitle").textContent=`無座標位號（${refs.length}）`;$("#unmatchedRefsList").textContent=refs.join("、");openModal("unmatchedRefsModal","[data-close]")}else $("#btnOpenRecModal").click()};
+$("#statePlace").onclick=()=>{$("#btnOpenRecModal").click();$("#btnPickPlace").click()};
 function srcLine(s){return s?`批號 ${s.lot}｜產品料號 ${s.part}${s.supplierWo?"｜廠商工單 "+s.supplierWo:""}${s.outsourceWo?"｜委外工單 "+s.outsourceWo:""}${s.side?"｜"+s.side+" 面":""}｜原始檔 ${s.name}（SHA-256 ${String(s.sha256).slice(0,12)}…，${s.user}，${fmtTime(s.created)}）${s.placePart?`｜座標檔 ${s.placePart} ${s.placeRev}`:""}`:""}
 /* ---------- 資料庫頁 ---------- */
 let REC_CONFIRM=null,REC_VER={};
+async function renderAdminUsers(){const section=$("#adminUsersSection");if(!section)return;section.hidden=RecDB.mode!=="cloud"||!RecDB.isAdmin;if(section.hidden)return;
+  const box=$("#adminUsers"),state=$("#adminUsersState");try{const j=await RecDB.jfetch("/api/admin/users");box.innerHTML=`<table><thead><tr><th>登入帳號</th><th>角色</th><th>操作</th></tr></thead><tbody>${j.users.map(u=>`<tr><td>${esc(u.user)}</td><td>${u.isAdmin?"管理者":"一般使用者"}</td><td><button type="button" data-role-user="${esc(u.user)}" data-role-grant="${u.isAdmin?"0":"1"}">${u.isAdmin?"撤銷管理者":"授予管理者"}</button></td></tr>`).join("")}</tbody></table>`;state.textContent="";
+    box.querySelectorAll("[data-role-user]").forEach(btn=>btn.onclick=async()=>{btn.disabled=true;try{await RecDB.jfetch("/api/admin/users",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:btn.dataset.roleUser,isAdmin:btn.dataset.roleGrant==="1"})});await renderAdminUsers()}catch(e){state.textContent=e.message;btn.disabled=false}})}
+  catch(e){state.textContent="無法讀取角色："+e.message}}
 async function renderRecords(force){if(!$("#recSpi"))return;await RecDB.ready;$("#recMode").textContent=`存放位置：${recWhere()}${RecDB.mode==="cloud"?`（登入帳號 ${RecDB.me}）`:"（只有這台電腦看得到）"}`;
   let list;try{list=(!force&&RecDB.cache)||await RecDB.list();$("#recState").textContent=""}catch(e){$("#recState").innerHTML=`<span class="err">無法讀取資料庫：${esc(e.message)}</span>`;return}
-  const q=$("#recQ").value.trim().toLowerCase(),hit=r=>!q||[r.lot,r.part,r.supplierWo,r.outsourceWo,r.rev,r.name,r.user].some(x=>String(x||"").toLowerCase().includes(q));
+  renderAdminUsers();
+  const q=$("#recQ").value.trim().toLowerCase(),hit=r=>!q||[r.lot,r.part,r.workOrder,r.measuredDate,r.supplierWo,r.outsourceWo,r.rev,r.name,r.user].some(x=>String(x||"").toLowerCase().includes(q));
   const fp=r=>`<span class="mono" title="SHA-256 ${esc(r.sha256)}">${esc(String(r.sha256).slice(0,10))}…</span>${REC_VER[r.id]?` <span class="${REC_VER[r.id].ok?"rec-ok":"rec-bad"}">${REC_VER[r.id].ok?"✓ 與上傳時相同":"✗ "+esc(REC_VER[r.id].msg||"與上傳時不同")}</span>`:""}`;
-  const del=r=>r.user===RecDB.me?`<button data-ract="del" data-id="${esc(r.id)}">${REC_CONFIRM===r.id?"確定刪除？":"刪除"}</button>`:"";
+  const del=r=>"";
   const S1=list.filter(r=>r.kind==="spi"&&hit(r)),P1=list.filter(r=>r.kind==="place"&&hit(r));
   $("#recSpiSub").textContent=`${S1.length} 筆${q?"（篩選後）":""}`;$("#recPlaceSub").textContent=`${P1.length} 筆${q?"（篩選後）":""}`;
   $("#recSpi").innerHTML=S1.length?`<thead><tr><th>批號</th><th>產品料號</th><th>工單</th><th>面別</th><th>原始檔</th><th class="num">板 × 焊墊</th><th>上傳者</th><th>上傳時間</th><th>檔案指紋</th><th></th></tr></thead><tbody>`+S1.map(r=>{
-    const wo=[r.supplierWo?`廠:${esc(r.supplierWo)}`:"",r.outsourceWo?`委:${esc(r.outsourceWo)}`:""].filter(Boolean).join("<br>")||"—";
-    return `<tr><td><b>${esc(r.lot)}</b></td><td>${esc(r.part)}</td><td style="font-size:11px">${wo}</td><td>${esc(r.side||"—")}</td><td>${esc(r.name)}<br><span class="note">${(r.bytes/1024).toFixed(0)} KB</span></td><td class="num mono">${r.boards||"—"} × ${r.pads||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
-    <td><div class="rec-act"><button data-ract="open" data-id="${esc(r.id)}">開啟分析</button><button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`;
+    const wo=[r.workOrder?`製令:${esc(r.workOrder)}`:"",r.measuredDate?`日期:${esc(r.measuredDate)}`:"",r.supplierWo?`廠:${esc(r.supplierWo)}`:"",r.outsourceWo?`委:${esc(r.outsourceWo)}`:""] .filter(Boolean).join("<br>")||"未提供";
+    return `<tr><td><b>${esc(r.lot||"未提供")}</b></td><td>${esc(r.part)} ${esc(r.rev||"")}<br><span class="note">${esc(r.lifecycle||"legacy")}</span></td><td style="font-size:11px">${wo}</td><td>${esc(r.side||"—")}</td><td>${esc(r.name)}<br><span class="note">${(r.bytes/1024).toFixed(0)} KB</span></td><td class="num mono">${r.boards||"—"} × ${r.pads||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
+    <td><div class="rec-act">${r.lifecycle!=="pending_review"?`<button data-ract="open" data-id="${esc(r.id)}">${r.lifecycle==="superseded"?"歷史檢視":"開啟分析"}</button>`:""}<button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`;
   }).join("")+"</tbody>":`<tbody><tr><td colspan="10" class="note">${q?"沒有符合的量測紀錄":"尚無量測紀錄。在「匯入與規格」匯入檔案並填寫批號、產品料號後，原始檔會自動存到這裡。"}</td></tr></tbody>`;
-  $("#recPlace").innerHTML=P1.length?`<thead><tr><th>產品料號</th><th>版本</th><th>原始檔</th><th class="num">元件數</th><th>上傳者</th><th>上傳時間</th><th>檔案指紋</th><th></th></tr></thead><tbody>`+P1.map(r=>`<tr${PLACE&&PLACE.recId===r.id?' style="background:var(--accent-soft)"':""}><td><b>${esc(r.part)}</b></td><td>${esc(r.rev)}</td><td>${esc(r.name)}</td><td class="num mono">${r.comps||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
-    <td><div class="rec-act">${PLACE&&PLACE.recId===r.id?'<span class="pill ok">目前使用</span>':`<button data-ract="use" data-id="${esc(r.id)}">設為目前座標檔</button>`}<button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`).join("")+"</tbody>":`<tbody><tr><td class="note">${q?"沒有符合的座標檔":"尚無座標檔。在「匯入與規格」選立榮格式，填寫產品料號與版本後上傳座標檔，就會存到這裡。"}</td></tr></tbody>`;
+  $("#recPlace").innerHTML=P1.length?`<thead><tr><th>產品料號</th><th>版次／面別</th><th>原始檔</th><th class="num">元件數</th><th>上傳者</th><th>上傳時間</th><th>檔案指紋</th><th></th></tr></thead><tbody>`+P1.map(r=>`<tr${PLACE&&PLACE.recId===r.id?' style="background:var(--accent-soft)"':""}><td><b>${esc(r.part)}</b></td><td>${esc(r.rev)} ${esc(r.side)}<br><span class="note">${esc(r.lifecycle==="active"?"有效":r.lifecycle==="archived"?"已封存":"歷史未驗證")}</span></td><td>${esc(r.name)}</td><td class="num mono">${r.comps||"—"}</td><td>${esc(r.user)}</td><td class="mono" style="white-space:nowrap">${esc(fmtTime(r.created))}</td><td>${fp(r)}</td>
+    <td><div class="rec-act">${PLACE&&PLACE.recId===r.id?'<span class="pill ok">目前已選取</span>':r.lifecycle==="active"&&r.validation_source==="server_verified"?`<button data-ract="use" data-id="${esc(r.id)}">選取座標檔</button>`:""}${RecDB.isAdmin&&r.lifecycle==="active"?`<button data-ract="archive" data-id="${esc(r.id)}">封存</button>`:""}<button data-ract="dl" data-id="${esc(r.id)}">下載原始檔</button><button data-ract="ver" data-id="${esc(r.id)}">驗證</button>${del(r)}</div></td></tr>`).join("")+"</tbody>":`<tbody><tr><td class="note">${q?"沒有符合的座標檔":"尚無座標檔。請由管理者先上傳並登錄。"}</td></tr></tbody>`;
   await renderRecSpecs(list,hit,fp);
   if($("#recAuditBox").open)renderAudit()}
 /* 料號規格版本（kind:"spec"）不在一般清單內，依料號另外取；REC_SPECS 供按鈕與稽核頁對照版本號 */
@@ -7688,7 +7775,7 @@ async function recFind(id,fresh){
   if(RecDB.mode==="cloud"){
     try{
       const j=await RecDB.jfetch("/api/records?id="+encodeURIComponent(id)+"&meta=1");
-      if(j&&j.record)return deepClean(j.record);
+      if(j&&j.record)return deepClean(recordView(j.record));
     }catch(e){}
   }
   return REC_SPECS[id]||((!fresh&&RecDB.cache)||await RecDB.list()).find(r=>r.id===id);
@@ -7696,7 +7783,9 @@ async function recFind(id,fresh){
 /* 從資料庫載入座標檔（不重新存檔） */
 async function usePlaceRec(rec){const g=await RecDB.get(rec);if(!g.ok)throw new Error("座標檔指紋與上傳時不同，已停止使用");
   const tab=/\.xlsx$/i.test(rec.name)?(await xlsxTable(g.bytes.buffer.slice(g.bytes.byteOffset,g.bytes.byteOffset+g.bytes.length))).tab:csvTable(decodeBytes(g.bytes));
-  PLACE={recId:rec.id,part:rec.part,rev:rec.rev,name:rec.name,tab,res:parsePlacement(tab,$("#placeUnit").value)};placeSave();placeShow();$("#placePart").value=rec.part;$("#placeRev").value=rec.rev}
+  const unit=rec.unit||rec.meta?.unit,side=rec.side;
+  if(!unit||!side)throw new Error("歷史座標缺少已驗證的單位或面別，不能用於新匯入");
+  PLACE={recId:rec.id,part:rec.part,rev:rec.rev,name:rec.name,tab,unit,side,res:parsePlacement(tab,unit,side)};placeSave();placeShow();$("#placePart").value=rec.part;$("#placeRev").value=rec.rev;$("#placeUnit").value=unit;$("#placeSide").value=side}
 async function openRecord(rec, opt = {}){busy(true,"正在從資料庫取回原始檔…");
   try{const g=await RecDB.get(rec);if(!g.ok)throw new Error("原始檔指紋與上傳時不同，已停止開啟");
     /* 只用當時的座標檔重現；沒有連結座標檔（或已刪除）時，這次匯入不套用目前的座標檔，避免位置與分群和當初不同 */
@@ -7704,20 +7793,12 @@ async function openRecord(rec, opt = {}){busy(true,"正在從資料庫取回原�
     if(rec.placeId){
       const pr=await recFind(rec.placeId,true);let okp=false;
       if(pr){try{await usePlaceRec(pr);okp=true}catch(er){}}
-      if(!okp){noPlace=true;note="當時使用的座標檔已從資料庫刪除或無法取回，這次不套用座標檔"}
+      if(!okp){noPlace=true;note="當時的座標檔無法取回或缺少已驗證設定，這次不套用座標檔"}
     }else if(rec.vendor==="lirong"){
       noPlace=true;note="當時沒有使用座標檔，這次也不套用"
-    }else if(rec.part && opt.autoApply){
-      const list = (!RecDB.cache ? await RecDB.list() : RecDB.cache);
-      const recSide = (rec.side || "").toUpperCase();
-      const places = (list || []).filter(x => x.kind === "place" && x.part === rec.part && (!recSide || !x.side || x.side === "ALL" || x.side.toUpperCase() === recSide));
-      const pr = places.find(x => x.isDefault) || places[0];
-      if(pr){
-        try{await usePlaceRec(pr);note=`已自動套用料號 ${rec.part} (${pr.side || "ALL"}) 的預設座標檔 (${pr.rev})`}catch(er){}
-      }
     }
 
-    $("#selVendor").value=[...$("#selVendor").options].some(o=>o.value===rec.vendor)?rec.vendor:"generic";$("#selSide").value=rec.side||"auto";vendorUI();
+    $("#selVendor").value=[...$("#selVendor").options].some(o=>o.value===rec.vendor)?rec.vendor:"generic";$("#selSide").value=rec.side||"";vendorUI();
     setSub("import");busy(false);
     /* 來源紀錄只交給緊接著的這一次匯入；讀檔失敗時不留給下一次手動匯入 */
     if(/\.xlsx$/i.test(rec.name)){
@@ -7737,7 +7818,7 @@ async function openRecord(rec, opt = {}){busy(true,"正在從資料庫取回原�
     }
     toast(`已開啟批號 ${rec.lot} 的原始檔（指紋驗證相同）${note?"；"+note:""}`);
   }
-  catch(e){IMP_NEXT=null;busy(false);toast("無法開啟："+e.message)}}
+  catch(e){IMP_NEXT=null;busy(false);LOAD_ERROR.spi=e.message;updateLoadStates();toast("無法開啟："+e.message)}}
 $("#recQ").oninput=()=>renderRecords();
 $("#recReload").onclick=()=>{REC_VER={};renderRecords(true)};
 $("#recAuditBox").addEventListener("toggle",()=>{if($("#recAuditBox").open)renderAudit()});
@@ -7750,6 +7831,7 @@ $("#recCard").addEventListener("click",async e=>{const b=e.target.closest("[data
     if(act==="dl"){const g=await RecDB.get(rec);await saveBytes(rec.name,g.bytes);if(!g.ok){$("#recState").innerHTML=`<span class="err">已下載 ${esc(rec.name)}（注意：檔案指紋與上傳時不同）</span>`;toast("注意：檔案指紋與上傳時不同")}else{$("#recState").textContent="已下載 "+rec.name}return}
     if(act==="ver"){b.disabled=true;b.textContent="驗證中…";try{const g=await RecDB.get(rec);REC_VER[id]={ok:g.ok}}catch(er){REC_VER[id]={ok:false,msg:er.message}}renderRecords();return}
     if(act==="use"){await usePlaceRec(rec);renderRecords();toast(`已改用座標檔 ${rec.part} ${rec.rev}`);if(IMP&&IMP.raw)reconvert();return}
+    if(act==="archive"){if(!window.confirm(`封存 ${rec.part} ${rec.rev} ${rec.side}？`))return;await RecDB.manage(id,"archive_place");if(PLACE?.recId===id){PLACE=null;placeSave();placeShow()}await renderRecords(true);updateLoadStates();toast("座標檔已封存");return}
     if(act==="del"){if(REC_CONFIRM!==id){REC_CONFIRM=id;renderRecords();setTimeout(()=>{if(REC_CONFIRM===id){REC_CONFIRM=null;renderRecords()}},6000);return}
       REC_CONFIRM=null;await RecDB.del(id);if(PLACE&&PLACE.recId===id){PLACE=null;placeSave();placeShow()}delete REC_VER[id];await renderRecords(true);toast(`已刪除 ${rec.kind==="spi"?"批號 "+rec.lot:"座標檔 "+rec.part+" "+rec.rev}（稽核紀錄保留）`)}}
   catch(er){if(er&&er.code==="declined")$("#recState").textContent="已取消下載";else $("#recState").innerHTML=`<span class="err">${esc(er.message||String(er))}</span>`;renderRecords()}});
@@ -7773,13 +7855,15 @@ function updateStartupDbBanner() {
   if (ME_PROBE && !recentBox.querySelector(".banner-run-chip")) boxNote("讀取最近記錄…");
 
   RecDB.ready.then(async () => {
+    const cloudState=$("#bannerCloudState");
+    if(cloudState)cloudState.textContent=RecDB.mode==="cloud"?"已連線產線雲端資料庫，可選取最近記錄載入分析。":"雲端資料庫未連線；本機歷史資料僅供查閱，正式新匯入需登入連線。";
     if (RecDB.mode !== "cloud") {
       recentBox.hidden = true;
       recentBox.innerHTML = "";
       return;
     }
     try {
-      const j = await (BANNER_RECENT_P || (BANNER_RECENT_P = RecDB.jfetch("/api/records?limit=3&kind=spi").finally(() => { BANNER_RECENT_P = null; })));
+      const j = await (BANNER_RECENT_P || (BANNER_RECENT_P = RecDB.jfetch("/api/records?limit=3&kind=spi&lifecycle=active").finally(() => { BANNER_RECENT_P = null; })));
       const spis = (j && j.records) || [];
       if (!spis.length) { boxNote("資料庫尚無量測記錄"); return; }
       recentBox.hidden = false;
@@ -7818,7 +7902,7 @@ let PICKER_CONFIRM = null;
 let PICKER_SIDE_FILTER = "";
 let PICKER_QUALITY_FILTER = "all";
 let EDITING_REC_ID = null;
-let UP_PLACE_FILE_OBJ = null;
+let UP_PLACE_FILE_OBJ = null, UP_PLACE_SOURCE_ID = null;
 
 async function renderRecPicker(force) {
   const modal = $("#recPickerModal");
@@ -7826,7 +7910,7 @@ async function renderRecPicker(force) {
   await RecDB.ready;
   const modeSpan = $("#recPickerMode");
   if (modeSpan) {
-    modeSpan.textContent = `存放位置：${recWhere()}${RecDB.mode === "cloud" ? `（帳號 ${RecDB.me}）` : "（本機測試模式）"}`;
+    modeSpan.textContent = `存放位置：${recWhere()}${RecDB.mode === "cloud" ? `（帳號 ${RecDB.me}）` : "（舊資料唯讀）"}`;
   }
 
   const authNotice = $("#recPickerAuthNotice");
@@ -7842,6 +7926,7 @@ async function renderRecPicker(force) {
     $("#recPickerNotice").innerHTML = `<span class="err">無法讀取資料庫：${esc(e.message)}</span>`;
     return;
   }
+  if($("#boxUploadPlaceForm"))$("#boxUploadPlaceForm").hidden=!RecDB.isAdmin||RecDB.mode!=="cloud";
 
   const partFilterSel = $("#pickPartFilter");
   if (partFilterSel) {
@@ -7856,9 +7941,9 @@ async function renderRecPicker(force) {
   const qualityFilter = PICKER_QUALITY_FILTER;
 
   const hit = r => {
-    if (q && ![r.lot, r.part, r.supplierWo, r.outsourceWo, r.rev, r.name, r.user, r.note].some(x => String(x || "").toLowerCase().includes(q))) return false;
+    if (q && ![r.lot, r.part, r.workOrder, r.measuredDate, r.supplierWo, r.outsourceWo, r.rev, r.name, r.user, r.note].some(x => String(x || "").toLowerCase().includes(q))) return false;
     if (selectedPart && r.part !== selectedPart) return false;
-    if (sideFilter && (r.side || "").toUpperCase() !== sideFilter && (r.side || "").toUpperCase() !== "ALL") return false;
+    if (sideFilter && (r.side || "").toUpperCase() !== sideFilter && (r.side || "").toUpperCase() !== "BOTH") return false;
     if (qualityFilter === "pass") {
       const defs = r.qualitySnapshot ? (r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0) : null;
       if (defs == null || defs > 0) return false;
@@ -7870,8 +7955,8 @@ async function renderRecPicker(force) {
   };
 
   const fp = r => `<span class="mono" title="SHA-256 ${esc(r.sha256)}">${esc(String(r.sha256).slice(0, 10))}…</span>${REC_VER[r.id] ? ` <span class="${REC_VER[r.id].ok ? "rec-ok" : "rec-bad"}">${REC_VER[r.id].ok ? "✓ 相同" : "✗ 異常"}</span>` : ""}`;
-  const delBtn = r => r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="font-size:12px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定刪除？" : "刪除"}</button>` : "";
-  const editBtn = r => r.user === RecDB.me ? `<button data-pact="edit-meta" data-id="${esc(r.id)}" title="修改工單號與備註" style="font-size:12px;padding:3px 8px">✏️ 備註</button>` : "";
+  const delBtn = r => "";
+  const editBtn = r => RecDB.isAdmin&&(r.kind==="spi"||r.kind==="place") ? `<button data-pact="edit-meta" data-id="${esc(r.id)}" title="${r.kind==="place"?"修改座標備註":"修改量測中繼資料"}" style="font-size:12px;padding:3px 8px">✏️ ${r.kind==="place"?"備註":"資料"}</button>` : "";
 
   const S1 = (list || []).filter(r => r.kind === "spi" && hit(r));
   const P1 = (list || []).filter(r => r.kind === "place" && hit(r));
@@ -7891,8 +7976,8 @@ async function renderRecPicker(force) {
       <th>指紋</th>
       <th style="text-align:right">操作</th>
     </tr></thead><tbody>` + S1.map(r => {
-      const wo = [r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "—";
-      const placeInfo = r.placeId ? `<span class="pill ok" title="已綁定座標檔 ${esc(r.placeId)}">已綁定</span>` : ((list || []).some(p => p.kind === "place" && p.part === r.part) ? `<span class="pill warn" title="此料號已有座標檔，載入時將自動對應">有可用座標</span>` : `<span class="note">無</span>`);
+      const wo = [r.workOrder ? `製令:${esc(r.workOrder)}` : "", r.measuredDate ? `日期:${esc(r.measuredDate)}` : "", r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "未提供";
+      const placeInfo = r.placeId ? `<span class="pill ok" title="已綁定座標檔 ${esc(r.placeId)}">已綁定</span>` : `<span class="note">無座標引用</span>`;
       let qualityInfo = `<span class="note">—</span>`;
       if (r.qualitySnapshot) {
         const defs = r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0;
@@ -7906,7 +7991,7 @@ async function renderRecPicker(force) {
         }
       }
       return `<tr>
-        <td><b>${esc(r.lot)}</b><br><span class="note" style="font-size:11.5px">${esc(r.part || "—")}</span></td>
+        <td><b>${esc(r.lot||"未提供")}</b><br><span class="note" style="font-size:11.5px">${esc(r.part || "—")} ${esc(r.rev||"")}</span><br><span class="pill ${r.lifecycle==="active"?"ok":r.lifecycle==="pending_review"?"warn":"na"}">${esc(r.lifecycle==="active"?"有效":r.lifecycle==="pending_review"?"待管理者判定":r.lifecycle==="superseded"?"已被修正":"歷史未驗證")}</span></td>
         <td>${esc(r.side || "—")}<br><span class="note" style="font-size:11.5px">${wo}</span></td>
         <td class="num mono">${r.boards || "—"} × ${r.pads || "—"}</td>
         <td>${placeInfo}</td>
@@ -7915,8 +8000,9 @@ async function renderRecPicker(force) {
         <td>${fp(r)}</td>
         <td style="text-align:right">
           <div class="row" style="justify-content:flex-end;gap:4px">
-            <button class="primary" data-pact="load" data-id="${esc(r.id)}" title="一鍵載入資料並直接進入 SPC 分析" style="font-size:12.5px;padding:3px 10px">🚀 載入分析</button>
+            ${!["pending_review","superseded"].includes(r.lifecycle)?`<button class="primary" data-pact="load" data-id="${esc(r.id)}" title="載入有效量測分析" style="font-size:12.5px;padding:3px 10px">載入分析</button>`:""}
             <button data-pact="open" data-id="${esc(r.id)}" title="開啟至匯入對應面板以檢視或調整欄位" style="font-size:12px;padding:3px 8px">調整</button>
+            ${RecDB.isAdmin&&r.lifecycle==="pending_review"?`<button data-pact="new-batch" data-id="${esc(r.id)}">新一批</button><button data-pact="correct" data-id="${esc(r.id)}">修正既有</button>`:""}
             ${editBtn(r)}
             <button data-pact="ver" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">驗證</button>
             <button data-pact="dl" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">下載</button>
@@ -7930,7 +8016,7 @@ async function renderRecPicker(force) {
   const cardsSpi = $("#cardsPickSpi");
   if (cardsSpi) {
     cardsSpi.innerHTML = S1.length ? S1.map(r => {
-      const wo = [r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "—";
+      const wo = [r.workOrder ? `製令:${esc(r.workOrder)}` : "", r.measuredDate ? `日期:${esc(r.measuredDate)}` : "", r.supplierWo ? `廠:${esc(r.supplierWo)}` : "", r.outsourceWo ? `委:${esc(r.outsourceWo)}` : ""].filter(Boolean).join(" ") || "未提供";
       let qualityInfo = "";
       if (r.qualitySnapshot) {
         const defs = r.qualitySnapshot.defects ?? r.qualitySnapshot.totalDefects ?? 0;
@@ -7943,8 +8029,8 @@ async function renderRecPicker(force) {
       return `<div class="rec-card" style="padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
-            <b style="font-size:15px">${esc(r.lot)}</b>
-            <div class="note" style="font-size:12px;margin-top:2px">${esc(r.part || "—")} · 面別: ${esc(r.side || "ALL")}</div>
+            <b style="font-size:15px">${esc(r.lot||"未提供")}</b>
+            <div class="note" style="font-size:12px;margin-top:2px">${esc(r.part || "—")} ${esc(r.rev||"")} · 面別: ${esc(r.side || "—")} · ${esc(r.lifecycle==="pending_review"?"待判定":r.lifecycle==="superseded"?"已被修正":r.lifecycle==="active"?"有效":"歷史未驗證")}</div>
           </div>
           <div style="display:flex;gap:4px;align-items:center">
             ${qualityInfo}
@@ -7957,11 +8043,12 @@ async function renderRecPicker(force) {
           ${r.note ? `<br><span style="color:var(--text)">備註: ${esc(r.note)}</span>` : ""}
         </div>
         <div class="rec-card-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-          <button class="primary" data-pact="load" data-id="${esc(r.id)}" style="flex:1 1 120px;min-height:44px;font-size:14px;font-weight:600">🚀 載入分析</button>
+          ${!["pending_review","superseded"].includes(r.lifecycle)?`<button class="primary" data-pact="load" data-id="${esc(r.id)}" style="flex:1 1 120px;min-height:44px;font-size:14px;font-weight:600">載入分析</button>`:""}
           <button data-pact="open" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px">調整</button>
-          ${r.user === RecDB.me ? `<button data-pact="edit-meta" data-id="${esc(r.id)}" style="flex:0 0 70px;min-height:44px;font-size:13px">✏️ 備註</button>` : ""}
+          ${RecDB.isAdmin&&r.lifecycle==="pending_review"?`<button data-pact="new-batch" data-id="${esc(r.id)}">新一批</button><button data-pact="correct" data-id="${esc(r.id)}">修正既有</button>`:""}
+          ${editBtn(r)}
           <button data-pact="dl" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px">下載</button>
-          ${r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定？" : "刪除"}</button>` : ""}
+          ${delBtn(r)}
         </div>
       </div>`;
     }).join("") : `<div class="note" style="text-align:center;padding:24px">無符合篩選條件的量測記錄</div>`;
@@ -7975,26 +8062,29 @@ async function renderRecPicker(force) {
       <th>版本 (Rev)</th>
       <th>單位</th>
       <th class="num">元件數</th>
-      <th>預設版本</th>
+      <th>受控狀態</th>
       <th>上傳時間 / 者</th>
       <th>指紋</th>
       <th style="text-align:right">操作</th>
     </tr></thead><tbody>` + P1.map(r => {
       const isCur = PLACE && PLACE.recId === r.id;
-      const defBadge = r.isDefault ? `<span class="pill ok">★ 預設版次</span>` : `<button data-pact="set-default" data-id="${esc(r.id)}" style="font-size:11.5px;padding:2px 6px">設為預設</button>`;
+      const selectable=r.lifecycle==="active"&&r.validation_source==="server_verified";
+      const defBadge = `<span class="pill ${selectable?"ok":"na"}">${selectable?"有效":r.lifecycle==="archived"?"已封存":"歷史未驗證"}</span>`;
       return `<tr${isCur ? ' style="background:var(--accent-soft)"' : ""}>
         <td><b>${esc(r.part)}</b></td>
         <td>${esc(r.side || "ALL")}</td>
         <td><span class="pill ok">${esc(r.rev)}</span></td>
-        <td>${esc(r.unit || "mm")}</td>
+        <td>${esc(r.unit || "未確認")}</td>
         <td class="num mono">${r.comps || "—"}</td>
         <td>${defBadge}</td>
         <td class="mono" style="font-size:11.5px">${esc(fmtTime(r.created))}<br><span class="note">${esc(r.user)}</span></td>
         <td>${fp(r)}</td>
         <td style="text-align:right">
           <div class="row" style="justify-content:flex-end;gap:4px">
-            ${isCur ? '<span class="pill ok">目前使用</span>' : `<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 10px">套用</button>`}
+            ${isCur ? '<span class="pill ok">目前已選取</span>' : selectable?`<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 10px">選取</button>`:""}
             ${editBtn(r)}
+            ${RecDB.isAdmin&&selectable?`<button data-pact="archive-place" data-id="${esc(r.id)}">封存</button>`:""}
+            ${RecDB.isAdmin&&r.validation_source==="legacy"?`<button data-pact="register-legacy-place" data-id="${esc(r.id)}">驗證納管</button>`:""}
             <button data-pact="ver" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">驗證</button>
             <button data-pact="dl" data-id="${esc(r.id)}" style="font-size:12px;padding:3px 8px">下載</button>
             ${delBtn(r)}
@@ -8007,7 +8097,7 @@ async function renderRecPicker(force) {
   const cardsPlace = $("#cardsPickPlace");
   if (cardsPlace) {
     cardsPlace.innerHTML = P1.length ? P1.map(r => {
-      const isCur = PLACE && PLACE.recId === r.id;
+      const isCur = PLACE && PLACE.recId === r.id,selectable=r.lifecycle==="active"&&r.validation_source==="server_verified";
       return `<div class="rec-card" style="padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
@@ -8015,19 +8105,20 @@ async function renderRecPicker(force) {
             <div class="note" style="font-size:12px;margin-top:2px">面別: ${esc(r.side || "ALL")} · 版次: ${esc(r.rev)}</div>
           </div>
           <div>
-            ${r.isDefault ? `<span class="pill ok" style="font-size:11.5px">★ 預設</span>` : ""}
+            <span class="pill ${selectable?"ok":"na"}" style="font-size:11.5px">${selectable?"有效":r.lifecycle==="archived"?"已封存":"歷史未驗證"}</span>
           </div>
         </div>
         <div class="note" style="font-size:12px;margin:8px 0">
-          元件數: ${r.comps || "—"} · 單位: ${esc(r.unit || "mm")}<br>
+          元件數: ${r.comps || "—"} · 單位: ${esc(r.unit || "未確認")}<br>
           上傳: ${esc(fmtTime(r.created))} · ${esc(r.user)}
           ${r.note ? `<br><span style="color:var(--text)">備註: ${esc(r.note)}</span>` : ""}
         </div>
         <div class="rec-card-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-          ${isCur ? '<button class="primary" disabled style="flex:1 1 120px;min-height:44px;font-size:14px">目前使用中</button>' : `<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="flex:1 1 120px;min-height:44px;font-size:14px">套用此座標檔</button>`}
-          ${!r.isDefault ? `<button data-pact="set-default" data-id="${esc(r.id)}" style="flex:0 0 80px;min-height:44px;font-size:13px">設為預設</button>` : ""}
+          ${isCur ? '<button class="primary" disabled style="flex:1 1 120px;min-height:44px;font-size:14px">目前已選取</button>' : selectable?`<button class="primary" data-pact="use-place" data-id="${esc(r.id)}" style="flex:1 1 120px;min-height:44px;font-size:14px">選取此座標檔</button>`:""}
+          ${RecDB.isAdmin&&selectable?`<button data-pact="archive-place" data-id="${esc(r.id)}">封存</button>`:""}
+          ${RecDB.isAdmin&&r.validation_source==="legacy"?`<button data-pact="register-legacy-place" data-id="${esc(r.id)}">驗證納管</button>`:""}
           <button data-pact="dl" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px">下載</button>
-          ${r.user === RecDB.me ? `<button data-pact="del" data-id="${esc(r.id)}" style="flex:0 0 60px;min-height:44px;font-size:13px;color:var(--ng)">${PICKER_CONFIRM === r.id ? "確定？" : "刪除"}</button>` : ""}
+          ${delBtn(r)}
         </div>
       </div>`;
     }).join("") : `<div class="note" style="text-align:center;padding:24px">無符合篩選條件的座標檔</div>`;
@@ -8161,18 +8252,18 @@ function setupRecPicker() {
       const f = upPlaceFile.files && upPlaceFile.files[0];
       if (!f) return;
       UP_PLACE_FILE_OBJ = f;
+      UP_PLACE_SOURCE_ID = null;
       const fnSpan = $("#upPlaceFileName");
       if (fnSpan) fnSpan.textContent = f.name;
       const clean = f.name.replace(/\.[^.]+$/, "");
       const m = clean.match(/^([A-Za-z0-9_-]+?)[-_]([Vv]\d+(?:\.\d+)?|[A-Za-z]\d*)$/);
       if (m) {
-        if ($("#upPlacePart") && !$("#upPlacePart").value) $("#upPlacePart").value = m[1];
-        if ($("#upPlaceRev") && !$("#upPlaceRev").value) $("#upPlaceRev").value = m[2];
+        if ($("#upPlacePart")) $("#upPlacePart").placeholder = `料號提示：${m[1]}（請確認）`;
+        if ($("#upPlaceRev")) $("#upPlaceRev").placeholder = `版次提示：${m[2]}（請確認）`;
       } else {
-        if ($("#upPlacePart") && !$("#upPlacePart").value) $("#upPlacePart").value = clean;
+        if ($("#upPlacePart")) $("#upPlacePart").placeholder = `檔名提示：${clean.slice(0,32)}（請確認料號）`;
       }
-      if (/top/i.test(clean) && $("#upPlaceSide")) $("#upPlaceSide").value = "TOP";
-      else if (/bot/i.test(clean) && $("#upPlaceSide")) $("#upPlaceSide").value = "BOT";
+      if(!$("#upPlaceUnit").value){readBuf(f).then(buf=>{const declared=headerPlaceUnit(csvTable(decodeBytes(new Uint8Array(buf))).head);if(declared){$("#upPlaceUnit").value=declared;$("#upPlaceState").textContent=`欄名標示單位 ${declared}，已預選；請確認正式登錄資料`}}).catch(er=>{$("#upPlaceState").textContent=`預覽失敗：${er.message}`})}
     };
   }
 
@@ -8180,38 +8271,25 @@ function setupRecPicker() {
   if (btnSubmitPlace) {
     btnSubmitPlace.onclick = async () => {
       const state = $("#upPlaceState");
-      if (!UP_PLACE_FILE_OBJ) {
+      if (!UP_PLACE_FILE_OBJ && !UP_PLACE_SOURCE_ID) {
         if (state) state.innerHTML = `<span class="err">請先選取座標檔案</span>`;
         return;
       }
       const part = ($("#upPlacePart")?.value || "").trim();
-      const rev = ($("#upPlaceRev")?.value || "").trim() || "V1";
+      const rev = ($("#upPlaceRev")?.value || "").trim();
       const side = $("#upPlaceSide")?.value || "";
-      const unit = $("#upPlaceUnit")?.value || "mm";
-      const isDefault = $("#upPlaceIsDefault") ? $("#upPlaceIsDefault").checked : true;
-      if (!part) {
-        if (state) state.innerHTML = `<span class="err">請填寫產品料號</span>`;
+      const unit = $("#upPlaceUnit")?.value || "";
+      if (!part || !rev || !side || !unit) {
+        if (state) state.innerHTML = `<span class="err">請填寫正式料號、版次，並選擇面別與單位</span>`;
         return;
       }
-      if (state) state.innerHTML = `正在解析並上傳座標檔…`;
+      if (state) state.textContent = UP_PLACE_SOURCE_ID ? "正在驗證歷史原始檔並登錄受控版本…" : "正在解析並上傳座標檔…";
       try {
-        const buf = await UP_PLACE_FILE_OBJ.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        const tab = /\.xlsx$/i.test(UP_PLACE_FILE_OBJ.name) ? (await xlsxTable(buf)).tab : csvTable(decodeBytes(bytes));
-        const res = parsePlacement(tab, unit);
-        if (res.err) throw new Error(res.err);
-        await RecDB.create({
-          kind: "place",
-          file: UP_PLACE_FILE_OBJ,
-          part,
-          rev,
-          side,
-          unit,
-          isDefault,
-          comps: res.comps ? res.comps.size : 0
-        });
+        if (UP_PLACE_SOURCE_ID) await RecDB.manage(UP_PLACE_SOURCE_ID,"register_legacy_place",null,{part,rev,side,unit});
+        else await saveControlledPlacement(UP_PLACE_FILE_OBJ,part,rev,side,unit);
         if (state) state.innerHTML = `<span class="ok">✓ 成功存入座標檔 ${esc(part)} (${esc(rev)})</span>`;
         UP_PLACE_FILE_OBJ = null;
+        UP_PLACE_SOURCE_ID = null;
         if (upPlaceFile) upPlaceFile.value = "";
         if ($("#upPlaceFileName")) $("#upPlaceFileName").textContent = "";
         await renderRecPicker(true);
@@ -8235,15 +8313,18 @@ function setupRecPicker() {
       if (!EDITING_REC_ID) return;
       const state = $("#recEditState");
       if (state) state.innerHTML = "正在儲存…";
+      const workOrder = ($("#recEditWorkOrder")?.value || "").trim();
+      const measuredDate = ($("#recEditMeasuredDate")?.value || "").trim();
+      const lot = ($("#recEditLot")?.value || "").trim();
       const supplierWo = ($("#recEditSupplierWo")?.value || "").trim();
       const outsourceWo = ($("#recEditOutsourceWo")?.value || "").trim();
       const note = ($("#recEditNote")?.value || "").trim();
       try {
-        await RecDB.updateMeta(EDITING_REC_ID, { supplierWo, outsourceWo, note });
+        await RecDB.updateMeta(EDITING_REC_ID, recEditModal?.dataset.kind==="place" ? {note} : { workOrder, measuredDate, lot, supplierWo, outsourceWo, note });
         closeEditModal();
         await renderRecPicker(true);
         await renderRecords(true);
-        toast("已成功更新工單號與備註");
+        toast("已更新量測鑑別資料與備註");
       } catch(e) {
         if (state) state.innerHTML = `<span class="err">更新失敗：${esc(e.message)}</span>`;
       }
@@ -8276,24 +8357,69 @@ function setupRecPicker() {
         await openRecord(rec, { autoApply: false });
         return;
       }
+      if (act === "register-legacy-place") {
+        if(!RecDB.isAdmin || rec.kind!=="place" || rec.validation_source!=="legacy")throw new Error("只有管理者能驗證歷史座標檔");
+        UP_PLACE_SOURCE_ID=rec.id;UP_PLACE_FILE_OBJ=null;
+        if(upPlaceFile)upPlaceFile.value="";
+        if($("#upPlaceFileName"))$("#upPlaceFileName").textContent=`歷史原始檔：${rec.name}`;
+        for(const key of ["Part","Rev"]){const field=$("#upPlace"+key);if(field){field.value="";field.placeholder=`歷史紀錄 ${key==="Part"?rec.part:rec.rev||"未提供"}，請核對正式${key==="Part"?"料號":"版次"}`}}
+        $("#upPlaceSide").value="";$("#upPlaceUnit").value="";
+        $("#upPlaceState").textContent="請查核原始檔，重新填寫正式料號、版次、面別與單位；驗證成功會建立新的受控紀錄，舊紀錄保留。";
+        $("#boxUploadPlaceForm").scrollIntoView({behavior:"smooth",block:"center"});
+        $("#upPlacePart").focus();return;
+      }
       if (act === "use-place") {
+        if(rec.lifecycle!=="active"||rec.validation_source!=="server_verified")throw new Error("座標檔未通過受控驗證或已封存");
         await usePlaceRec(rec);
+        LOAD_ERROR.place="";updateLoadStates();
         renderRecPicker();
         renderRecords();
         toast(`已改用座標檔 ${rec.part} ${rec.rev}`);
         if (IMP && IMP.raw) reconvert();
         return;
       }
-      if (act === "set-default") {
-        await RecDB.setDefaultPlace(id);
+      if (act === "archive-place") {
+        if(!window.confirm(`封存 ${rec.part} ${rec.rev} ${rec.side}？歷史引用仍可讀取，封存後不供新匯入。`))return;
+        await RecDB.manage(id,"archive_place");
+        if(PLACE?.recId===id){PLACE=null;placeSave();placeShow()}
         await renderRecPicker(true);
         await renderRecords(true);
-        toast(`已將座標檔 ${rec.part} (${rec.side || "ALL"}) ${rec.rev} 設為預設版次`);
+        updateLoadStates();toast("座標檔已封存");
+        return;
+      }
+      if (act === "new-batch" || act === "correct") {
+        let targetId="";
+        if(act==="correct"){
+          const all=RecDB.cache||await RecDB.list();const choices=all.filter(x=>x.kind==="spi"&&x.lifecycle==="active"&&x.part===rec.part&&x.rev===rec.rev&&x.side===rec.side&&x.id!==id);
+          if(!choices.length)throw new Error("沒有可修正的有效紀錄");
+          const answer=window.prompt(`請選擇被修正的量測紀錄編號：\n${choices.map((x,i)=>`${i+1}. ${x.workOrder||"未提供工單"} / ${x.measuredDate||"未提供日期"} / ${x.name} / ${x.id}`).join("\n")}`);
+          if(answer===null)return;const index=Number(answer)-1;
+          if(!Number.isInteger(index)||index<0||index>=choices.length)throw new Error("請輸入清單中的編號");targetId=choices[index].id;
+        }else if(!window.confirm("確認此檔是新一批量測？確認後會納入預設統計。"))return;
+        await RecDB.manage(id,act==="correct"?"correct":"new_batch",targetId);
+        // A loaded run is a local snapshot. Reconcile it immediately after the
+        // server commits a correction so an old active snapshot cannot be used
+        // as the current default analysis or exported as an active record.
+        for(const run of S.runs||[]){const src=runSrc(run);if(!src)continue;
+          if(src.id===id)src.lifecycle="active";
+          if(act==="correct"&&src.id===targetId)src.lifecycle="superseded"}
+        if(act==="correct"&&runSrc(curRun())?.id===targetId){
+          const next=(S.runs||[]).find(run=>run.id!==S.runId&&(!runSrc(run)||runSrc(run).lifecycle==="active"));
+          if(next)switchRun(next.id);
+        }
+        saveRunsSoon();updateLoadStates();renderRuns();
+        await renderRecPicker(true);await renderRecords(true);
+        toast(act==="correct"?"已建立修正關係，舊檔保留為歷史":"已判定為新一批量測");
         return;
       }
       if (act === "edit-meta") {
         EDITING_REC_ID = rec.id;
-        if ($("#recEditTarget")) $("#recEditTarget").textContent = `正在修改：${rec.kind === "spi" ? `批號 ${rec.lot}` : `座標檔 ${rec.part} (${rec.rev})`}`;
+        if(recEditModal)recEditModal.dataset.kind=rec.kind;
+        for(const field of ["recEditWorkOrder","recEditMeasuredDate","recEditLot","recEditSupplierWo","recEditOutsourceWo"]){const el=$("#"+field);if(el)el.parentElement.hidden=rec.kind==="place"}
+        if ($("#recEditTarget")) $("#recEditTarget").textContent = `正在修改：${rec.kind === "spi" ? `${rec.part} ${rec.rev} ${rec.side}` : `座標檔 ${rec.part} (${rec.rev})`}`;
+        if ($("#recEditWorkOrder")) $("#recEditWorkOrder").value = rec.workOrder || "";
+        if ($("#recEditMeasuredDate")) $("#recEditMeasuredDate").value = rec.measuredDate || "";
+        if ($("#recEditLot")) $("#recEditLot").value = rec.lot || "";
         if ($("#recEditSupplierWo")) $("#recEditSupplierWo").value = rec.supplierWo || "";
         if ($("#recEditOutsourceWo")) $("#recEditOutsourceWo").value = rec.outsourceWo || "";
         if ($("#recEditNote")) $("#recEditNote").value = rec.note || "";
@@ -8756,7 +8882,7 @@ function renderReport(){
       <tr><th>無效/排除筆數</th><td class="num mono">0 筆</td><th>資料排除原因</th><td>無格式錯誤或遺漏關鍵欄位之資料</td></tr>
       <tr><th>板號推定狀態</th><td colspan="3">${S.rows.some(r=>r.boardAssumed)?"部分板號為推定":"板號完整，無推定缺失"}</td></tr>
       <tr><th>刮刀方向狀態</th><td colspan="3">${S.sqDir?`刮刀方向設定為 ${S.sqDir} 向`:"依板序奇偶推定"}</td></tr>
-      <tr><th>焊墊座標狀態</th><td colspan="3">${PLACE?`已套用座標檔：${esc(PLACE.part)} ${esc(PLACE.rev)}`:"未套用獨立座標檔（採用資料內建座標或相對位置）"}</td></tr>
+      <tr><th>焊墊座標狀態</th><td colspan="3">${PLACE?`已套用元件中心座標檔：${esc(PLACE.part)} ${esc(PLACE.rev)}；無焊墊座標`:"未套用獨立座標檔（採用資料內建座標或相對位置）"}</td></tr>
     </tbody></table></div></div>`;
 
   const s10=`<div class="rep-sec" id="repSec10">

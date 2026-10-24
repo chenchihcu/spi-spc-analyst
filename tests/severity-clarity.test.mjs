@@ -8,10 +8,11 @@ const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
 const { HTML, withIdb, seedPartSpec, loadCore, baseState } = require("./_load.js");
+import { createCloudHarness, installBrowserCloud } from './_cloud-harness.mjs';
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 const H = "SPI_TEST_HOOK";
 
-function page() {
+function page(cloud) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
@@ -22,6 +23,7 @@ function page() {
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
     w.addEventListener("error", (e) => errs.push(e.message));
     withIdb(w);
+    if (cloud) installBrowserCloud(w, cloud);
     w.SPI_TEST_HOOK = {};
   } });
   return { dom, errs };
@@ -103,17 +105,31 @@ const row = (comp, pad, base) => [comp, ...[1, 2, 3].flatMap((b) => [base + b, b
 const WIDE = [head, row("C1_1", 1, 100), row("C1_1", 2, 102), row("R2_1", 1, 95), row("R2_1", 2, 97)].map((r) => r.join(",")).join("\n");
 
 test("同名回合：舊版高度 % 警示與重新匯入按鈕附上列序，試產比較標明 A／B", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const cloud = await createCloudHarness();
+  await cloud.upload({ kind: 'place', part: 'DEMO-05', rev: 'V1', side: 'TOP', unit: 'mm', name: 'controlled.csv' },
+    'RefDes,X,Y,Layer\nC1,1,2,TOP\nR2,3,4,TOP\n');
+  const { dom, errs } = page(cloud);
   await tick(60);
   const w = dom.window, d = w.document;
+  await w.SPI_TEST_HOOK.RecDB.ready;
+  d.querySelector('#btnSelectPlace').click();
+  for (let i = 0; i < 100 && !d.querySelector('#tblPickPlace [data-pact="use-place"]'); i++) await tick(20);
+  assert.ok(d.querySelector('#tblPickPlace [data-pact="use-place"]'));
+  d.querySelector('#tblPickPlace [data-pact="use-place"]').click();
+  for (let i = 0; i < 100 && d.querySelector('#placePart').value !== 'DEMO-05'; i++) await tick(20);
+  assert.equal(d.querySelector('#placePart').value, 'DEMO-05');
+  d.querySelector('#recPickerClose').click();
+  d.querySelector('#selSide').value = 'TOP';
   const s = d.querySelector("#selVendor"); s.value = "lirong"; s.dispatchEvent(new w.Event("change"));
   const inp = d.querySelector("#fileIn");
   Object.defineProperty(inp, "files", { configurable: true, value: [new w.File([Buffer.from(WIDE)], "DEMO-05_TOP_spi.csv")] });
   inp.dispatchEvent(new w.Event("change"));
   for (let i = 0; i < 100 && d.querySelector("#mapBox").hidden; i++) await tick(20);
   d.querySelector("#inLot").value = "LOT-E"; d.querySelector("#inPart").value = "DEMO-05";
+  d.querySelector('#inRev').value = 'V1'; d.querySelector('#inWorkOrder').value = 'WO-LOT-E'; d.querySelector('#inImpStencil').value = '120';
   d.querySelector("#inRunName").value = "同名回合";
-  await seedPartSpec(w, "DEMO-05");
+  const specBytes = w.eval('(()=>{const sp={schema:"spi-part-spec/1",part:"DEMO-05",stencilRef:120,specs:{},groups:{},note:"測試"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...DEF_SPECS[k]};return partSpecEncode(sp).bytes})()');
+  await cloud.upload({ kind: 'spec', part: 'DEMO-05', makeDefault: true }, specBytes);
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 12; i++) await tick(20);
   const oldId = w.eval("S.runId");

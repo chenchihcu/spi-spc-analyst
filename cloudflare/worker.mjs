@@ -1,4 +1,4 @@
-import { configured, handle as handleAuth } from '../lib/auth-handler.mjs';
+import { configured, handle as handleAuth, users } from '../lib/auth-handler.mjs';
 import { SEC } from '../lib/security-headers.mjs';
 import { Repo } from '../lib/repo.mjs';
 import { checkMeta, checkMetaPatch, clean, MAX_GZ, MAX_RAW } from '../lib/records-core.mjs';
@@ -7,6 +7,10 @@ import { handleAnalyze } from './ai.mjs';
 import { handleShare } from '../lib/share-core.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
+import { parseCsv, validatePlacement, validateMeasurement } from '../lib/controlled-import.mjs';
+import { parseXlsx } from '../lib/xlsx-table.mjs';
+
+const sourceTable = (bytes, name) => /\.xlsx$/i.test(name || '') ? parseXlsx(bytes) : parseCsv(bytes);
 
 const plain = (message, status) => new Response(message, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 const json = (obj, status = 200) => Response.json(obj, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -20,8 +24,36 @@ const secure = (response, path = '') => {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers: h });
 };
 
-async function handleRecordsApi(req, repo, user) {
+const validDate = value => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.valueOf()) && d.toISOString().slice(0, 10) === value;
+};
+
+async function handleAdminApi(req, repo, user, env) {
+  const origin = req.headers.get('origin');
+  if (req.method !== 'GET' && origin && origin !== new URL(req.url).origin) return json({ error: '不接受其他網站的請求' }, 403);
+  await repo.bootstrapAdmin(env.INITIAL_ADMIN_USER, users(env).has(String(env.INITIAL_ADMIN_USER || '').trim().toLowerCase()));
+  if (!(await repo.isAdmin(user))) return json({ error: '需要管理者權限' }, 403);
+  const accounts = users(env);
+  if (req.method === 'GET') {
+    const roles = await repo.listAdminRoles();
+    return json({ users: [...accounts.keys()].map(name => ({ user: name, isAdmin: roles.some(r => r.user === name) })) });
+  }
+  if (req.method !== 'PATCH') return json({ error: '不支援此操作' }, 405);
+  let body; try { body = await req.json(); } catch { return json({ error: '請求主體必須為 JSON' }, 400); }
+  const target = String(body.user || '').trim().toLowerCase();
+  if (!accounts.has(target) || typeof body.isAdmin !== 'boolean') return json({ error: '帳號不存在或角色資料不正確' }, 400);
+  const result = await repo.setAdminRole(target, body.isAdmin, user, [...accounts.keys()]);
+  return json(result, result.status || 200);
+}
+
+async function handleRecordsApi(req, repo, user, env) {
   const url = new URL(req.url);
+  const origin = req.headers.get('origin');
+  if (req.method !== 'GET' && origin && origin !== url.origin) return json({ error: '不接受其他網站的請求' }, 403);
+  await repo.bootstrapAdmin(env.INITIAL_ADMIN_USER, users(env).has(String(env.INITIAL_ADMIN_USER || '').trim().toLowerCase()));
+  const admin = await repo.isAdmin(user);
 
   if (req.method === 'GET') {
     const id = url.searchParams.get('id');
@@ -57,12 +89,16 @@ async function handleRecordsApi(req, repo, user) {
     // 關鍵字搜尋
     const q = url.searchParams.get('q');
     if (q) {
-      const results = await repo.searchRecords(q, 50);
-      return json({ records: results, me: user, meta: { rows_read: results.length } });
+      const [created, id] = (url.searchParams.get('cursor') || '').split(',');
+      const results = await repo.searchRecords(q, 51, Number.isFinite(Number(created)) && id ? Number(created) : null, id || null);
+      const records = results.slice(0, 50), last = records[records.length - 1];
+      return json({ records, next: results.length > 50 && last ? `${last.created},${last.id}` : null,
+        me: user, isAdmin: admin, meta: { rows_read: results.length } });
     }
 
     // 分頁列表
     const cursor = url.searchParams.get('cursor');
+    const limit = +url.searchParams.get('limit') || 50;
     let cursorCreated = null, cursorId = null;
     if (cursor) {
       const parts = cursor.split(',');
@@ -75,8 +111,8 @@ async function handleRecordsApi(req, repo, user) {
     const placesFor = url.searchParams.get('places_for');
     if (placesFor) {
       const side = url.searchParams.get('side') || null;
-      const placements = await repo.getPlacementsForPart(placesFor, side);
-      return json({ placements, part: placesFor });
+      const result = await repo.getPlacementsForPart(placesFor, side, url.searchParams.get('rev') || '', cursorCreated, cursorId, limit);
+      return json({ ...result, part: placesFor });
     }
     // 依料號查料號規格版本清單
     const specsFor = url.searchParams.get('specs_for');
@@ -87,10 +123,13 @@ async function handleRecordsApi(req, repo, user) {
 
     const kind = url.searchParams.get('kind') || 'spi';
     const part = url.searchParams.get('part') || null;
+    const rev = url.searchParams.get('rev') || null;
     const side = url.searchParams.get('side') || null;
-    const limit = +url.searchParams.get('limit') || 50;
-    const { records, next } = await repo.listRecords({ kind, part, side, cursorCreated, cursorId, limit });
-    return json({ records, next, me: user });
+    const workOrder = url.searchParams.get('work_order') || null;
+    const measuredDate = url.searchParams.get('measured_date') || null;
+    const lifecycle = url.searchParams.get('lifecycle') || null;
+    const { records, next } = await repo.listRecords({ kind, part, rev, side, workOrder, measuredDate, lifecycle, cursorCreated, cursorId, limit });
+    return json({ records, next, me: user, isAdmin: admin });
   }
 
   if (req.method === 'POST') {
@@ -100,8 +139,10 @@ async function handleRecordsApi(req, repo, user) {
     } catch {
       return json({ error: '紀錄欄位格式不正確' }, 400);
     }
-    const chk = checkMeta(m);
+    const chk = checkMeta(m, { controlled: true });
     if (chk.error) return json({ error: chk.error }, 400);
+    if (chk.meta.kind === 'place' && !admin) return json({ error: '只有管理者可以上傳座標檔' }, 403);
+    if (chk.meta.kind === 'place') chk.meta.isDefault = false;
 
     const len = +req.headers.get('content-length') || 0;
     if (len > MAX_GZ) return json({ error: `檔案壓縮後 ${(len / 1048576).toFixed(1)} MB，超過上限 4 MB` }, 413);
@@ -119,6 +160,7 @@ async function handleRecordsApi(req, repo, user) {
     }
 
     let bytes = rawBytes || bodyBuf.length, sha256 = clientSha, specNote = null;
+    let verified = null, related = [];
     // 料號規格：伺服器解壓並驗證本體（格式、數值、標準化、料號一致），指紋由伺服器計算
     if (chk.meta.kind === 'spec') {
       let raw;
@@ -129,6 +171,45 @@ async function handleRecordsApi(req, repo, user) {
       if (sha256 !== clientSha) return json({ error: '規格檔指紋與 X-Raw-SHA256 不同' }, 400);
       bytes = raw.length;
       specNote = sc.spec.note; // 索引的備註一律取自已驗證的規格檔，不採用標頭欄位，避免同一版本有兩種說法
+    } else {
+      let raw;
+      try { raw = gunzipSync(bodyBuf, { maxOutputLength: MAX_RAW }); }
+      catch { return json({ error: '檔案解壓失敗或解壓後超過 100 MB' }, 400); }
+      if (!raw.length) return json({ error: '檔案是空的' }, 400);
+      bytes = raw.length;
+      sha256 = createHash('sha256').update(raw).digest('hex');
+      if (sha256 !== clientSha || (rawBytes && rawBytes !== bytes)) return json({ error: '原始檔指紋或大小與標頭不符' }, 422);
+      let table;
+      try { table = sourceTable(raw, chk.meta.name); } catch (e) { return json({ error: e.message, code: 'source_parse' }, 422); }
+      if (chk.meta.kind === 'place') {
+        if (!chk.meta.side || !chk.meta.unit) return json({ error: '請選擇面別與單位' }, 422);
+        verified = validatePlacement(table, chk.meta);
+        if (verified.error) return json(verified, 422);
+      } else {
+        if (!chk.meta.rev || !chk.meta.side || !chk.meta.placeId || (!chk.meta.workOrder && !chk.meta.measuredDate))
+          return json({ error: '請選擇正式料號、版次、面別與受控座標，並填寫製令工單或量測日期' }, 422);
+        if (chk.meta.measuredDate && !validDate(chk.meta.measuredDate)) return json({ error: '量測日期格式或日期不正確' }, 422);
+        const place = await repo.coordinateScope(chk.meta.part, chk.meta.rev, chk.meta.side);
+        if (!place || place.id !== chk.meta.placeId || place.lifecycle !== 'active' || place.validation_source !== 'server_verified')
+          return json({ error: '沒有對應的有效受控座標檔' }, 409);
+        const file = await repo.getRecordFile(place.id);
+        if (!file) return json({ error: '受控座標原始檔不可讀取' }, 409);
+        let placeRaw, placeMeta;
+        try { placeRaw = gunzipSync(new Uint8Array(await file.arrayBuffer()), { maxOutputLength: MAX_RAW }); placeMeta = JSON.parse(place.meta || '{}'); }
+        catch { return json({ error: '受控座標原始檔不可驗證' }, 409); }
+        const placeSha = createHash('sha256').update(placeRaw).digest('hex');
+        if (placeSha !== place.sha256) return json({ error: '受控座標原始檔指紋不符' }, 409);
+        const parsedPlace = validatePlacement(sourceTable(placeRaw, place.name), { side: place.side, unit: placeMeta.unit });
+        if (parsedPlace.error) return json({ error: '受控座標原始檔驗證失敗', detail: parsedPlace }, 409);
+        verified = validateMeasurement(table, chk.meta.side, parsedPlace);
+        if (verified.error) return json(verified, 422);
+        const supplied = [...new Set(chk.meta.unmatchedRefs)].sort();
+        if (verified.missing.length && (!chk.meta.unmatchedConfirmed || JSON.stringify(supplied) !== JSON.stringify(verified.missing)))
+          return json({ error: '請確認全部無座標位號', code: 'unmatched_confirmation', missing: verified.missing, wrongSide: verified.wrongSide }, 422);
+        const duplicate = await repo.measurementFingerprint(chk.meta.part, chk.meta.rev, chk.meta.side, sha256);
+        if (duplicate) return json({ error: '這個量測檔已匯入', code: 'duplicate_file', existing: duplicate.id }, 409);
+        related = await repo.relatedMeasurements(chk.meta.part, chk.meta.rev, chk.meta.side, chk.meta.workOrder, chk.meta.measuredDate);
+      }
     }
 
     const rec = {
@@ -140,11 +221,17 @@ async function handleRecordsApi(req, repo, user) {
       sha256,
       user,
       created: Date.now(),
+      ...(chk.meta.kind === 'spec' ? {} : {
+        validationSource: 'server_verified', lifecycle: related.length ? 'pending_review' : 'active',
+        ...(chk.meta.kind === 'place' ? { sides: verified.sides, factor: verified.factor, formatVersion: verified.formatVersion }
+          : { unmatchedRefs: verified.missing, unmatchedConfirmed: !!verified.missing.length, formatVersion: verified.formatVersion }),
+      }),
     };
 
     const res = await repo.createRecord(rec, bodyBuf);
     if (res.error) return json(res, res.status || 500);
-    return json(res, 201);
+    const pending = res.record?.lifecycle === 'pending_review';
+    return json({ ...res, ...(related.length ? { related } : {}) }, res.status || (pending ? 202 : 201));
   }
 
   if (req.method === 'PATCH') {
@@ -155,9 +242,7 @@ async function handleRecordsApi(req, repo, user) {
       return json({ error: '請求主體必須為 JSON' }, 400);
     }
     if (body.action === 'set_default_place') {
-      const res = await repo.setDefaultPlacement(body.id, user);
-      if (res.error) return json(res, res.status || 500);
-      return json(res, 200);
+      return json({ error: '受控座標必須在匯入時明確選取，不能設為自動預設' }, 409);
     }
     if (body.action === 'set_default_spec') {
       const res = await repo.setDefaultSpec(body.id, user);
@@ -165,16 +250,52 @@ async function handleRecordsApi(req, repo, user) {
       return json(res, 200);
     }
     if (body.action === 'update_meta') {
+      if (!admin) return json({ error: '需要管理者權限' }, 403);
       const chk = checkMetaPatch(body);
       if (chk.error) return json({ error: chk.error }, 400);
-      const res = await repo.updateRecordMeta(body.id, chk.patch, user);
+      if (chk.patch.measuredDate && !validDate(chk.patch.measuredDate)) return json({ error: '量測日期格式或日期不正確' }, 422);
+      const res = await repo.updateRecordMeta(body.id, chk.patch, user, admin);
       if (res.error) return json(res, res.status || 500);
       return json(res, 200);
+    }
+    if (body.action === 'register_legacy_place') {
+      if (!admin) return json({ error: '需要管理者權限' }, 403);
+      const legacy = await repo.getRecord(body.id);
+      if (!legacy || legacy.kind !== 'place' || legacy.validation_source !== 'legacy')
+        return json({ error: '找不到可重新驗證的歷史座標檔' }, 404);
+      const chk = checkMeta({ kind: 'place', part: body.part, rev: body.rev, side: body.side,
+        unit: body.unit, name: legacy.name }, { controlled: true });
+      if (chk.error || !chk.meta.side || !chk.meta.unit) return json({ error: chk.error || '請填寫料號、版次、面別與單位' }, 422);
+      const stored = await repo.getRecordFile(legacy.id);
+      if (!stored) return json({ error: '歷史座標原始檔不可讀取' }, 409);
+      let gz, raw, table;
+      try {
+        gz = new Uint8Array(await stored.arrayBuffer());
+        raw = gunzipSync(gz, { maxOutputLength: MAX_RAW });
+        table = sourceTable(raw, legacy.name);
+      } catch { return json({ error: '歷史座標原始檔無法解壓或解析' }, 422); }
+      if (!raw.length || createHash('sha256').update(raw).digest('hex') !== legacy.sha256)
+        return json({ error: '歷史座標原始檔指紋不符' }, 409);
+      const verified = validatePlacement(table, chk.meta);
+      if (verified.error) return json(verified, 422);
+      const rec = { id: randomBytes(16).toString('base64url'), ...chk.meta, isDefault: false,
+        sides: verified.sides, factor: verified.factor, formatVersion: verified.formatVersion,
+        bytes: raw.length, gz_bytes: gz.length, sha256: legacy.sha256, user, created: Date.now(),
+        validationSource: 'server_verified', lifecycle: 'active', meta: { sourceLegacyId: legacy.id } };
+      const res = await repo.createRecord(rec, gz);
+      return json(res, res.status || (res.error ? 500 : 201));
+    }
+    if (body.action === 'archive_place' || body.action === 'new_batch' || body.action === 'correct') {
+      if (!admin) return json({ error: '需要管理者權限' }, 403);
+      const res = body.action === 'archive_place' ? await repo.archivePlacement(body.id, user)
+        : await repo.judgeMeasurement(body.id, body.action, body.targetId, user);
+      return json(res, res.status || 200);
     }
     return json({ error: '未知的修改動作' }, 400);
   }
 
   if (req.method === 'DELETE') {
+    if (!admin) return json({ error: '需要管理者權限' }, 403);
     const id = url.searchParams.get('id') || '';
     const res = await repo.deleteRecord(id, user);
     if (res.error) return json(res, res.status || 500);
@@ -189,7 +310,8 @@ async function route(req, env) {
   const repo = new Repo(env.DB, env.BLOBS);
   const user = req.headers.get('x-spi-user') || '';
 
-  if (path === '/api/records') return handleRecordsApi(req, repo, user);
+  if (path === '/api/records') return handleRecordsApi(req, repo, user, env);
+  if (path === '/api/admin/users') return handleAdminApi(req, repo, user, env);
   if (path === '/api/share') return handleShare(req, repo, user, env);
   if (path === '/api/analyze') return handleAnalyze(req, env);
   if (path.startsWith('/api/')) return Response.json({ error: '找不到 API' }, { status: 404 });

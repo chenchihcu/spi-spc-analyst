@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
-const { HTML, withIdb, seedPartSpec } = require("./_load");
+const { HTML, withIdb } = require("./_load");
 
 let JSDOM, VirtualConsole;
 try { ({ JSDOM, VirtualConsole } = require("jsdom")); } catch { /* 未安裝 jsdom 時略過 */ }
@@ -86,20 +86,31 @@ test("所有頁籤與主要流程無執行錯誤", { skip: !JSDOM && "未安裝 
 });
 
 test("匯入資料中的 HTML 不會被執行（XSS）", { skip: !JSDOM && "未安裝 jsdom（npm install）" }, async () => {
+  const { createCloudHarness, installBrowserCloud } = await import('./_cloud-harness.mjs');
+  const cloud = await createCloudHarness();
+  await cloud.upload({ kind: 'place', part: 'Psvg onload=1', rev: 'V1', side: 'TOP', unit: 'mm', name: 'controlled.csv' }, 'RefDes,X,Y,Layer\nU1,1,2,TOP\n');
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
     Object.defineProperty(w.HTMLElement.prototype, "offsetParent", { get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; } });
-    w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
-    w.Chart = class { constructor() {} destroy() {} static register() {} }; withIdb(w); w.SPI_TEST_HOOK = {}; } });
+    w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {}; w.scrollBy = () => {};
+    w.Chart = class { constructor() {} destroy() {} static register() {} }; withIdb(w); installBrowserCloud(w, cloud); w.SPI_TEST_HOOK = {}; } });
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
   await new Promise((r) => setTimeout(r, 50));
-  const csv = "Board,Pad,Component,Result,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `"B${Math.floor(i / 6) + 1}<img src=x onerror=1>",P${i % 6}<b>x</b>,U<svg onload=1>1,"NG<img src=y>",${i === 13 ? 40 : 100 + (i % 5)},120,${i === 13 ? 40 : 100}`).join("\n");
-  $("[data-tab=data]").click(); $("#pasteIn").value = csv; $("#btnRead").click(); $("#inRunName").value = "<img src=z onerror=1>";
+  const csv = "Board,Pad,Component,Result,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `"B${Math.floor(i / 6) + 1}<img src=x onerror=1>",P${i % 6}<b>x</b>,U1,"NG<img src=y>",${i === 13 ? 40 : 100 + (i % 5)},120,${i === 13 ? 40 : 100}`).join("\n");
+  $("#btnSelectPlace").click();
+  for (let i = 0; i < 100 && !$("#tblPickPlace [data-pact='use-place']"); i++) await new Promise(r => setTimeout(r, 20));
+  assert.ok($("#tblPickPlace [data-pact='use-place']"), "有效受控座標應可選取");
+  await w.SPI_TEST_HOOK.RecDB.get(w.SPI_TEST_HOOK.RecDB.cache.find(r => r.kind === 'place'));
+  $("#tblPickPlace [data-pact='use-place']").click();
+  for (let i = 0; i < 100 && $("#placePart").value !== 'Psvg onload=1'; i++) await new Promise(r => setTimeout(r, 20));
+  assert.equal($("#placePart").value, 'Psvg onload=1', `座標選取失敗：${JSON.stringify({toast:$("#toast")?.textContent,notice:$("#recPickerNotice").textContent})}`);
+  $("[data-tab=data]").click(); $("#selSide").value = "TOP"; $("#pasteIn").value = csv; $("#btnRead").click(); $("#inRunName").value = "<img src=z onerror=1>";
   $("#inLot").value = "L1<img src=q onerror=1>"; $("#inPart").value = "P<svg onload=1>";
-  await seedPartSpec(w, "Psvg onload=1"); $("#btnApply").click();
+  $("#inRev").value = "V1"; $("#inWorkOrder").value = "WO-XSS"; $("#inImpStencil").value = "120";
+  $("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.runs.length") < 3; i++) await new Promise((r) => setTimeout(r, 20));
-  assert.equal(w.eval("S.runs.length"), 3, "存入資料庫後建立回合");
+  assert.equal(w.eval("S.runs.length"), 3, `存入資料庫後建立回合：${JSON.stringify({mode:w.SPI_TEST_HOOK.RecDB.mode,place:$("#placeState").textContent,note:$("#recNote").textContent,parse:$("#parseErr").textContent,map:$("#mapPrev").textContent.slice(0,200)})}`);
   $("[data-tab=data]").click(); $('.subtab[data-sub="records"]').click(); $('.subtab[data-sub="runs"]').click(); $('.subtab[data-sub="records"]').click();
   for (let i = 0; i < 100 && !/L1/.test($("#recSpi").textContent); i++) await new Promise((r) => setTimeout(r, 50));
   assert.match($("#recSpi").textContent, /L1/);

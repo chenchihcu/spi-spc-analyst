@@ -1,10 +1,10 @@
 {
   "name": "spi-spc-analyst",
-  "version": "10.2.3",
+  "version": "10.3.0",
   "private": true,
   "description": "SPI·SPC 分析台：錫膏印刷檢測數據的問題偵測與試產分析",
   "scripts": {
-    "test": "node --test tests/*.test.js tests/*.test.mjs",
+    "test": "node --test --test-concurrency=1 tests/*.test.js tests/*.test.mjs",
     "test:slow": "node -e \"process.env.RUN_SLOW='1'; const { spawnSync } = require('child_process'); process.exit(spawnSync(process.execPath, ['--test', 'tests/verdict-sim.test.mjs'], { stdio: 'inherit', env: process.env }).status);\"",
     "release-check": "node tools/release-check.js",
     "build:cloudflare": "node tools/build-cloudflare.mjs"
@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.129.0",
-    "@netlify/blobs": "11.1.1"
+    "@netlify/blobs": "11.1.1",
+    "saxes": "6.0.0"
   },
   "engines": {
     "node": ">=22"

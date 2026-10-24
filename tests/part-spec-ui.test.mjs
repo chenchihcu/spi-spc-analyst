@@ -9,9 +9,10 @@ const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
 const { HTML, withIdb, loadCore } = require("./_load.js");
+import { createCloudHarness, installBrowserCloud } from './_cloud-harness.mjs';
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page() {
+function page(cloud) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
@@ -21,6 +22,7 @@ function page() {
     w.Chart = class { constructor() {} destroy() {} static register() {} };
     Object.assign(w, { Response, DecompressionStream });
     withIdb(w);
+    if (cloud) installBrowserCloud(w, cloud);
     w.SPI_TEST_HOOK = {};
     w.addEventListener("error", (e) => errs.push(e.message));
   } });
@@ -63,7 +65,10 @@ test("核心：料號規格 → 分析狀態（高度 µm＝鋼板厚度 × 高�
 });
 
 test("流程：鋼板厚度必填 → 未定義規格時鎖定 → 驗證與草稿 → 存 v1 預設解鎖 → 同料號自動套用 → 群組覆寫 v2 → 版本清單 → 放棄草稿需確認", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const cloud = await createCloudHarness();
+  await cloud.upload({ kind: 'place', part: 'NEW-1', rev: 'V1', side: 'TOP', unit: 'mm', name: 'NEW-1-V1-TOP.csv' },
+    'RefDes,X,Y,Layer\nU1,1,2,TOP\nU2,3,4,TOP\n');
+  const { dom, errs } = page(cloud);
   await tick(60);
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
   assert.equal(w.eval("S.specSrc"), "sample", "開機的範例資料用示範規格");
@@ -72,8 +77,14 @@ test("流程：鋼板厚度必填 → 未定義規格時鎖定 → 驗證與草�
 
   // 1. 鋼板厚度未填：不能套用
   $("[data-tab=data]").click();
+  $("#btnSelectPlace").click();
+  assert.ok(await until(() => $("#tblPickPlace [data-pact=use-place]")));
+  $("#tblPickPlace [data-pact=use-place]").click();
+  assert.ok(await until(() => $("#placePart").value === 'NEW-1'));
+  $("#recPickerClose").click();
+  $("#selSide").value = 'TOP';
   await pickFile(dom, "NEW-1_TOP.csv", CSV);
-  $("#inLot").value = "L1"; $("#inPart").value = "NEW-1"; $("#inImpStencil").value = "";
+  $("#inLot").value = "L1"; $("#inPart").value = "NEW-1"; $("#inRev").value = "V1"; $("#inWorkOrder").value = "WO-L1"; $("#inImpStencil").value = "";
   await $("#btnApply").onclick();
   assert.match($("#recNote").textContent, /請填寫鋼板厚度/);
   assert.equal($("#inImpStencil").getAttribute("aria-invalid"), "true");
@@ -125,7 +136,7 @@ test("流程：鋼板厚度必填 → 未定義規格時鎖定 → 驗證與草�
 
   // 5. 同料號再匯入：厚度空白也會自動套用預設版並帶入存檔時的鋼板厚度
   await pickFile(dom, "NEW-1_TOP_2.csv", CSV.replace("B1,P0,U1,100", "B1,P0,U1,101"));
-  $("#inLot").value = "L2"; $("#inPart").value = "NEW-1"; $("#inImpStencil").value = "";
+  $("#inLot").value = "L2"; $("#inPart").value = "NEW-1"; $("#inRev").value = "V1"; $("#inWorkOrder").value = "WO-L2"; $("#inImpStencil").value = "";
   await $("#btnApply").onclick();
   assert.ok(await until(() => w.eval("S.runs.length") === 4));
   assert.equal(w.eval("S.specSrc"), "part"); assert.equal(w.eval("S.partSpec.ver"), 1);
