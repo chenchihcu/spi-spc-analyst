@@ -7,22 +7,24 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
-const { HTML, withIdb, seedPartSpec } = require("./_load.js");
+const { HTML, withIdb } = require("./_load.js");
+import { createCloudHarness, installBrowserCloud } from './_cloud-harness.mjs';
 const FIX = new URL("./fixtures/spi-sample.xlsx", import.meta.url);
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page(limits) {
+function page(limits, cloud) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
     Object.defineProperty(w.HTMLElement.prototype, "offsetParent", { get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; } });
-    w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
+    w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {}; w.scrollBy = () => {};
     w.Chart = class { constructor() {} destroy() {} static register() {} };
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
     if (limits) w.SPI_TEST_LIMITS = limits;
     w.addEventListener("error", (e) => errs.push(e.message));
     withIdb(w);
+    if (cloud) installBrowserCloud(w, cloud);
     w.SPI_TEST_HOOK = {};
   } });
   return { dom, errs };
@@ -35,9 +37,19 @@ async function pick(dom, name, bytes) {
 }
 
 test("xlsx：略過空白說明頁、讀到資料頁、欄位自動對應、日期轉成文字、惡意字串過濾，套用後可偵測問題", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const cloud = await createCloudHarness();
+  await cloud.upload({ kind: 'place', part: 'P1', rev: 'V1', side: 'TOP', unit: 'mm', name: 'controlled.csv' },
+    'RefDes,X,Y,Layer\nU1,1,2,TOP\nC10,2,2,TOP\nC11,3,2,TOP\nC12,4,2,TOP\nC13,5,2,TOP\nC14,6,2,TOP\nC15,7,2,TOP\nC16,8,2,TOP\nC17,9,2,TOP\nC18,10,2,TOP\nC19,11,2,TOP\n');
+  const { dom, errs } = page(null, cloud);
   await tick(60);
   const w = dom.window, d = w.document;
+  d.querySelector('#btnSelectPlace').click();
+  for (let i = 0; i < 100 && !d.querySelector('#tblPickPlace [data-pact="use-place"]'); i++) await tick(20);
+  assert.ok(d.querySelector('#tblPickPlace [data-pact="use-place"]'), '受控座標應可選取');
+  d.querySelector('#tblPickPlace [data-pact="use-place"]').click();
+  for (let i = 0; i < 100 && d.querySelector('#placePart').value !== 'P1'; i++) await tick(20);
+  assert.equal(d.querySelector('#placePart').value, 'P1');
+  d.querySelector('#selSide').value = 'TOP';
   await pick(dom, "spi-sample.xlsx", fs.readFileSync(FIX));
   assert.equal(d.querySelector("#parseErr").textContent, "", "不應有錯誤");
   assert.equal(d.querySelector("#mapBox").hidden, false, "應顯示欄位對應");
@@ -46,7 +58,9 @@ test("xlsx：略過空白說明頁、讀到資料頁、欄位自動對應、日�
   assert.match(d.querySelector("#toast")?.textContent || "", /SPI資料.*共 2 個工作表/);
   assert.equal(d.querySelector("#inRunName").value, "spi-sample");
   d.querySelector("#inLot").value = "X1"; d.querySelector("#inPart").value = "P1";
-  await seedPartSpec(w, "P1");
+  d.querySelector('#inRev').value = 'V1'; d.querySelector('#inWorkOrder').value = 'WO-XLSX'; d.querySelector('#inImpStencil').value = '120';
+  const specBytes = w.eval('(()=>{const sp={schema:"spi-part-spec/1",part:"P1",stencilRef:120,specs:{},groups:{},note:"測試"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...DEF_SPECS[k]};return partSpecEncode(sp).bytes})()');
+  await cloud.upload({ kind: 'spec', part: 'P1', makeDefault: true }, specBytes);
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 50 && w.eval("S.rows.length") !== 240; i++) await tick(20);
   assert.equal(w.eval("S.rows.length"), 240);

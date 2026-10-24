@@ -9,20 +9,22 @@ const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
 const { HTML, withIdb, seedPartSpec } = require("./_load.js");
+import { createCloudHarness, installBrowserCloud } from './_cloud-harness.mjs';
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page(saved = [], { fetch: fetchStub } = {}) {
+function page(saved = [], { fetch: fetchStub, cloud } = {}) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 1 }) : t[k] ?? (() => {})), set: (t, k, v) => ((t[k] = v), true) });
     Object.defineProperty(w.HTMLElement.prototype, "offsetParent", { get() { let e = this; while (e) { if (e.hidden) return null; e = e.parentElement; } return w.document.body; } });
-    w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {};
+    w.Element.prototype.scrollIntoView = () => {}; w.matchMedia = () => ({ matches: false, addEventListener() {} }); w.ResizeObserver = class { observe() {} }; w.scrollTo = () => {}; w.scrollBy = () => {};
     w.Chart = class { constructor() {} destroy() {} static register() {} };
     w.claude = { use: async (n) => (n === "downloads" ? { save: async (x) => { saved.push(x); return { status: "saved" }; } } : null) };
     Object.assign(w, { Response, DecompressionStream });
     if (fetchStub) w.fetch = fetchStub;
     withIdb(w);
+    if (cloud) installBrowserCloud(w, cloud);
     w.SPI_TEST_HOOK = {};
     w.addEventListener("error", (e) => errs.push(e.message));
   } });
@@ -31,6 +33,48 @@ function page(saved = [], { fetch: fetchStub } = {}) {
 
 const CSV = "Board,Pad,Component,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `B${Math.floor(i / 6) + 1},P${i % 6},U1,${100 + (i % 5)},120,100`).join("\n");
 async function until(fn, n = 150) { for (let i = 0; i < n; i++) { if (fn()) return true; await tick(20); } return false; }
+
+async function cloudPage() {
+  const cloud = await createCloudHarness();
+  const result = page([], { cloud });
+  await result.dom.window.SPI_TEST_HOOK.RecDB.ready;
+  await result.dom.window.SPI_TEST_HOOK.RecDB.list();
+  return { ...result, cloud };
+}
+
+async function selectPlacement(dom, cloud, part, rev, side) {
+  const d = dom.window.document;
+  await cloud.upload({ kind: 'place', part, rev, side, unit: 'mm', name: `${part}-${rev}-${side}.csv` },
+    `RefDes,X,Y,Layer\nU1,1,2,${side}\n`);
+  d.querySelector('#btnSelectPlace').click();
+  assert.ok(await until(() => [...d.querySelectorAll('#tblPickPlace tr')].some(tr =>
+    tr.textContent.includes(part) && tr.textContent.includes(rev) && tr.textContent.includes(side) && tr.querySelector('[data-pact="use-place"]'))),
+    `應可選取 ${part} ${rev} ${side} 的受控座標`);
+  const row = [...d.querySelectorAll('#tblPickPlace tr')].find(tr =>
+    tr.textContent.includes(part) && tr.textContent.includes(rev) && tr.textContent.includes(side));
+  row.querySelector('[data-pact="use-place"]').click();
+  assert.ok(await until(() => d.querySelector('#placePart').value === part && d.querySelector('#placeRev').value === rev));
+  d.querySelector('#recPickerClose').click();
+}
+
+async function importMeasurement(dom, cloud, { part, rev = 'V1', side = 'TOP', lot, name, csv = CSV }) {
+  const w = dom.window, d = w.document, $ = s => d.querySelector(s);
+  await selectPlacement(dom, cloud, part, rev, side);
+  $('[data-tab=data]').click();
+  $('#selSide').value = side;
+  $('#selSide').dispatchEvent(new w.Event('change'));
+  await pickFile(dom, name, csv);
+  $('#inLot').value = lot;
+  $('#inPart').value = part;
+  $('#inRev').value = rev;
+  $('#inWorkOrder').value = `WO-${lot}`;
+  $('#inImpStencil').value = '120';
+  const specBytes = w.eval(`(()=>{const sp={schema:"spi-part-spec/1",part:${JSON.stringify(part)},stencilRef:120,specs:{},groups:{},note:"測試"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...DEF_SPECS[k]};return partSpecEncode(sp).bytes})()`);
+  await cloud.upload({ kind: 'spec', part, makeDefault: true }, specBytes);
+  const before = w.eval('S.runs.length');
+  $('#btnApply').click();
+  assert.ok(await until(() => w.eval('S.runs.length') === before + 1), `應建立 ${lot} 正式分析回合：${$('#recNote').textContent}`);
+}
 
 async function pickFile(dom, name, text) {
   const w = dom.window, inp = w.document.querySelector("#fileIn");
@@ -69,18 +113,12 @@ test("開機首頁顯示範例提示列，點擊頂端或提示列按鈕可開�
 });
 
 test("匯入量測記錄存入資料庫後，選取中樞能列出並支援「一鍵載入分析」", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const { dom, errs, cloud } = await cloudPage();
   await tick(50);
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
 
   // 1. 匯入一筆量測檔案並填寫批號料號
-  $("[data-tab=data]").click();
-  await pickFile(dom, "TEST_REC.csv", CSV);
-  $("#inLot").value = "LOT-2026";
-  $("#inPart").value = "PART-990";
-  await seedPartSpec(w, "PART-990");
-  $("#btnApply").click();
-  assert.ok(await until(() => w.eval("S.runs.length") === 3));
+  await importMeasurement(dom, cloud, { part: 'PART-990', lot: 'LOT-2026', name: 'TEST_REC.csv' });
 
   // 2. 開啟選取視窗
   $("#btnOpenRecModal").click();
@@ -115,7 +153,7 @@ test("匯入量測記錄存入資料庫後，選取中樞能列出並支援「�
 });
 
 test("座標檔庫切換、管理與設為目前座標檔", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const { dom, errs } = await cloudPage();
   await tick(50);
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
 
@@ -123,10 +161,12 @@ test("座標檔庫切換、管理與設為目前座標檔", { skip: !JSDOM && "�
   $("[data-tab=data]").click();
   $("#placePart").value = "PART-990";
   $("#placeRev").value = "V2";
+  $("#placeSide").value = "TOP";
+  $("#placeUnit").value = "mm";
   const inp = $("#placeIn");
   Object.defineProperty(inp, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nU1,50,50,BGA,TOP\n")], "cad_v2.csv")] });
   inp.dispatchEvent(new w.Event("change"));
-  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+  assert.ok(await until(() => /料號 PART-990 版次 V2/.test($("#placeState").textContent)), $("#placeState").textContent);
 
   // 2. 開啟選取視窗並切換至座標檔庫
   $("#btnOpenRecModal").click();
@@ -151,36 +191,20 @@ test("座標檔庫切換、管理與設為目前座標檔", { skip: !JSDOM && "�
 });
 
 test("SMT 產線過濾工具列、品質快照狀態與手機端卡片流", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const { dom, errs, cloud } = await cloudPage();
   await tick(50);
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
 
   // 1. 匯入一筆正常資料與一筆帶不良的資料
-  $("[data-tab=data]").click();
-  await pickFile(dom, "NORMAL_TOP.csv", CSV);
-  $("#inLot").value = "LOT-OK";
-  $("#inPart").value = "PART-AAA";
-  await seedPartSpec(w, "PART-AAA");
-  $("#selSide").value = "TOP";
-  $("#selSide").dispatchEvent(new w.Event("change"));
-  $("#btnApply").click();
-  assert.ok(await until(() => w.eval("S.runs.length") === 3));
+  await importMeasurement(dom, cloud, { part: 'PART-AAA', side: 'TOP', lot: 'LOT-OK', name: 'NORMAL_TOP.csv' });
 
   // 第二筆：不良資料（Volume < 50）
   const BAD_CSV = "Board,Pad,Component,Volume,Height,Area\n" + Array.from({ length: 60 }, (_, i) => `B${Math.floor(i / 6) + 1},P${i % 6},U1,${i === 5 ? 20 : 100},120,100`).join("\n");
-  $("[data-tab=data]").click();
-  await pickFile(dom, "DEFECT_BOT.csv", BAD_CSV);
-  $("#inLot").value = "LOT-NG";
-  $("#inPart").value = "PART-BBB";
-  await seedPartSpec(w, "PART-BBB");
-  $("#selSide").value = "BOT";
-  $("#selSide").dispatchEvent(new w.Event("change"));
-  $("#btnApply").click();
-  assert.ok(await until(() => w.eval("S.runs.length") === 4));
+  await importMeasurement(dom, cloud, { part: 'PART-BBB', side: 'BOT', lot: 'LOT-NG', name: 'DEFECT_BOT.csv', csv: BAD_CSV });
 
   // 2. 開啟選取視窗
   $("#btnOpenRecModal").click();
-  assert.ok(await until(() => $("#tblPickSpi").textContent.includes("LOT-OK")), "表格應包含 LOT-OK");
+  assert.ok(await until(() => $("#tblPickSpi").textContent.includes("LOT-OK") && $("#tblPickSpi").textContent.includes("LOT-NG")), "表格應包含兩筆新匯入的量測");
   assert.ok($("#tblPickSpi").textContent.includes("LOT-NG"), "表格應包含 LOT-NG");
   assert.ok($("#tblPickSpi").textContent.includes("良品"), "LOT-OK 應標示為良品");
   assert.ok($("#tblPickSpi").textContent.includes("缺點"), "LOT-NG 應標示有缺點");
@@ -236,8 +260,8 @@ test("SMT 產線過濾工具列、品質快照狀態與手機端卡片流", { sk
   assert.deepEqual(errs, []);
 });
 
-test("座標庫預設版次切換與工單備註修改對話框", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+test("座標庫明確版次選取與備註修改對話框", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs } = await cloudPage();
   await tick(50);
   const w = dom.window, d = w.document, $ = (s) => d.querySelector(s);
 
@@ -245,17 +269,19 @@ test("座標庫預設版次切換與工單備註修改對話框", { skip: !JSDOM
   $("[data-tab=data]").click();
   $("#placePart").value = "PART-777";
   $("#placeRev").value = "V1";
+  $("#placeSide").value = "TOP";
+  $("#placeUnit").value = "mm";
   const inp1 = $("#placeIn");
   Object.defineProperty(inp1, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nU1,10,10,BGA,TOP\n")], "cad_v1.csv")] });
   inp1.dispatchEvent(new w.Event("change"));
-  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+  assert.ok(await until(() => /料號 PART-777 版次 V1/.test($("#placeState").textContent)), $("#placeState").textContent);
 
   $("#placePart").value = "PART-777";
   $("#placeRev").value = "V2";
   const inp2 = $("#placeIn");
   Object.defineProperty(inp2, "files", { configurable: true, value: [new w.File([Buffer.from("RefDes,X,Y,PartType,Layer\nU1,20,20,BGA,TOP\n")], "cad_v2.csv")] });
   inp2.dispatchEvent(new w.Event("change"));
-  assert.ok(await until(() => /已存入資料庫/.test($("#placeState").textContent)));
+  assert.ok(await until(() => /料號 PART-777 版次 V2/.test($("#placeState").textContent)), $("#placeState").textContent);
 
   // 2. 開啟選取視窗並切換至座標庫
   $("#btnOpenRecModal").click();
@@ -263,17 +289,16 @@ test("座標庫預設版次切換與工單備註修改對話框", { skip: !JSDOM
   $("#btnPickPlace").click();
   await tick(30);
 
-  // 找到設為預設按鈕並點擊
-  const setDefBtn = $("#tblPickPlace [data-pact=set-default]");
-  assert.ok(setDefBtn, "非預設版本應有設為預設按鈕");
-  setDefBtn.click();
-  await tick(100);
-
-  assert.ok(await until(() => {
-    const t = $("#toast");
-    return t && t.textContent && /設為預設版次/.test(t.textContent);
-  }), "應提示已設為預設版次");
-  assert.ok($("#tblPickPlace").textContent.includes("★ 預設版次"), "表格中應出現預設版次徽章");
+  assert.ok($("#tblPickPlace").textContent.includes("V1"), "應保留 V1 版次紀錄");
+  assert.ok($("#tblPickPlace").textContent.includes("V2"), "應保留 V2 版次紀錄");
+  const v1Row = [...$("#tblPickPlace").querySelectorAll('tr')].find(tr => tr.textContent.includes('PART-777') && tr.textContent.includes('V1'));
+  assert.ok(v1Row?.querySelector('[data-pact="use-place"]'), "V1 應可明確選取");
+  v1Row.querySelector('[data-pact="use-place"]').click();
+  assert.ok(await until(() => $("#placeRev").value === "V1"), "選取 V1 後匯入表單應顯示 V1");
+  const v2Row = [...$("#tblPickPlace").querySelectorAll('tr')].find(tr => tr.textContent.includes('PART-777') && tr.textContent.includes('V2'));
+  assert.ok(v2Row?.querySelector('[data-pact="use-place"]'), "V2 應可明確選取");
+  v2Row.querySelector('[data-pact="use-place"]').click();
+  assert.ok(await until(() => $("#placeRev").value === "V2"), "選取 V2 後匯入表單應顯示 V2");
 
   // 3. 測試工單與備註修改彈窗
   const editBtn = $("#tblPickPlace [data-pact=edit-meta]");
@@ -284,15 +309,14 @@ test("座標庫預設版次切換與工單備註修改對話框", { skip: !JSDOM
   const editModal = $("#recEditModal");
   assert.ok(editModal && !editModal.hidden, "工單與備註彈窗應顯示");
 
-  $("#recEditSupplierWo").value = "SWO-999";
-  $("#recEditOutsourceWo").value = "OWO-888";
   $("#recEditNote").value = "產線工程測試樣品";
   $("#recEditSave").click();
   assert.ok(await until(() => editModal.hidden), "儲存後修改彈窗應關閉");
   assert.ok(await until(() => {
     const t = $("#toast");
-    return t && t.textContent && /成功更新工單號與備註/.test(t.textContent);
+    return t && t.textContent && /已更新量測鑑別資料與備註/.test(t.textContent);
   }), "應提示成功更新");
+  assert.ok(await until(() => $("#cardsPickPlace").textContent.includes("產線工程測試樣品")), "座標備註應寫回資料庫並顯示在卡片");
 
   assert.deepEqual(errs, []);
 });

@@ -90,7 +90,7 @@ test("records 欄位：kind spec 只需料號；note／basedOn 清理；舊 Netl
 /* ---------- D1（node:sqlite 模擬，套用正式 migrations） ---------- */
 function makeD1() {
   const sqlite = new DatabaseSync(":memory:");
-  for (const f of ["0002_free_plan_schema.sql", "0003_v110.sql", "0005_record_catalog_enhancement.sql", "0006_placement_and_snapshot.sql"])
+  for (const f of ["0002_free_plan_schema.sql", "0003_v110.sql", "0005_record_catalog_enhancement.sql", "0006_placement_and_snapshot.sql", "0007_controlled_coordinate_import.sql"])
     sqlite.exec(readFileSync(new URL(`../cloudflare/migrations/${f}`, import.meta.url), "utf8"));
   const stmt = (sql, params) => ({
     async first() { return sqlite.prepare(sql).get(...params) || null; },
@@ -247,35 +247,18 @@ async function localPage() {
   return { w, errs, run };
 }
 
-test("本機模式：建立料號規格版本、設為預設（同交易清舊預設＋稽核）、依料號列出；不合格本體拒收", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { w, errs, run } = await localPage();
-  const v1 = await run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s1))`);
-  const v2 = await run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s2))`);
-  const v3 = await run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},__spec(__s3))`);
-  assert.deepEqual([v1.ver, v2.ver, v3.ver], [1, 2, 3]);
-  assert.equal(v1.makeDefault, undefined, "makeDefault 不寫入紀錄");
-  let list = await run(`return SPI_TEST_HOOK.RecDB.specsFor("301-000100124")`);
-  assert.deepEqual(list.map((x) => [x.ver, x.isDefault]), [[3, false], [2, true], [1, false]]);
-  const res = await run(`return SPI_TEST_HOOK.RecDB.setDefaultSpec(${JSON.stringify(v3.id)})`);
-  assert.deepEqual([...res.from], [v2.id]);
-  list = await run(`return SPI_TEST_HOOK.RecDB.specsFor("301-000100124")`);
-  assert.deepEqual(list.filter((x) => x.isDefault).map((x) => x.id), [v3.id]);
-  const log = await run(`return SPI_TEST_HOOK.RecDB.audit()`);
-  const sw = [...log].filter((e) => e.action === "set_default_spec");
-  assert.equal(sw.length, 3); assert.equal(sw[0].to, v3.id, "新到舊");
-  // 同時儲存兩版並都設為預設：讀取與寫入在同一交易內，版本號不重複、只留一個預設
-  w.__s4 = spec(undefined, { note: "v4" }); w.__s5 = spec(undefined, { note: "v5" });
-  const both = await run(`return Promise.all([SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true,note:"標頭"},__spec(__s4)),SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s5))])`);
-  assert.deepEqual(both.map((x) => x.ver).sort(), [4, 5]);
-  assert.equal(both[0].note, "v4", "備註取自規格檔本體");
-  list = await run(`return SPI_TEST_HOOK.RecDB.specsFor("301-000100124")`);
-  assert.deepEqual(list.map((x) => x.ver), [5, 4, 3, 2, 1]);
-  assert.equal(list.filter((x) => x.isDefault).length, 1);
-  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.updateMeta(${JSON.stringify(v1.id)},{note:"x"})`), /不能修改/);
-  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},__spec(__s1))`), /已經存過/);
-  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"OTHER"},__spec(__s1))`), /料號/);
-  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124"},new TextEncoder().encode(JSON.stringify(__s1)))`), /標準化/);
-  assert.equal((await run(`return SPI_TEST_HOOK.RecDB.list()`)).filter((r) => r.kind === "spi").length, 0, "量測紀錄清單不含料號規格");
+test("本機模式：歷史料號規格可讀，正式新增與預設切換被拒絕且不產生稽核", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { errs, run } = await localPage();
+  const historical = await run(`return SPI_TEST_HOOK.LocalRec.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s1),"historical@example.test")`);
+  assert.equal(historical.ver, 1);
+  assert.deepEqual((await run(`return SPI_TEST_HOOK.RecDB.specsFor("301-000100124")`)).map(x => [x.ver, x.isDefault]), [[1, true]]);
+  const before = await run(`return SPI_TEST_HOOK.RecDB.audit()`);
+  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"spec",part:"301-000100124",makeDefault:true},__spec(__s2))`), /正式新紀錄必須登入/);
+  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.setDefaultSpec(${JSON.stringify(historical.id)})`), /本機舊資料僅供查閱/);
+  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.updateMeta(${JSON.stringify(historical.id)},{note:"x"})`), /本機舊資料僅供查閱/);
+  assert.equal((await run(`return SPI_TEST_HOOK.RecDB.specsFor("301-000100124")`)).length, 1);
+  assert.deepEqual(await run(`return SPI_TEST_HOOK.RecDB.audit()`), before, '拒絕操作不新增稽核或修改舊資料');
+  assert.deepEqual(errs, []);
 });
 
 /* ---------- 座標檔預設版：同料號同面別只留一個預設，切換稽核記錄 from／to（雲端與本機相同） ---------- */
@@ -309,18 +292,14 @@ test("D1：座標檔上傳勾選預設與切換預設都在同一交易內清除
   assert.equal((await repo.setDefaultPlacement(newId(), "a@x.tw")).status, 404);
 });
 
-test("本機模式：座標檔上傳勾選預設與切換預設寫入稽核 from／to，範圍與雲端相同（同料號同面別）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+test("本機模式：舊座標檔仍可查閱，正式新增與預設切換被拒絕且不改舊資料", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
   const { errs, run } = await localPage();
-  const mk = (rev, side, def) => run(`return SPI_TEST_HOOK.RecDB.create({kind:"place",part:"P-PL",rev:${JSON.stringify(rev)},side:${JSON.stringify(side)},name:"座標檔.csv",isDefault:${def}},new TextEncoder().encode(${JSON.stringify(rev + side)}))`);
-  const a = await mk("V1", "TOP", true), b = await mk("V2", "TOP", true), c = await mk("V1", "BOT", true);
-  const defs = async () => (await run(`return SPI_TEST_HOOK.RecDB.list()`)).filter((r) => r.kind === "place" && r.isDefault).map((r) => r.id).sort();
-  assert.deepEqual(await defs(), [b.id, c.id].sort());
-  const res = await run(`return SPI_TEST_HOOK.RecDB.setDefaultPlace(${JSON.stringify(a.id)})`);
-  assert.deepEqual(res.from, [b.id]);
-  assert.deepEqual(await defs(), [a.id, c.id].sort());
-  assert.equal((await run(`return SPI_TEST_HOOK.RecDB.setDefaultPlace(${JSON.stringify(a.id)})`)).unchanged, true);
-  const log = (await run(`return SPI_TEST_HOOK.RecDB.audit()`)).filter((e) => e.action === "set_default_place");
-  assert.equal(log.length, 4, "三次上傳勾選預設＋一次切換；重複設定不寫");
-  assert.deepEqual([log[0].from, log[0].to, log[0].kind, log[0].side], [[b.id], a.id, "place", "TOP"]);
+  const historical = await run(`return SPI_TEST_HOOK.LocalRec.create({kind:"place",part:"P-PL",rev:"V1",side:"TOP",name:"座標檔.csv",unit:"mm",isDefault:true},new TextEncoder().encode("RefDes,X,Y,Layer\\nU1,1,2,TOP\\n"),"historical@example.test")`);
+  assert.equal(historical.rev, 'V1');
+  const before = await run(`return SPI_TEST_HOOK.RecDB.audit()`);
+  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.create({kind:"place",part:"P-PL",rev:"V2",side:"TOP",unit:"mm",name:"新版.csv"},new TextEncoder().encode("RefDes,X,Y,Layer\\nU1,3,4,TOP\\n"))`), /正式新紀錄必須登入/);
+  await assert.rejects(run(`return SPI_TEST_HOOK.RecDB.setDefaultPlace(${JSON.stringify(historical.id)})`), /本機舊資料僅供查閱/);
+  assert.deepEqual((await run(`return SPI_TEST_HOOK.RecDB.list()`)).filter(r => r.kind === 'place').map(r => [r.id, r.rev, r.isDefault]), [[historical.id, 'V1', true]]);
+  assert.deepEqual(await run(`return SPI_TEST_HOOK.RecDB.audit()`), before);
   assert.deepEqual(errs, []);
 });

@@ -41,7 +41,9 @@ async function seedPartSpec(w, part, { stencil = 120, specs = null, groups = {} 
   const js = `(async()=>{const sp={schema:"spi-part-spec/1",part:${JSON.stringify(part)},stencilRef:${stencil},specs:{},groups:${JSON.stringify(groups)},note:"測試"};
     const src=${specs ? JSON.stringify(specs) : "DEF_SPECS"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...src[k]};
     const e=partSpecEncode(sp);if(e.error)throw new Error(e.error);
-    try{return await SPI_TEST_HOOK.RecDB.create({kind:"spec",part:sp.part,makeDefault:true},e.bytes)}catch(er){if(er.existing)return null;throw er}})()`;
+    // Historical fixture only: product RecDB.create remains cloud-only.
+    try{return await SPI_TEST_HOOK.LocalRec.create({kind:"spec",part:sp.part,makeDefault:true},e.bytes,"fixture@example.test")}
+    catch(er){if(er.existing)return null;throw er}})()`;
   return w.eval(js);
 }
 

@@ -101,10 +101,18 @@ const put = (k, status, messages) => (out[k] = { status, messages });
   if (!files.length) put("tests", "fail", ["FACT: 沒有 tests/*.test.js"]);
   else {
     try {
-      const r = execSync("node --test tests/*.test.js tests/*.test.mjs", { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      // The suite includes an absolute wall-clock performance gate; file-level
+      // parallelism makes its timing depend on unrelated test processes.
+      const r = execSync("node --test --test-concurrency=1 tests/*.test.js tests/*.test.mjs", { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024 });
       const pass = (r.match(/^(?:#|ℹ) pass (\d+)/m) || [])[1], skip = (r.match(/^(?:#|ℹ) skipped (\d+)/m) || [])[1];
       put("tests", +skip ? "warn" : "pass", [`FACT: ${files.length} 個測試檔，通過 ${pass} 項${+skip ? `，略過 ${skip} 項` : ""}`]);
-    } catch (e) { const s = String(e.stdout || ""); put("tests", "fail", [`FACT: 測試失敗 ${(s.match(/^# fail (\d+)/m) || [])[1] || "?"} 項`, ...s.split("\n").filter((l) => /^not ok/.test(l)).slice(0, 5).map((l) => "FACT: " + l)]); }
+    } catch (e) {
+      const s = String(e.stdout || "") + "\n" + String(e.stderr || "");
+      const count = (s.match(/^(?:#|ℹ) fail (\d+)/m) || [])[1];
+      const cases = s.split("\n").filter((l) => /^(?:not ok|✖)/.test(l)).slice(0, 5);
+      put("tests", "fail", [`FACT: 測試失敗 ${count || "未知"} 項（exit=${e.status ?? "unknown"}）`,
+        ...cases.map((l) => "FACT: " + l), ...(!cases.length ? [`FACT: ${String(e.message || "測試程序未提供失敗細節").slice(0, 300)}`] : [])]);
+    }
   }
 }
 // 7. 機密與 API 金鑰

@@ -5,13 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { CSP, SECURITY_HEADERS } from '../lib/security-headers.mjs';
+import { createCloudHarness, installBrowserCloud } from './_cloud-harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const htmlSource = fs.readFileSync(path.join(ROOT, 'spi-spc.html'), 'utf8');
 const headersSource = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8');
 
-function createDom({ width = 1280, height = 800, coarse = false, threeRendererThrows = false } = {}) {
+function createDom({ width = 1280, height = 800, coarse = false, threeRendererThrows = false, cloud = null } = {}) {
   const virtualConsole = new VirtualConsole();
   const cleanHtml = htmlSource.replace(/<script src=[^>]+><\/script>/g, '');
   let curWidth = width;
@@ -139,6 +140,7 @@ function createDom({ width = 1280, height = 800, coarse = false, threeRendererTh
         }
         return new Response('{}', { status: 200 });
       };
+      if (cloud) installBrowserCloud(window, cloud);
     },
   });
 
@@ -360,7 +362,13 @@ test('步驟 7 (D-22 & D-27): WebGL 建立失敗時優雅降級且 2D 圖表照�
 });
 
 test('步驟 7 (D-19 & D-52): 觸控裝置 hitRadius: 24、toast <= 4s 含關閉鈕、409 重複上傳持續性行內提示', async () => {
-  const dom = createDom({ width: 390, height: 844, coarse: true });
+  const cloud = await createCloudHarness();
+  const place = await cloud.upload({ kind: 'place', part: 'PART-01', rev: 'V1', side: 'TOP', unit: 'mm', name: 'controlled.csv' },
+    'RefDes,X,Y,Layer\nU1,1,2,TOP\n');
+  const csv = 'Board,Pad,Component,Volume(%),Height(um),Area(%)\nB1,P1,U1,100,120,100\nB1,P2,U1,102,121,99\nB2,P1,U1,98,119,101\nB2,P2,U1,101,120,100';
+  await cloud.upload({ kind: 'spi', part: 'PART-01', rev: 'V1', side: 'TOP', lot: 'LOT-01', workOrder: 'WO-LOT-01',
+    placeId: place.id, vendor: 'generic', name: 'dup.csv', stencil: 120 }, csv);
+  const dom = createDom({ width: 390, height: 844, coarse: true, cloud });
   const { document } = dom.window;
   const { SPI_TEST_HOOK } = dom.window;
 
@@ -379,37 +387,26 @@ test('步驟 7 (D-19 & D-52): 觸控裝置 hitRadius: 24、toast <= 4s 含關閉
   assert.ok(!toastEl.classList.contains('on'), '點擊 .toast-close 應立即關閉 toast');
 
   // D-52: 409 重複上傳時在 #impDupNotice 與 #recNote 持續性行內顯示
-  SPI_TEST_HOOK.RecDB.mode = 'cloud';
-  SPI_TEST_HOOK.RecDB.ready = Promise.resolve();
-  SPI_TEST_HOOK.RecDB.create = async () => {
-    const err = new Error('重複檔案');
-    err.existing = 'rec_dup_01';
-    err.status = 409;
-    throw err;
-  };
-  SPI_TEST_HOOK.RecDB.jfetch = async () => ({
-    record: {
-      id: 'rec_dup_01',
-      kind: 'spi',
-      lot: 'LOT-01',
-      part: 'PART-01',
-      name: 'dup.csv',
-      sha256: 'abc1234567890',
-      user: 'alice@example.com',
-      created: 1700000000000,
-    },
-  });
-
-  const csv = 'Board,Pad,Volume(%),Height(um),Area(%)\nB1,P1,100,120,100\nB1,P2,102,121,99\nB2,P1,98,119,101\nB2,P2,101,120,100';
+  await SPI_TEST_HOOK.RecDB.ready;
+  document.getElementById('btnSelectPlace').click();
+  for (let i = 0; i < 100 && !document.querySelector('#tblPickPlace [data-pact="use-place"]'); i++) await new Promise(r => setTimeout(r, 20));
+  assert.ok(document.querySelector('#tblPickPlace [data-pact="use-place"]'), '受控座標應可供重複匯入時選取');
+  document.querySelector('#tblPickPlace [data-pact="use-place"]').click();
+  for (let i = 0; i < 100 && document.getElementById('placePart').value !== 'PART-01'; i++) await new Promise(r => setTimeout(r, 20));
+  assert.equal(document.getElementById('placePart').value, 'PART-01');
+  document.getElementById('recPickerClose').click();
+  document.getElementById('selSide').value = 'TOP';
   SPI_TEST_HOOK.startImport(csv, 'dup.csv');
   document.getElementById('inLot').value = 'LOT-01';
   document.getElementById('inPart').value = 'PART-01';
+  document.getElementById('inRev').value = 'V1';
+  document.getElementById('inWorkOrder').value = 'WO-LOT-01';
   document.getElementById('inImpStencil').value = '120';
 
   await document.getElementById('btnApply').onclick();
   const dupNotice = document.getElementById('impDupNotice');
   assert.equal(dupNotice.hidden, false, '409 重複上傳後 #impDupNotice 必須持續顯示（hidden=false）');
-  assert.match(dupNotice.textContent, /這個檔案已存過.*alice@example\.com/, '#impDupNotice 應包含既有紀錄上傳者與說明');
+  assert.match(dupNotice.textContent, /這個檔案已存過.*admin@example\.test/, '#impDupNotice 應包含既有紀錄上傳者與說明');
 
   dom.window.close();
 });

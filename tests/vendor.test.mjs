@@ -8,9 +8,11 @@ const require = createRequire(import.meta.url);
 const { JSDOM } = (() => { try { return require("jsdom"); } catch { return {}; } })();
 const fs = require("fs");
 const { HTML, withIdb, seedPartSpec } = require("./_load.js");
+import { createCloudHarness, installBrowserCloud } from './_cloud-harness.mjs';
+import { parseCsv, validatePlacement } from '../lib/controlled-import.mjs';
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page() {
+function page(cloud) {
   const html = fs.readFileSync(HTML, "utf8").replace(/<script src=[^>]+><\/script>/g, "");
   const errs = [];
   const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://example.test/", beforeParse(w) {
@@ -21,6 +23,8 @@ function page() {
     Object.assign(w, { Response, DecompressionStream, TextDecoder });
     w.addEventListener("error", (e) => errs.push(e.message));
     withIdb(w);
+    if (cloud) installBrowserCloud(w, cloud);
+    w.confirm = () => true;
     w.SPI_TEST_HOOK = {};
   } });
   return { dom, errs };
@@ -29,9 +33,48 @@ async function pick(dom, sel, name, bytes) {
   const w = dom.window, inp = w.document.querySelector(sel);
   Object.defineProperty(inp, "files", { configurable: true, value: [new w.File([bytes], name)] });
   inp.dispatchEvent(new w.Event("change"));
-  for (let i = 0; i < 100; i++) { await tick(20); const d = w.document; if (sel === "#placeIn" ? /已存入資料庫|class="err"/.test(d.querySelector("#placeState").innerHTML) : (!d.querySelector("#mapBox").hidden || d.querySelector("#parseErr").textContent)) break; }
+  for (let i = 0; i < 100; i++) { await tick(20); const d = w.document; if (sel === "#placeIn" ? /個元件|class="err"/.test(d.querySelector("#placeState").innerHTML) : (!d.querySelector("#mapBox").hidden || d.querySelector("#parseErr").textContent)) break; }
 }
 function setVendor(dom, v) { const s = dom.window.document.querySelector("#selVendor"); s.value = v; s.dispatchEvent(new dom.window.Event("change")); }
+async function cloudPage() {
+  const cloud = await createCloudHarness();
+  const result = page(cloud);
+  await result.dom.window.SPI_TEST_HOOK.RecDB.ready;
+  await result.dom.window.SPI_TEST_HOOK.RecDB.list();
+  return { ...result, cloud };
+}
+function setControlledFields(d, part, rev, side, unit) {
+  d.querySelector('#placePart').value = part;
+  d.querySelector('#placeRev').value = rev;
+  d.querySelector('#placeSide').value = side;
+  d.querySelector('#placeUnit').value = unit;
+}
+function setImportFields(d, part, rev, lot) {
+  d.querySelector('#inLot').value = lot;
+  d.querySelector('#inPart').value = part;
+  d.querySelector('#inRev').value = rev;
+  d.querySelector('#inWorkOrder').value = `WO-${lot}`;
+  d.querySelector('#inImpStencil').value = '120';
+}
+async function controlledVendorPage(part) {
+  const cloud = await createCloudHarness();
+  await cloud.upload({ kind: 'place', part, rev: 'V1', side: 'TOP', unit: 'mm', name: `${part}-TOP.csv` },
+    'RefDes,X,Y,Layer\nC1,1,2,TOP\nR2,3,4,TOP\nG9,5,6,TOP\n');
+  const result = page(cloud), w = result.dom.window, d = w.document;
+  await w.SPI_TEST_HOOK.RecDB.ready;
+  await w.SPI_TEST_HOOK.RecDB.list();
+  d.querySelector('#btnSelectPlace').click();
+  for (let i = 0; i < 100 && !d.querySelector('#tblPickPlace [data-pact="use-place"]'); i++) await tick(20);
+  assert.ok(d.querySelector('#tblPickPlace [data-pact="use-place"]'), '受控座標應可選取');
+  d.querySelector('#tblPickPlace [data-pact="use-place"]').click();
+  for (let i = 0; i < 100 && d.querySelector('#placePart').value !== part; i++) await tick(20);
+  assert.equal(d.querySelector('#placePart').value, part);
+  d.querySelector('#recPickerClose').click();
+  d.querySelector('#selSide').value = 'TOP';
+  const specBytes = w.eval(`(()=>{const sp={schema:"spi-part-spec/1",part:${JSON.stringify(part)},stencilRef:120,specs:{},groups:{},note:"測試"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...DEF_SPECS[k]};return partSpecEncode(sp).bytes})()`);
+  await cloud.upload({ kind: 'spec', part, makeDefault: true }, specBytes);
+  return { ...result, cloud };
+}
 
 // 3 片板 × 5 列：C1、R2 各 2 個焊墊；G9 一列是「焊墊編號錯放在第 1 片板高度欄」的已知錯位
 const head = ["Component ID"];
@@ -41,16 +84,17 @@ const WIDE = [head, row("C1_1", 1, 100), row("C1_1", 2, 102), row("R2_1", 1, 95)
   ["G9_1", "1", "", "", "", "", 104, 106, 99, "PASS", 105, 107, 98, "FAIL"]].map((r) => r.join(",")).join("\n");
 const PLACE = "PartType,RefDes,PartDecal,Pins,Layer,Orient.,X,Y\nC0402,C1,C0402,2,L1-TOP,0,1000,2000\nR0603,R2,R0603,2,L1-TOP,90,3000,500\nC0402,C5,C0402,2,L6-BOTTOM,0,100,100\n";
 
-test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標與封裝群組，錯位列取回焊墊編號", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+test("立榮格式：明確選面後轉成一列一筆，受控座標提供元件中心與封裝群組，錯位列取回焊墊編號", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom, errs, cloud } = await cloudPage();
   await tick(60);
   const w = dom.window, d = w.document;
   setVendor(dom, "lirong");
   assert.equal(d.querySelector("#sideField").hidden, false, "選立榮後顯示面別");
   assert.equal(d.querySelector("#placeRow").hidden, false, "選立榮後顯示座標檔");
-  d.querySelector("#placePart").value = "DEMO-01"; d.querySelector("#placeRev").value = "V5";
+  setControlledFields(d, 'DEMO-01', 'V5', 'BOTH', 'mil');
   await pick(dom, "#placeIn", "X3000_place.csv", Buffer.from(PLACE));
-  assert.match(d.querySelector("#placeState").textContent, /料號 DEMO-01 版本 V5 · .*3 個元件（TOP 2、BOT 1），單位 mil（自動判斷） · 已存入資料庫/);
+  assert.match(d.querySelector("#placeState").textContent, /料號 DEMO-01 版次 V5.*3 個元件（TOP 2、BOT 1），單位 mil/);
+  d.querySelector('#selSide').value = 'TOP';
   await pick(dom, "#fileIn", "DEMO-01_TOP_spi.csv", Buffer.from(WIDE));
   assert.equal(d.querySelector("#parseErr").textContent, "");
   const prev = d.querySelector("#mapPrev").textContent;
@@ -61,21 +105,25 @@ test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標�
   assert.match(prev, /14 筆、3 片板、5 個焊墊位置/, "G9 第 1 片板未量測，共 5×3−1 筆");
   assert.equal(d.querySelector("#inRunName").value, "DEMO-01_TOP_spi");
   assert.equal(d.querySelector("#inPart").value, "DEMO-01", "料號預填座標檔料號");
-  d.querySelector("#inLot").value = "LOT-A";
-  await seedPartSpec(w, "DEMO-01");
+  setImportFields(d, 'DEMO-01', 'V5', 'LOT-A');
+  const specBytes = w.eval('(()=>{const sp={schema:"spi-part-spec/1",part:"DEMO-01",stencilRef:120,specs:{},groups:{},note:"測試"};for(const k of PART_SPEC_METRICS)sp.specs[k]={...DEF_SPECS[k]};return partSpecEncode(sp).bytes})()');
+  await cloud.upload({ kind: 'spec', part: 'DEMO-01', makeDefault: true }, specBytes);
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
   const rows = JSON.parse(w.eval("JSON.stringify(S.rows)"));
-  assert.equal(rows.length, 14);
+  assert.equal(rows.length, 14, d.querySelector('#recNote').textContent);
   assert.deepEqual([...new Set(rows.map((r) => r.board))], ["B01", "B02", "B03"]);
   const c1 = rows.find((r) => r.pad === "C1-1" && r.board === "B02");
   assert.equal(c1.group, "C0402", "群組＝座標檔封裝");
-  assert.ok(Math.abs(c1.x - (1000 * 0.0254 - 0.25)) < 1e-6 && Math.abs(c1.y - 2000 * 0.0254) < 1e-6, `C1 焊墊 1 在中心左側 0.25 mm：${c1.x},${c1.y}`);
+  assert.equal(c1.x, null, '元件中心不可寫入焊墊 X');
+  assert.equal(c1.y, null, '元件中心不可寫入焊墊 Y');
+  const center = validatePlacement(parseCsv(PLACE), { side: 'BOTH', unit: 'mil' }).items.find(x => x.ref === 'C1');
+  assert.ok(Math.abs(center.x - 25.4) < 1e-6 && Math.abs(center.y - 50.8) < 1e-6, '受控元件中心仍須正確換算 mil → mm');
   assert.equal(c1.height, 122.4, "高度 102% × 鋼板 120 µm");
   assert.equal(c1.hpct, 102, "高度 % 換算回原值");
   assert.equal(c1.volume, 104);
   const r2 = rows.filter((r) => r.comp === "R2" && r.board === "B01").sort((a, b) => a.pad.localeCompare(b.pad));
-  assert.ok(Math.abs(r2[0].x - r2[1].x) < 1e-6 && r2[1].y > r2[0].y, "旋轉 90° 的元件焊墊沿 Y 排列");
+  assert.ok(r2.every(r => r.x == null && r.y == null), "旋轉角度不能用來推算焊墊座標");
   const g9 = rows.filter((r) => r.comp === "G9");
   assert.deepEqual(g9.map((r) => r.board), ["B02", "B03"]);
   assert.equal(g9[0].pad, "G9-1");
@@ -84,13 +132,14 @@ test("立榮格式：選加工廠後轉成一列一筆，座標檔補 mm 座標�
   assert.deepEqual(errs, []);
 });
 
-test("立榮格式：面別依檔名判斷，座標檔面別不符時提醒；改選面別會重新轉換", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom } = page();
+test("立榮格式：明確指定面別，座標檔面別不符時提醒；改選面別會重新轉換", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
+  const { dom } = await cloudPage();
   await tick(60);
   const d = dom.window.document;
   setVendor(dom, "lirong");
-  d.querySelector("#placePart").value = "DEMO"; d.querySelector("#placeRev").value = "V1";
+  setControlledFields(d, 'DEMO', 'V1', 'BOTH', 'mil');
   await pick(dom, "#placeIn", "place.csv", Buffer.from(PLACE));
+  d.querySelector('#selSide').value = 'BOT';
   await pick(dom, "#fileIn", "DEMO_BOT.csv", Buffer.from(WIDE));
   assert.match(d.querySelector("#mapPrev").textContent, /BOT 面/);
   assert.match(d.querySelector("#mapPrev").textContent, /2 個位號在座標檔屬於另一面（C1、R2）/);
@@ -115,25 +164,24 @@ test("通用格式下讀到立榮橫排檔會自動切換；選立榮卻上傳�
 });
 
 test("座標檔為 Big5 編碼（台灣廠商常見）也能讀", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom } = page();
+  const { dom } = await cloudPage();
   await tick(60);
   const d = dom.window.document;
   setVendor(dom, "lirong");
   // 標題「位號,X,Y,封裝」以 Big5 編碼
   const bytes = Buffer.concat([Buffer.from("a6ecb8b9", "hex"), Buffer.from(",X,Y,"), Buffer.from("abcab8cb", "hex"), Buffer.from("\nC1,10.5,20,C0402\nR2,30,5,R0603\n")]);
-  d.querySelector("#placePart").value = "B5"; d.querySelector("#placeRev").value = "A";
+  setControlledFields(d, 'B5', 'A', 'TOP', 'mm');
   await pick(dom, "#placeIn", "big5.csv", bytes);
   assert.match(d.querySelector("#placeState").textContent, /2 個元件.*單位 mm/);
 });
 
 test("立榮格式高度 % 匯入後改鋼板厚度：µm 高度依比例換算、高度 % 不變（不同裝置預設厚度不同也一致）", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const { dom, errs } = await controlledVendorPage('DEMO-02');
   await tick(60);
   const w = dom.window, d = w.document;
   setVendor(dom, "lirong");
   await pick(dom, "#fileIn", "DEMO-02_TOP_spi.csv", Buffer.from(WIDE));
-  d.querySelector("#inLot").value = "LOT-B"; d.querySelector("#inPart").value = "DEMO-02";
-  await seedPartSpec(w, "DEMO-02");
+  setImportFields(d, 'DEMO-02', 'V1', 'LOT-B');
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
   const pick1 = () => JSON.parse(w.eval("JSON.stringify(S.rows.find((r) => r.pad === 'C1-1' && r.board === 'B02'))"));
@@ -152,13 +200,12 @@ test("立榮格式高度 % 匯入後改鋼板厚度：µm 高度依比例換算�
 });
 
 test("v9.13.3 前匯入的高度 % 回合（沒有 hPctThk）：回合管理與試產比較顯示警示，重新匯入後取代並消失", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const { dom, errs } = await controlledVendorPage('DEMO-03');
   await tick(60);
   const w = dom.window, d = w.document, H = "SPI_TEST_HOOK";
   setVendor(dom, "lirong");
   await pick(dom, "#fileIn", "DEMO-03_TOP_spi.csv", Buffer.from(WIDE));
-  d.querySelector("#inLot").value = "LOT-C"; d.querySelector("#inPart").value = "DEMO-03";
-  await seedPartSpec(w, "DEMO-03");
+  setImportFields(d, 'DEMO-03', 'V1', 'LOT-C');
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 14; i++) await tick(20);
   const id = w.eval("S.runId");
@@ -204,13 +251,12 @@ test("v9.13.3 前匯入的高度 % 回合（沒有 hPctThk）：回合管理與�
 });
 
 test("沒有 hPctThk 但來源不是高度 % 格式（通用格式）的回合不警示", { skip: !JSDOM && "未安裝 jsdom" }, async () => {
-  const { dom, errs } = page();
+  const { dom, errs } = await controlledVendorPage('DEMO-04');
   await tick(60);
   const w = dom.window, d = w.document;
-  const csv = ["Board,Pad,Volume,Height,Area", ...[1, 2, 3, 4, 5].flatMap((b) => ["C1-1", "C1-2", "R2-1"].map((p, i) => `B${b},${p},${100 + i},${120 + b},${98 + i}`))].join("\n");
+  const csv = ["Board,Pad,Component,Volume,Height,Area", ...[1, 2, 3, 4, 5].flatMap((b) => ["C1-1", "C1-2", "R2-1"].map((p, i) => `B${b},${p},${p.split('-')[0]},${100 + i},${120 + b},${98 + i}`))].join("\n");
   await pick(dom, "#fileIn", "DEMO-04_TOP_spi.csv", Buffer.from(csv));
-  d.querySelector("#inLot").value = "LOT-D"; d.querySelector("#inPart").value = "DEMO-04";
-  await seedPartSpec(w, "DEMO-04");
+  setImportFields(d, 'DEMO-04', 'V1', 'LOT-D');
   d.querySelector("#btnApply").click();
   for (let i = 0; i < 100 && w.eval("S.rows.length") !== 15; i++) await tick(20);
   assert.equal(w.eval("S.runs.find((r) => r.id === S.runId).info.hPctThk"), undefined, "通用格式本來就沒有 hPctThk");
