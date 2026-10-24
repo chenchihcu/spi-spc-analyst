@@ -11,7 +11,6 @@
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": {
     "AUTH_KDF_ITER": "600000",
-    "INITIAL_ADMIN_USER": "",
     "ADMIN_USERS": "",
     "AI_ENABLED": "true",
     "AI_LOG_PAYLOAD": "false"

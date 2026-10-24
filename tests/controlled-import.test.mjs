@@ -50,6 +50,7 @@ test('通用格式沿用既有 PanelId、FigureId 與 PinNo 欄名並以子板�
   const result = validateMeasurement(rows, 'TOP', place);
   assert.equal(result.boards, 2);
   assert.equal(result.points, 2);
+  assert.equal(result.pads, 1, '同一焊墊跨板量測只計一次');
   assert.deepEqual(result.missing, []);
 });
 
@@ -58,6 +59,7 @@ test('立榮錯位列只在第一板高度為焊墊號且量測欄空白時回�
   const head = 'Component ID,Height(%)1,Volume(%)1,Area(%)1,PAD ID,Result1,Height(%)2,Volume(%)2,Area(%)2,Result2\n';
   const shifted = validateWideMeasurement(parseCsv(head + 'G9_1,1,,,,,104,106,99,PASS\n'), 'TOP', place);
   assert.equal(shifted.points, 1, '第一板空白，不建立假量測點');
+  assert.equal(shifted.pads, 1);
   assert.deepEqual(shifted.missing, []);
   const damaged = validateWideMeasurement(parseCsv(head + 'G9_1,1,90,90,,,104,106,99,PASS\n'), 'TOP', place);
   assert.equal(damaged.code, 'incomplete_measurement', '第一板已有量測值時不可猜測 PAD ID');

@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "spi-spc-analyst-staging",
+  "main": "./cloudflare/worker.mjs",
+  "compatibility_date": "2026-10-14",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/*", "!/vendor/*"]
+  },
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    "AUTH_KDF_ITER": "600000",
+    "ADMIN_USERS": "",
+    "AI_ENABLED": "false",
+    "AI_LOG_PAYLOAD": "false"
+  },
+  "ratelimits": [
+    { "name": "LOGIN_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "spi-spc-staging", "database_id": "50607776-2e9a-432a-8fdb-9c9441c035fd", "migrations_dir": "cloudflare/migrations" }
+  ],
+  "r2_buckets": [
+    { "binding": "BLOBS", "bucket_name": "spi-spc-record-staging" }
+  ]
+}
